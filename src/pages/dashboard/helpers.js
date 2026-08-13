@@ -277,6 +277,44 @@ function showSectionLoading(c, title) {
     </div>
   </div>`;
 }
+
+/**
+ * Standard "nothing here yet" state. Was hand-copied into 9 different
+ * pages with slightly different markup each time (AUDIT.md C4) \u2014 this is
+ * the one version everything should converge on.
+ *
+ * @param {HTMLElement} c
+ * @param {{icon?:string, title:string, hint?:string, actionLabel?:string, onAction?:Function}} opts
+ */
+function renderEmpty(c, { icon = '\ud83d\udcc2', title, hint = '', actionLabel = '', onAction } = {}) {
+  c.innerHTML = `<div class="empty-state" style="padding:60px;">
+    <span class="empty-icon">${icon}</span>
+    <div class="empty-title">${escHtml(title)}</div>
+    ${hint ? `<p>${escHtml(hint)}</p>` : ''}
+    ${actionLabel ? `<button class="btn btn-primary btn-sm" id="empty-state-action">${escHtml(actionLabel)}</button>` : ''}
+  </div>`;
+  if (actionLabel && onAction) {
+    c.querySelector('#empty-state-action')?.addEventListener('click', onAction);
+  }
+}
+
+/**
+ * Standard section-load-failed state, with a working Retry button.
+ * Never render stale data silently \u2014 if a fetch failed, say so instead
+ * of showing whatever the array happened to hold before.
+ *
+ * @param {HTMLElement} c
+ * @param {{message?:string, onRetry?:Function}} opts
+ */
+function renderError(c, { message = 'Please check your internet connection and try again.', onRetry } = {}) {
+  c.innerHTML = `<div class="empty-state" style="padding:60px;">
+    <span class="empty-icon">\u26a0\ufe0f</span>
+    <div class="empty-title">Could not load this section</div>
+    <p>${escHtml(message)}</p>
+    ${onRetry ? `<button class="btn btn-primary btn-sm" id="section-error-retry">\ud83d\udd04 Retry</button>` : ''}
+  </div>`;
+  if (onRetry) c.querySelector('#section-error-retry')?.addEventListener('click', onRetry);
+}
 function pctChange(current, previous) {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -288,6 +326,6 @@ export {
   expiryDate, daysLeft, memberStatus, outstandingAmount, isNewThisMonth, memberTotal,
   genInvoiceNo, escHtml, escAttr, fmtDate, fmtDateShort, fmtCurrency, fmtCurrencyShort,
   av2, timeAgo, ico,
-  demoPlans, demoMembers, showSectionLoading,
+  demoPlans, demoMembers, showSectionLoading, renderEmpty, renderError,
   pctChange
 };

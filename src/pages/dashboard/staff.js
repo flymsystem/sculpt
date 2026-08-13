@@ -1,6 +1,6 @@
 // src/pages/dashboard/staff.js — Staff management page
 import { S } from './state.js';
-import { escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput } from './helpers.js';
+import { escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, renderError } from './helpers.js';
 import { getStaff, addStaff, updateStaff, deleteStaff, getAttendance, upsertAttendance, getSalaryPayments, addSalaryPayment, deleteSalaryPayment, getAttendanceRange, getStaffMonthlyPaid } from '../../lib/staff.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
@@ -27,9 +27,19 @@ let _staffTab = 'roster';  // roster | attendance | salary | analytics
 export async function renderStaff(c) {
   const gymId = S.gym?.id;
 
-  // Load staff data
+  // Load staff data. Used to swallow a failed fetch into an empty
+  // array, indistinguishable on screen from a gym that genuinely has no
+  // staff yet — and since the condition below only re-fetches when
+  // S.staff is empty, a transient failure would stick at "0 staff" until
+  // the next full dashboard reload.
   if (gymId && (!S.staff || S.staff.length === 0)) {
-    try { S.staff = await getStaff(gymId); } catch(e) { S.staff = []; }
+    try {
+      S.staff = await getStaff(gymId);
+    } catch (e) {
+      console.warn('[Flym] Staff fetch:', e.message);
+      renderError(c, { onRetry: () => renderStaff(c) });
+      return;
+    }
   }
 
   c.innerHTML = `<div class="content-inner page-enter">

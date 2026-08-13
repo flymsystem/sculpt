@@ -78,11 +78,11 @@ function renderOverview(c) {
     </div>
 
     ${showFinancials ? `<div class="mini-stat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-7);min-width:0;">
-      ${miniStat("Today’s Revenue",fmtCurrency(todayRevenue),'var(--green)','finance')}
+      ${miniStat("Today’s Revenue",fmtCurrency(todayRevenue),'var(--green)','finance',true)}
       ${miniStat('This Month',fmtCurrency(thisMonthRevenue),'var(--brand)','finance')}
       ${miniStat('Admissions Today',todayAdmissions,'var(--purple)','members')}
       ${miniStat('Expenses Today',fmtCurrency(todayExpenses),'var(--amber)','expenses')}
-      ${miniStat("Today’s Profit",fmtCurrency(todayProfit),todayProfit>=0?'var(--green)':'var(--red)','finance')}
+      ${miniStat("Today’s Profit",fmtCurrency(todayProfit),todayProfit>=0?'var(--green)':'var(--red)','finance',true)}
       ${miniStat('Total Staff',(S.staff||[]).length,'var(--brand-text)','staff')}
     </div>` : `<div class="mini-stat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-7);min-width:0;">
       ${miniStat('Admissions Today',todayAdmissions,'var(--purple)','members')}
@@ -219,16 +219,29 @@ function renderOverview(c) {
  *                         tapping a locked tile lands on the Access Restricted
  *                         screen rather than a broken page.
  */
-function miniStat(label, value, color, navKey = '') {
+/**
+ * @param {boolean} emphasize — AUDIT.md C9: every mini-stat rendered at
+ * identical weight, so "Today's Revenue" — the number an owner actually
+ * opens the app to check — looked exactly as important as "Total Staff".
+ * A bounded fix short of restructuring the whole overview grid: the two
+ * money figures (today's revenue, today's profit) get a bigger value and
+ * a faint accent wash; the rest are unchanged.
+ */
+function miniStat(label, value, color, navKey = '', emphasize = false) {
   const clickable = navKey
     ? `class="mini-stat-clickable" data-mini-nav="${escHtml(navKey)}" role="button" tabindex="0" title="Open ${escHtml(label)}"`
     : '';
-  return `<div ${clickable} style="background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-width:0;">
+  // Solid border-left accent, not color-mix() — not used anywhere else in
+  // this codebase, and this app deliberately targets older/cheap Android
+  // browsers. No reason to introduce an unvetted CSS feature for a
+  // cosmetic accent when a plain border does the same job.
+  const leftBorder = emphasize ? `border-left:3px solid ${color};` : '';
+  return `<div ${clickable} style="background:var(--surface-1);border:1px solid var(--border-subtle);${leftBorder}border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-width:0;">
     <div style="font-size:11px;color:var(--text-tertiary);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;">
       <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${label}</span>
       ${navKey ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;opacity:.45;"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
     </div>
-    <div style="font-size:17px;font-weight:700;color:${color};font-variant-numeric:tabular-nums;letter-spacing:var(--tracking-tight);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${value}</div>
+    <div style="font-size:${emphasize ? '20px' : '17px'};font-weight:700;color:${color};font-variant-numeric:tabular-nums;letter-spacing:var(--tracking-tight);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${value}</div>
   </div>`;
 }
 

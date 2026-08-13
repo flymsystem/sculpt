@@ -7,7 +7,7 @@
 //   * One-tap Call button on every enquiry row
 // ─────────────────────────────────────────────────────────────────
 import { S } from './state.js';
-import { escHtml, av2, showSectionLoading } from './helpers.js';
+import { escHtml, av2, showSectionLoading, renderError } from './helpers.js';
 import { getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry, ENQUIRY_SOURCES, ENQUIRY_STATUSES } from '../../lib/enquiries.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
@@ -46,11 +46,16 @@ async function renderEnquiries(c) {
   const gymId = S.gym?.id;
   if (!gymId) return;
 
+  // A failed fetch used to fall back to S.enquiries || [] and render
+  // silently — on first load that's an empty list with no indication
+  // anything went wrong, indistinguishable from a gym with genuinely no
+  // enquiries. Now it says so, with a retry.
   try {
     S.enquiries = await getEnquiries(gymId);
   } catch (err) {
     console.warn('[Flym] Enquiry fetch:', err);
-    S.enquiries = S.enquiries || [];
+    renderError(c, { onRetry: () => renderEnquiries(c) });
+    return;
   }
 
   render();
