@@ -1114,3 +1114,65 @@ class this whole audit is about.
    **true** recipient count. If it had more than 500 recipients, it must also say
    "— showing first 500". Sent/failed counts must still match the campaign
    totals, since those come from the `broadcasts` row rather than the list.
+
+---
+
+## PHASE 4a — push notifications can now actually appear
+
+**Commit:** `fix(push): inline the push handlers into sw.js so notifications actually display`
+
+### Why
+
+`AUDIT.md` finding **B1**, and my pick for the most quietly infuriating bug in
+the codebase.
+
+`public/sw-push-append.js` contained the `push` and `notificationclick`
+handlers, with a comment at the top telling a human to paste them into
+`public/sw.js`. Nobody ever did, and nothing in the build appended them either —
+`vite.config.js` only stamps a cache version.
+
+So Flym had a complete, working push pipeline: VAPID keys, subscription rows,
+the `send-push` and `generate-notifications` Edge Functions, a nightly pg_cron
+job — and at the very last step the service worker had no `push` listener, so
+every delivered message was silently discarded.
+
+**What the gym owner experienced:** they open the bell, tap **Enable**, grant the
+browser permission, get a green *"Push notifications enabled"* toast — and then
+never receive a single notification, ever. Every layer reported success. I
+confirmed the deployed artifact too: `dist/sw.js` had no push handler either.
+
+### What changed
+
+- The `push`, `notificationclick`, `notificationclose` and
+  `pushsubscriptionchange` handlers are now **inlined in `public/sw.js`**.
+- `public/sw-push-append.js` deleted, so there is nothing left to forget.
+- Added a comment at the inline site explaining why they must not be moved back
+  out into a file something has to remember to concatenate.
+
+I chose inlining over teaching the Vite plugin to concatenate: one file, no
+build-time magic, and no way for this to silently regress.
+
+Verified the built output: `dist/sw.js` now contains the handler.
+
+### How to verify — this has never worked, so test it properly
+
+1. Deploy, then **fully close and reopen** the app so the new service worker
+   activates. In DevTools → Application → Service Workers, confirm the active
+   worker is the new version.
+2. On an **Android phone** (or desktop Chrome): open the bell → **Enable** →
+   grant permission.
+3. Trigger a notification. Easiest is from the Supabase SQL editor:
+   ```sql
+   select public.trigger_generate_notifications();
+   ```
+   Or add a member expiring within `reminder_days` and wait for the 09:00 IST cron.
+4. **A notification must appear on the lock screen / notification tray.** That is
+   the whole test. It has never happened before.
+5. **Tap it.** The app must open (or focus) and navigate to the right section —
+   Alerts for renewals and dues.
+6. Tap **Dismiss** on the notification — the app must not open.
+
+⚠️ **iOS:** push only works when Flym has been added to the Home Screen and
+opened from there (iOS 16.4+). In a normal Safari tab it will not work, and that
+is Apple's restriction, not this bug. `lib/push.js` already explains this to the
+user correctly.
