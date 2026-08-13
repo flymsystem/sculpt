@@ -229,3 +229,45 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
 .drop-zone{border:2px dashed var(--border-default);border-radius:var(--radius-lg);padding:var(--space-6);text-align:center;cursor:pointer;transition:all var(--duration-fast) var(--ease-out);}
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--brand);background:var(--brand-fade);}
 .drop-zone .drop-text{font-size:var(--text-sm);color:var(--text-tertiary);margin-top:var(--space-2);}
+/* ═══════════════════════════════════════════════════════════════════
+   FOCUS VISIBILITY  (WCAG 2.4.7)
+   ───────────────────────────────────────────────────────────────────
+   There were only five :focus-visible rules in the whole stylesheet, so
+   buttons, inputs, links, filter pills and nav items had no visible
+   keyboard focus indicator at all. Keyboard navigation worked — you
+   just couldn't see where you were.
+
+   :focus-visible, not :focus, so a mouse click doesn't leave a ring
+   behind but a Tab press does.
+   ══════════════════════════════════════════════════════════════════ */
+:where(button, a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"]), [role="button"]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+/* Inside a scrolling table the offset ring gets clipped by the cell —
+   draw it inside the element instead. */
+.members-table :where(button, [role="button"]):focus-visible,
+.notif-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOUCH TARGETS  (WCAG 2.5.5 / Apple HIG / Material)
+   ───────────────────────────────────────────────────────────────────
+   Row action buttons were padding:5px 8px around a 13px icon — about
+   23x23px, with 3px between them, and up to seven in a row. "Send
+   WhatsApp reminder" and "Remove member" sat side by side at half a
+   fingertip each. On a phone that is not a styling nit, it is a
+   destructive mis-tap waiting to happen.
+   ══════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  .members-table .action-btns .btn,
+  .alert-card .btn,
+  .action-btns .btn {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .members-table .action-btns { gap: var(--space-2) !important; }
+}

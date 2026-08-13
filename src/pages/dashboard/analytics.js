@@ -106,9 +106,9 @@ export function renderAnalytics(c) {
         <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Member Growth</div>
         <div style="display:flex;align-items:flex-end;gap:4px;height:140px;padding:0 4px;">
           ${monthlyJoins.map((v, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <div style="font-size:9px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;">${v || ''}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-tertiary);font-variant-numeric:tabular-nums;">${v || ''}</div>
             <div style="width:100%;background:var(--brand);border-radius:3px 3px 0 0;min-height:2px;height:${Math.round(v / maxJoins * 100)}%;opacity:${i === 11 ? 1 : 0.7};transition:height 0.3s;"></div>
-            <div style="font-size:8px;color:var(--text-quaternary);white-space:nowrap;">${months[i].label}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-tertiary);white-space:nowrap;">${months[i].label}</div>
           </div>`).join('')}
         </div>
       </div>
@@ -118,9 +118,9 @@ export function renderAnalytics(c) {
         <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Revenue Trend</div>
         <div style="display:flex;align-items:flex-end;gap:4px;height:140px;padding:0 4px;">
           ${monthlyRevenue.map((v, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <div style="font-size:9px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;">${v > 0 ? fmtCurrencyShort(v) : ''}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-tertiary);font-variant-numeric:tabular-nums;">${v > 0 ? fmtCurrencyShort(v) : ''}</div>
             <div style="width:100%;background:var(--green);border-radius:3px 3px 0 0;min-height:2px;height:${Math.round(v / maxRevenue * 100)}%;opacity:${i === 11 ? 1 : 0.7};transition:height 0.3s;"></div>
-            <div style="font-size:8px;color:var(--text-quaternary);white-space:nowrap;">${months[i].label}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-tertiary);white-space:nowrap;">${months[i].label}</div>
           </div>`).join('')}
         </div>
       </div>

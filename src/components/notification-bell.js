@@ -534,7 +534,7 @@ function injectStyles() {
     position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px;
     padding: 0 4px; border-radius: 9px; background: var(--red); color: #fff;
     font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
-    font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface-0, #0A0B0F);
+    font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface-bg);
     pointer-events: none;
   }
 

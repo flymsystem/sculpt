@@ -34,7 +34,7 @@
   top: 0;
   z-index: 500;
   /* Opaque so status-bar text never overlaps content behind it */
-  background: var(--surface-0, var(--bg, #0A0B0F));
+  background: var(--surface-bg);
 }
 
 /* Everything in the topbar stays tappable and above the inset */

@@ -6,7 +6,7 @@
   --border-subtle:rgba(255,255,255,0.06);--border-default:rgba(255,255,255,0.09);
   --border-strong:rgba(255,255,255,0.14);--border-focus:rgba(42,143,255,0.5);
   --text-primary:#F4F5F7;--text-secondary:#9CA3AF;--text-tertiary:#6B7280;
-  --text-quaternary:#4B5563;--text-inverse:#0A0B0F;
+  --text-quaternary:#757C88;--text-inverse:#0A0B0F;
   --brand:#2A8FFF;--brand-hover:#4DA1FF;--brand-fade:rgba(42,143,255,0.12);
   --brand-fade-strong:rgba(42,143,255,0.20);--brand-text:#5BA8FF;
   --green:#00D762;--green-fade:rgba(0,215,98,0.12);--green-strong:rgba(0,215,98,0.22);
@@ -28,7 +28,7 @@
   --border-subtle:rgba(15,17,25,0.06);--border-default:rgba(15,17,25,0.10);
   --border-strong:rgba(15,17,25,0.16);--border-focus:rgba(42,143,255,0.5);
   --text-primary:#0A0B0F;--text-secondary:#525866;--text-tertiary:#777E8C;
-  --text-quaternary:#A3A9B5;--text-inverse:#FFFFFF;
+  --text-quaternary:#6E7480;--text-inverse:#FFFFFF;
   --brand:#1F7AE0;--brand-hover:#1864BC;--brand-fade:rgba(31,122,224,0.10);
   --brand-fade-strong:rgba(31,122,224,0.18);--brand-text:#1F7AE0;
   --green:#088757;--green-fade:rgba(8,135,87,0.10);--green-strong:rgba(8,135,87,0.18);

@@ -1307,3 +1307,71 @@ I checked its auth handling before renaming: it does implement the Meta
 3. Send a broadcast to a number you control. Open the broadcast from
    **Broadcast → History** — recipients should move to **delivered**, then
    **read**, instead of sitting at "sent".
+
+---
+
+## PHASE 5a — focus rings, colour contrast, touch targets, phantom token
+
+**Commit:** `fix(a11y): add focus rings, fix sub-AA contrast, enlarge touch targets, remove phantom token`
+
+### Why
+
+`AUDIT.md` findings **C2**, **C5**, **C6**.
+
+**The phantom token.** `--surface-0` does not exist in `tokens.css` — the real
+name is `--surface-bg`. Two places used it with a hardcoded dark fallback, so
+they always fell through to near-black regardless of theme: the unread
+notification badge got a **black halo in light mode**, and the mobile topbar
+background was hardcoded dark.
+
+**Focus rings.** Only five `:focus-visible` rules existed in the entire
+stylesheet. Buttons, inputs, links, filter pills and nav items had no visible
+keyboard focus indicator. Keyboard navigation worked — you just couldn't see
+where you were.
+
+**Contrast.** `--text-quaternary` measured about **3.2:1** in dark and **2.4:1**
+in light, against a 4.5:1 WCAG AA minimum for body text. It is used for
+timestamps, empty-state hints and chart labels — and some of those were rendered
+at **8px**. Unreadable for anyone over about 40, which is a lot of gym owners.
+
+**Touch targets.** Member row action buttons were `padding:5px 8px` around a 13px
+icon — roughly **23×23px**, `gap:3px`, up to seven in a row. "Send WhatsApp
+reminder" and "Remove member" sat side by side at half a fingertip each. On a
+phone that isn't a styling nit, it's a destructive mis-tap waiting to happen.
+
+### What changed
+
+- `notification-bell.js` and `mobile-fixes.css`: `--surface-0` → `--surface-bg`.
+- `tokens.css`: `--text-quaternary` dark `#4B5563` → `#757C88` (**4.7:1**), light
+  `#A3A9B5` → `#6E7480` (**4.7:1**). Both still clearly dimmer than
+  `--text-tertiary`, so the visual hierarchy is intact.
+- `components.css`: one `:focus-visible` rule covering buttons, links, inputs,
+  selects, textareas and `[role="button"]`. `:focus-visible` rather than
+  `:focus`, so a mouse click leaves no ring but Tab does. Inside scrolling tables
+  the ring is drawn inset so the cell can't clip it.
+- `components.css`: under `@media (pointer: coarse)` — i.e. touch devices only,
+  desktop is unchanged — row action buttons get `min-height/min-width: 44px` and
+  the gap widens to 8px.
+- `analytics.js`: 8px and 9px chart labels → `var(--text-xs)` (11px), and the
+  month labels moved off `--text-quaternary` onto `--text-tertiary`.
+
+### This is a deliberate visual change
+
+Small grey text is now slightly lighter in dark mode and noticeably darker in
+light mode. That is the fix, not a side effect. If any specific spot now looks
+too heavy, tell me where and I'll tune that spot rather than reverting the token.
+
+### How to verify
+
+1. **Light mode**, open the notification bell with unread items — the badge must
+   have a **white/light** ring, not a black halo.
+2. Press **Tab** repeatedly on Members, Finance and any modal — every focused
+   control must show a visible blue ring, including buttons inside the members
+   table.
+3. Click those same buttons with a **mouse** — no lingering ring.
+4. On a **real phone**: the member row action buttons should be noticeably
+   bigger and further apart. Tap "Send reminder" ten times without hitting
+   "Remove".
+5. **Analytics** month labels and value labels must be legibly larger.
+6. Check both themes on Overview, Members, Finance, Analytics and Settings for
+   anything that now looks wrong.
