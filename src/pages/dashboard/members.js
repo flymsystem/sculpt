@@ -401,7 +401,7 @@ function fillTable(list) {
       </td>
       <td class="hide-mobile" style="font-size:12px;color:var(--text-tertiary);">${fmtDate(m.join_date)}</td>
       <td style="font-size:12px;color:${expColor};font-weight:${st==='Expired'||st==='Expiring'?'600':'400'};">
-        ${exp ? exp.toLocaleDateString('en-IN') : '\u2014'}
+        ${exp ? fmtDate(exp) : '\u2014'}
       </td>
       <td class="hide-mobile">
         <span class="badge ${(m.payment_mode||m.payMode)==='Cash'?'badge-amber':(m.payment_mode||m.payMode)==='Card'?'badge-purple':'badge-blue'}">

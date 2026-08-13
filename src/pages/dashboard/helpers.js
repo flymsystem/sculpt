@@ -277,19 +277,6 @@ function showSectionLoading(c, title) {
     </div>
   </div>`;
 }
-function animateCounter(el, target, duration = 600, prefix = '', suffix = '') {
-  if (!el) return;
-  const startTime = performance.now();
-  function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const current = Math.round(target * eased);
-    el.textContent = prefix + current.toLocaleString('en-IN') + suffix;
-    if (progress < 1) requestAnimationFrame(update);
-  }
-  requestAnimationFrame(update);
-}
 function pctChange(current, previous) {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -302,5 +289,5 @@ export {
   genInvoiceNo, escHtml, escAttr, fmtDate, fmtDateShort, fmtCurrency, fmtCurrencyShort,
   av2, timeAgo, ico,
   demoPlans, demoMembers, showSectionLoading,
-  animateCounter, pctChange
+  pctChange
 };

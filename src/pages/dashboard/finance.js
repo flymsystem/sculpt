@@ -131,12 +131,19 @@ function renderFinance(c, period, customStart, customEnd) {
     }
 
     let paidPH = [];
+    let revenueStale = false;
     if (!usedServerRevenue) {
       // ── Fallback: pre-035. Download everything and sum in JS. ──
       try {
         S.payHistory = await getPaymentHistory(gymId);
       } catch (err) {
         console.warn('[Flym] Payment history refresh failed, using cached:', err.message);
+        // This used to fail silently: the numbers below still render, built
+        // from whatever S.payHistory held from the last successful load —
+        // possibly hours old — with nothing on screen to say so. An owner
+        // reading a stale "Today's Revenue" as current is worse than an
+        // error message.
+        revenueStale = true;
       }
       paidPH   = (S.payHistory||[]).filter(p => phInRange(p, bounds.start, bounds.end));
       totalRev = paidPH.reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
@@ -274,6 +281,10 @@ function renderFinance(c, period, customStart, customEnd) {
     c.innerHTML = `<div class="content-inner page-enter">
       <div class="page-header"><div class="page-header-left"><div class="page-title">Finance</div>
         <div class="page-sub">${bounds.label}</div></div></div>
+      ${revenueStale ? `<div style="display:flex;align-items:center;gap:10px;padding:11px 16px;margin-bottom:var(--space-5);background:var(--amber-fade);border:1px solid var(--amber-strong);border-radius:var(--radius-md);color:var(--amber);font-size:13px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Couldn’t refresh from the server — the numbers below may be out of date. Check your connection and reload.</span>
+      </div>` : ''}
       <div class="finance-period-bar">
         ${['today','week','month','lastmonth','year','all'].map(p=>`<button class="period-btn ${period===p?'active':''}" data-fin-p="${p}">${
           p==='today'?'Today':p==='week'?'This Week':p==='month'?'This Month':p==='lastmonth'?'Last Month':p==='year'?'This Year':'All Time'}</button>`).join('')}
