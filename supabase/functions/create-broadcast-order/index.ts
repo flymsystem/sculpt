@@ -13,6 +13,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // Chrome blocks the real POST if the preflight doesn't list it. Its
+  // absence is exactly the "Failed to send a request to the Edge
+  // Function" bug create-staff-user documents having already hit once.
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const COST_PER_MSG_PAISE = 150; // ₹1.50 per message
@@ -244,10 +248,16 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
+    // Everything used to come back as 400 with the raw internal message,
+    // so the client couldn't tell "you selected no valid recipients"
+    // from "the payment gateway is down" -- and internal error strings
+    // leaked to the browser. Gateway/infrastructure faults are 5xx.
+    const msg = (err as Error).message || 'Unknown error';
+    const isServerFault = /Payment gateway error|Razorpay not configured|Could not load recipients|Failed to create/i.test(msg);
     console.error('[create-broadcast-order] Error:', err);
     return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: msg }),
+      { status: isServerFault ? 502 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

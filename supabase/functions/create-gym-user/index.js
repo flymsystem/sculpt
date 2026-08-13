@@ -10,7 +10,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+const json = (payload, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -20,7 +27,7 @@ Deno.serve(async (req) => {
   try {
     // Verify the caller is an authenticated Flym admin
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) throw new Error('No authorization header');
+    if (!authHeader) return json({ error: 'No authorization header' }, 401);
 
     // Admin client (uses service role — only safe server-side)
     const adminClient = createClient(
@@ -37,22 +44,28 @@ Deno.serve(async (req) => {
     );
 
     const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) throw new Error('Unauthorized');
+    if (authError || !user) return json({ error: 'Unauthorized' }, 401);
 
+    // .single() used to be used here. Migration 023 dropped
+    // UNIQUE(user_id) on gym_users to support multi-branch owners, so a
+    // user with more than one row makes .single() throw -- and the
+    // failure surfaced as a generic 400. Filter by role and take one.
     const { data: gymUser } = await adminClient
       .from('gym_users')
       .select('role')
       .eq('user_id', user.id)
-      .single();
+      .eq('role', 'admin')
+      .limit(1)
+      .maybeSingle();
 
-    if (!gymUser || gymUser.role !== 'admin') {
-      throw new Error('Forbidden: only Flym admins can create gym users');
+    if (!gymUser) {
+      return json({ error: 'Forbidden: only Flym admins can create gym users' }, 403);
     }
 
     // Parse the request body
     const { email, password, gymId, gymName } = await req.json();
     if (!email || !password || !gymId) {
-      throw new Error('Missing required fields: email, password, gymId');
+      return json({ error: 'Missing required fields: email, password, gymId' }, 400);
     }
 
     // Create the Auth user
@@ -80,15 +93,14 @@ Deno.serve(async (req) => {
       metadata:    { email, gym_id: gymId },
     });
 
-    return new Response(
-      JSON.stringify({ success: true, userId: newUser.user.id }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return json({ success: true, userId: newUser.user.id }, 200);
 
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // An unexpected throw is a server fault, not a client mistake.
+    // Returning 400 for everything made "our database is down"
+    // indistinguishable from "you sent bad input", and leaked the raw
+    // internal message to the browser either way.
+    console.error('[create-gym-user] unhandled:', err?.message, err?.stack);
+    return json({ error: 'Something went wrong creating this account. Please try again.' }, 500);
   }
 });

@@ -1558,3 +1558,65 @@ final result."*
    minutes the cron must pick it up and `sent_count` must start climbing again.
 6. **Staff cannot process a broadcast:** as a staff user, call the function with
    your gym's `broadcast_id` — must return **403**, not proceed.
+
+---
+
+## PHASE 5d — Edge Function error handling and the admin multi-branch bug
+
+**Commit:** `fix(functions): return meaningful HTTP status codes and fix admin lookup for multi-branch users`
+
+### Why
+
+`AUDIT.md` findings **B15** and **B13**.
+
+Every failure in `create-gym-user` and `create-broadcast-order` returned
+**HTTP 400 with the raw internal error message**. Two problems: the client can't
+distinguish "you did something wrong" from "our payment gateway is down", and
+internal error strings leak straight to the browser.
+
+Separately, `create-gym-user` called `.single()` on `gym_users` filtered only by
+`user_id`. **Migration 023 dropped `UNIQUE(user_id)`** to support multi-branch
+owners — so any user with more than one row makes `.single()` throw, and the
+failure surfaced as a generic 400. It would fail for exactly the users the
+multi-branch feature was built for.
+
+### What changed
+
+**`create-gym-user/index.js`**
+- Admin lookup filters `role = 'admin'` and uses `.limit(1).maybeSingle()`.
+- 401 for missing/invalid auth, 403 for not-an-admin, 400 for missing fields,
+  **500** for an unexpected throw — with a generic message to the browser and the
+  real error + stack to the function log.
+- Added `Access-Control-Allow-Methods` to the preflight.
+
+**`create-broadcast-order/index.ts`**
+- Added `Access-Control-Allow-Methods: POST, OPTIONS`. Chrome blocks the real
+  POST when the preflight doesn't list it — precisely the *"Failed to send a
+  request to the Edge Function"* bug that `create-staff-user` documents having
+  already been bitten by once.
+- Infrastructure faults (Razorpay down/unconfigured, recipient load failure,
+  insert failure) now return **502**; genuine client mistakes stay **400**.
+
+`create-staff-user` already did all of this correctly and was used as the model.
+
+### Not done — needs your input
+
+I did **not** restrict `Access-Control-Allow-Origin` from `*` to your domain
+(`AUDIT.md` B14). The practical risk is low — Supabase tokens live in
+localStorage, not cookies, so another site can't ride the user's session — but a
+wrong origin list breaks **every** Edge Function for **every** user, and I can't
+test a deploy. Tell me your exact production and preview origins (`https://flym.in`,
+plus any `*.pages.dev` you use) and I'll make it a one-line change.
+
+### How to verify
+
+1. Deploy both: `npx supabase functions deploy create-gym-user` and
+   `create-broadcast-order`.
+2. **Admin → Add Gym & Owner** — creating an owner account must still work. Test
+   with an admin account that is linked to more than one gym if you have one;
+   that case used to fail.
+3. Call `create-gym-user` as a **non-admin** — must return **403**, not 400.
+4. Trigger a broadcast with Razorpay credentials temporarily unset — must return
+   **502**, and the browser must show "Payment gateway error", not a raw internal
+   string.
+5. Normal broadcast flow must be unaffected.
