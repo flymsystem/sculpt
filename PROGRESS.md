@@ -661,3 +661,74 @@ Whatever calls this function on a schedule must now send the
    `last_reminder_sent` in the database must be **unchanged**.
 6. Confirm your scheduled caller sends the new header, or reminders will
    silently stop the next morning.
+
+---
+
+## PHASE 2a — broadcast recipients resolved server-side
+
+**Commit:** `fix(broadcast): resolve recipients from the database instead of trusting the browser`
+
+### Why
+
+`AUDIT.md` finding **B2**, the most serious security issue in the audit.
+
+`create-broadcast-order` accepted a `recipients` array of
+`{member_id, member_name, phone}` **from the browser** and inserted it verbatim
+as the send list. It verified the caller owned the gym — but never that those
+member IDs belonged to that gym, that they were active, or that they weren't
+cancelled.
+
+Anyone who can open dev tools on their own gym dashboard could therefore make
+**Flym's WhatsApp Business number send arbitrary text to arbitrary phone
+numbers**. They pay ₹1.50 each, so it isn't theft — but it is your sender
+reputation and your Meta account. One spam run gets the number rate-limited or
+banned, and broadcasts go down **for every paying gym on the platform**.
+
+It also meant "cancelled members are never in a broadcast" was enforced only in
+the UI (`broadcast.js:225`) and could simply be bypassed.
+
+### What changed
+
+**`supabase/functions/create-broadcast-order/index.ts`**
+
+- Takes `member_ids: string[]`. Names and phone numbers are now looked up from
+  the `members` table, filtered by `gym_id`, `is_active = true` and
+  `cancelled_at is null`. Anything the client sends about a recipient beyond
+  their ID is ignored.
+- Members whose phone has fewer than 10 digits are dropped — unreachable, so
+  the owner isn't charged for them.
+- Lookups are chunked at 200 IDs, because a 5,000-UUID `in.()` filter would
+  exceed the URL length limit.
+- **The cost is computed from the server-resolved count**, so the owner is
+  charged for exactly the messages that will be attempted.
+- The gym-ownership check now includes `role = 'owner'`. It previously matched
+  on `user_id` + `gym_id` only, which a staff member of that gym would pass.
+- Still accepts the legacy `recipients` array, but **only to read IDs out of
+  it** — so an old cached browser tab keeps working during rollout without
+  reopening the hole.
+
+**`src/lib/broadcast.js`** — `createBroadcastOrder(gymId, message, memberIds)`
+now sends `member_ids`.
+
+**`src/pages/dashboard/broadcast.js`** — sends IDs, and if the server resolves
+**fewer** recipients than were selected (someone was cancelled on another device
+since the list loaded), shows an amber toast naming the difference **before**
+the Razorpay sheet opens. The count should never silently change between the
+review screen and the bill.
+
+### How to verify
+
+1. **Not deployed by me.** Deploy with
+   `npx supabase functions deploy create-broadcast-order`.
+2. **Normal path:** select 2 members with real phone numbers you control, review
+   → pay → confirm both receive the message and the charge is 2 × ₹1.50.
+3. **The security test.** In dev tools, intercept the call (or use `curl` with
+   your session token) and post a `member_ids` array containing a **member ID
+   from a different gym**. The order must come back with that member **excluded**
+   — or fail with "No valid recipients" if it was the only one. Before this
+   change, sending a raw phone number in `recipients` would have messaged it.
+4. **Cancelled exclusion:** select a member, then cancel their membership in
+   another tab, then complete the broadcast. They must be excluded, you must see
+   the amber "can no longer be messaged" toast, and the bill must be lower.
+5. Check the `broadcast_recipients` rows — `phone` must be digits-only and match
+   what's in the `members` table.

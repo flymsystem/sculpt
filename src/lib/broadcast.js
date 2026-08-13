@@ -26,14 +26,21 @@ export function calculateBroadcastCost(recipientCount) {
 
 /**
  * Create a broadcast + Razorpay order via Edge Function.
- * Returns { broadcast_id, razorpay_order_id, razorpay_key_id, amount_paise, total_recipients }
+ *
+ * Only member IDs are sent. The Edge Function looks the names and phone
+ * numbers up itself, scoped to the gym and excluding cancelled/removed
+ * members — so the browser cannot dictate who Flym's WhatsApp number
+ * messages, and the charge is based on what the server resolved.
+ *
+ * @param {string[]} memberIds
+ * @returns { broadcast_id, razorpay_order_id, razorpay_key_id, amount_paise, total_recipients }
  */
-export async function createBroadcastOrder(gymId, message, recipients) {
+export async function createBroadcastOrder(gymId, message, memberIds) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const res = await supabase.functions.invoke('create-broadcast-order', {
-    body: { gym_id: gymId, message, recipients },
+    body: { gym_id: gymId, message, member_ids: memberIds },
   });
 
   if (res.error) throw new Error(res.error.message || 'Failed to create broadcast order');

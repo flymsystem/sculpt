@@ -498,15 +498,23 @@ function renderReview(el, root) {
     btn.textContent = 'Creating order\u2026';
 
     try {
-      // Build recipients array
-      const recipients = selectedMembers.map(m => ({
-        member_id: m.id,
-        member_name: m.full_name || m.name || '',
-        phone: m.phone,
-      }));
+      // Send IDs only. The Edge Function resolves names and phone
+      // numbers from the database itself, so the browser can't dictate
+      // who gets messaged and the charge matches what will be sent.
+      const memberIds = selectedMembers.map(m => m.id);
 
       // 1. Create broadcast + Razorpay order
-      const orderData = await createBroadcastOrder(S.gym.id, _broadcastMsg, recipients);
+      const orderData = await createBroadcastOrder(S.gym.id, _broadcastMsg, memberIds);
+
+      // The server may resolve fewer recipients than were selected \u2014 a
+      // member cancelled or removed on another device since this list
+      // was loaded. Say so before taking payment, rather than letting
+      // the count silently change between the review screen and the bill.
+      const resolved = orderData.total_recipients;
+      if (resolved !== memberIds.length) {
+        const diff = memberIds.length - resolved;
+        showToast(`${diff} selected member${diff === 1 ? '' : 's'} can no longer be messaged (cancelled, removed, or no phone). Charging for ${resolved}.`, 'amber');
+      }
 
       btn.textContent = 'Opening payment\u2026';
 
