@@ -292,3 +292,63 @@ and tell me, because it changes what the right fix is.
 7. **Trial members still record no joining payment.** Add a Trial member; no
    `payment_history` row should be created.
 8. **Renewing a cancelled member un-cancels them** and records the payment.
+
+---
+
+## PHASE 0a — delete 17 dead files
+
+**Commit:** `chore: delete 17 dead duplicate files (~290 KB) that nothing imports`
+
+### Why
+
+`AUDIT.md` finding **D1**. Roughly 40% of `src/pages/dashboard/` was stale
+duplicates — `dashboard_members.js` beside `members.js`, `alertss.js` beside
+`alerts.js`, and so on.
+
+This is not tidiness. `src/lib/lib-members.js` was an **older version of
+`members.js` with real behavioural differences** — its `addMember` fell back to
+a fake `'local_' + Date.now()` id that breaks the `payment_history` foreign
+key, which is precisely the production bug the header comment in `members.js`
+says was fixed. Two files exported `getPaymentHistory` with *different* row
+caps (1,000 vs 5,000).
+
+I hit this myself during the hotfix: searching for the payment cap returned two
+results and I had to trace the import graph to know which one was live. Every
+future fix — mine or yours — risks being applied to the corpse.
+
+### How I verified they were safe to delete
+
+Rather than trusting filenames, I checked actual import specifiers. Two
+initially looked referenced and were false positives:
+
+- `src/pages/dashboard/app.js` — the hits were `'/src/app.js'` and
+  `'../../app.js'`, which both resolve to **`src/app.js`**, a different file.
+- `src/components/sidebar.js` — the hits were `'./sidebar.js'` from inside
+  `src/pages/dashboard/`, which resolves to **`src/pages/dashboard/sidebar.js`**.
+
+The build then confirmed it: **102 modules transformed, exactly the same count
+as before the deletion.** None of these files were ever in the bundle.
+
+### Files deleted
+
+`dashboard_member-modals.js`, `dashboard_backup.js`, `dashboard_overview.js`,
+`dashboard_plans.js`, `dashboard_members.js`, `dashboard_finance.js`,
+`dashboard_index.js`, `dashboard_contact.js`, `dashboard_sidebar.js`,
+`dashboard_alerts.js`, `alertss.js`, `app.js` (all under
+`src/pages/dashboard/`), `src/lib/lib-members.js`, `src/components/sidebar.js`,
+`supabase/functions/process-broadcast/process-broadcast-index.ts`,
+`supabase/functions/send-reminders/send-reminders-index.ts`,
+`invoice-preview-SAMPLE.html`.
+
+**Not deleted:** `supabase/functions/whatsapp-webhook/whatsapp-webhook-index.ts`.
+It looks like the same misnaming, but it is the *only* file in that directory —
+it needs renaming to `index.ts`, not removing (`AUDIT.md` D2, handled in Phase 4).
+
+### How to verify
+
+Nothing should look different — that is the whole point. Click through every
+page: **Overview, Members, Enquiries, Alerts, Broadcast, Staff, Finance,
+Expenses, Plans, Plans Showcase, Gym Settings, Data & Backup, Analytics,
+Contact Us**. Open the sidebar, switch theme, open a member, open the notification
+bell. If anything 404s or errors, it means I missed an import — tell me and it
+is a one-command revert (`git revert`).
