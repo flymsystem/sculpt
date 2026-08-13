@@ -352,3 +352,61 @@ Expenses, Plans, Plans Showcase, Gym Settings, Data & Backup, Analytics,
 Contact Us**. Open the sidebar, switch theme, open a member, open the notification
 bell. If anything 404s or errors, it means I missed an import — tell me and it
 is a one-command revert (`git revert`).
+
+---
+
+## PHASE 0b — migration hygiene
+
+**Commit:** `chore(db): rename misnamed 018 migration and document the missing-migration gap`
+
+### Why
+
+`AUDIT.md` finding **D3**. The migration sequence has holes, and one file was
+named `supabase--migrations--018_enquiries.sql`, which sorts and applies wrong.
+
+### What changed
+
+- Renamed `supabase--migrations--018_enquiries.sql` → `018_enquiries.sql`.
+- Added `supabase/migrations/README.md` documenting: which migrations are
+  missing (008, 009, 020, 021, 026, plus the unnumbered
+  `flym_rls_multibranch_fix.sql`), which live objects no migration creates
+  (`expenses`, `invoices`, `gyms.gst_percentage`, `plans.is_featured`, the
+  storage buckets), the apply-order rules, and the value constraints that must
+  never change.
+
+### Something only you can do
+
+The audit's Phase 0 called for dumping the live schema to a baseline migration.
+**That requires connecting to the live database, which I was asked not to do.**
+The exact command is in the new README:
+
+```bash
+npx supabase db dump --schema public > supabase/migrations/000_baseline_current.sql
+```
+
+Until that exists, **this repository cannot rebuild your database.** That is a
+real disaster-recovery gap, not a tidiness issue. Once you've run it and
+committed the file, tell me and I'll diff it against what the numbered
+migrations produce so we can see exactly what has drifted.
+
+### Also deliberately not done
+
+`.env.local` is still tracked in git. The audit recommended untracking it and
+you added it to `.gitignore`, but an ignore rule has no effect on an
+already-tracked file, so it is still committed.
+
+I did not untrack it, because I can't verify how your Cloudflare Pages build
+gets its environment. **If the build reads the committed `.env.local` rather
+than dashboard environment variables, removing it ships an app with no Supabase
+URL — a total outage.** The three values in it are public by design
+(`VITE_SUPABASE_ANON_KEY` is protected by RLS), so there is no live exposure and
+no urgency.
+
+To do it safely: confirm `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and
+`VITE_VAPID_PUBLIC_KEY` are set in the Cloudflare Pages dashboard, then
+`git rm --cached .env.local`.
+
+### How to verify
+
+Nothing user-facing changed. `npm run build` still succeeds. Confirm
+`supabase/migrations/` now lists `018_enquiries.sql` in numeric order.
