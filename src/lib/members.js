@@ -387,36 +387,80 @@ export async function logReminder(gymId, memberId, message) {
   safeLog(gymId, 'reminder_sent', 'WhatsApp reminder sent to member');
 }
 
+// ── Payment history paging ────────────────────────────────────────
+// Every revenue figure in the product (Finance, Overview, Analytics,
+// P&L, GST summary, backups) is a JS sum over the array these two
+// functions return. A `.limit()` here does not truncate a *list* — it
+// silently truncates MONEY, with no warning anywhere in the UI.
+//
+// So we page through the whole result set instead of capping it.
+//
+// Two details that matter:
+//  1. The sort must be STABLE. `paid_at` alone is not unique — addMember
+//     stamps every payment at noon of the join date, so bulk-added members
+//     share a timestamp exactly. With an unstable sort, rows shuffle
+//     between pages and the total comes out wrong (rows counted twice or
+//     skipped). Adding `id` as a tiebreaker makes the order total.
+//  2. There is still a hard ceiling, but it is a *reported* one. If we
+//     ever hit it the array carries `_truncated = true` so the caller can
+//     say so out loud rather than quietly under-reporting revenue.
+const PAY_PAGE_SIZE = 1000;
+const PAY_MAX_ROWS  = 100_000;
+
+async function fetchAllPayments(buildQuery) {
+  const out = [];
+  let truncated = false;
+
+  for (let from = 0; from < PAY_MAX_ROWS; from += PAY_PAGE_SIZE) {
+    const to = from + PAY_PAGE_SIZE - 1;
+    const { data, error } = await buildQuery()
+      .order('paid_at', { ascending: false })
+      .order('id',      { ascending: false })   // stable tiebreaker — see note 1
+      .range(from, to);
+
+    if (error) throw error;
+    const page = data || [];
+    out.push(...page);
+
+    if (page.length < PAY_PAGE_SIZE) return out;   // last page
+    if (out.length >= PAY_MAX_ROWS) { truncated = true; break; }
+  }
+
+  if (truncated) {
+    console.warn(`[Flym] payment history hit the ${PAY_MAX_ROWS}-row ceiling — totals are incomplete.`);
+    out._truncated = true;
+  }
+  return out;
+}
+
 export async function getPaymentHistory(gymId) {
   // !inner = inner join — excludes payments whose member was soft-deleted
   // (is_active=false). Without this, deleted members' payments still count
   // in Finance revenue and Overview stats.
-  const { data, error } = await supabase
+  return fetchAllPayments(() => supabase
     .from('payment_history')
     .select('*, members!inner(full_name, phone)')
     .eq('gym_id', gymId)
-    .eq('members.is_active', true)
-    .order('paid_at', { ascending: false })
-    .limit(1000);
-  if (error) throw error;
-  return data || [];
+    .eq('members.is_active', true));
 }
 
 /** Get payment history for a specific month (YYYY-MM) */
 export async function getPaymentsByMonth(gymId, month) {
   const startDate = month + '-01';
   const [y, mo] = month.split('-').map(Number);
-  const endDate = new Date(y, mo, 0).toISOString().split('T')[0]; // last day of month
-  const { data, error } = await supabase
+  // Local (not UTC) last-day-of-month. toISOString() would shift IST
+  // midnight back a day and drop the final day's payments.
+  const last = new Date(y, mo, 0);
+  const endDate = last.getFullYear() + '-' +
+    String(last.getMonth() + 1).padStart(2, '0') + '-' +
+    String(last.getDate()).padStart(2, '0');
+  return fetchAllPayments(() => supabase
     .from('payment_history')
     .select('*, members!inner(full_name, phone)')
     .eq('gym_id', gymId)
     .eq('members.is_active', true)
     .gte('paid_at', startDate + 'T00:00:00')
-    .lte('paid_at', endDate + 'T23:59:59')
-    .order('paid_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+    .lte('paid_at', endDate + 'T23:59:59'));
 }
 
 // ── Private helpers ───────────────────────────────────────────────
