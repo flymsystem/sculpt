@@ -362,3 +362,51 @@ deployed, nothing pushed to a git remote. This session's two commits are
 pure frontend (tokens.css, dashboard.css, mobile-fixes.css, components.css,
 admin-dashboard.js, dashboard/index.js) — no new migrations, no backend risk
 added.
+
+---
+
+## 9. SESSION 3 UPDATE — every bounded UI/UX item closed out
+
+Four more commits on top of Session 2, all pure frontend, all verified by
+build + (where visual) a respun Playwright harness:
+
+- `0a5fe64` — Finance now warns (amber banner) if its fallback revenue
+  refresh fails instead of silently rendering stale cached numbers. Deleted
+  dead `animateCounter()`. Fixed a date-format inconsistency in the members
+  table (raw `toLocaleDateString` → shared `fmtDate`).
+- `b394ebd` — added `renderEmpty()`/`renderError()` to `helpers.js`
+  (`AUDIT.md` C4), wired into Enquiries and Staff, both of which had the
+  same silent-failure bug as Finance: a failed fetch fell back to an empty
+  array and rendered identically to "no data yet." Also promoted Today's
+  Revenue/Today's Profit on Overview with a left-border accent + larger
+  figures (`AUDIT.md` C9) — verified visually, not assumed.
+- `128c957` — `setFieldError()`/`clearFieldError()` added (`AUDIT.md` C8),
+  wired into the expense form (was toast-only) and `bindDateInput`'s desktop
+  DD/MM/YYYY validation (was a `title`-attribute tooltip, which isn't an
+  accessible error mechanism — no screen-reader announcement, invisible on
+  touch).
+
+**Reviewed and found clean, no changes needed:** Plans and Settings pages
+(no silent-failure pattern, save errors already toast correctly).
+**`landing.js`'s inline SVG brand colors — corrected from Session 2's
+flag, not fixed:** `renderLanding()` force-sets `data-theme="dark"` for as
+long as the page is mounted and only restores the previous theme on
+cleanup. The page is deliberately, permanently single-theme, so hardcoding
+the exact dark-brand-blue in its icons is correct, not a bug. No token
+conversion needed there.
+
+### What's genuinely left
+
+**Only one item from the original UI/UX list remains, and it's a decision,
+not a task:** the ~2,000 inline `style="..."` attributes across the
+dashboard (`AUDIT.md` C3) — the real blocker to full cross-page visual
+consistency. This has been flagged every session because it **crosses the
+"no rewrites without sign-off" line**: it touches ~15 files at scale and is
+a genuine restructuring decision (extract to CSS classes vs. a component
+layer vs. something else), not a bounded bug fix. Every other item on the
+original 5-step plan and every AUDIT.md C-series finding has now been
+either fixed, verified as already correct, or corrected as a false
+positive. This is the one thing actually waiting on you.
+
+Everything else — money correctness, backend scale work, and this UI/UX
+pass — is done and committed. Nothing is mid-flight.
