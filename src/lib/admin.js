@@ -15,23 +15,40 @@ import { supabase } from './supabase.js';
  * Remaps gym_summary columns to match the shape the dashboard expects.
  */
 export async function getAllGymsDetail() {
-  // gym_summary gives us counts. We also need phone/address/email from gyms.
-  const { data, error } = await supabase
-    .from('gyms')
-    .select(`
-      id, gym_code, name, owner_name, phone, city, address, email,
-      is_active, created_at, auto_reminders_enabled,
-      members!members_gym_id_fkey(id)
-    `)
-    .order('created_at', { ascending: false });
+  // ── Counts come from Postgres, never from downloaded rows ────────
+  // This used to select `members!members_gym_id_fkey(id)` and then count
+  // the array in JavaScript — every member of every gym pulled into the
+  // admin's browser just to display one number per row. At 50 gyms
+  // averaging 5,000 members that is 250,000 rows per page load, and at
+  // the scale Flym is aiming for it simply times out, taking the whole
+  // admin dashboard (and any ability to support customers) with it.
+  //
+  // The `gym_summary` view has computed these counts in SQL since
+  // migration 001. It was already being merged over the top in
+  // admin-dashboard.js loadData(), so the downloaded rows were being
+  // thrown away anyway.
+  //
+  // Two small queries, both one row per gym.
+  const [gymsRes, summaryRes] = await Promise.all([
+    supabase
+      .from('gyms')
+      .select(`
+        id, gym_code, name, owner_name, phone, city, address, email,
+        is_active, created_at, auto_reminders_enabled
+      `)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('gym_summary')
+      .select('gym_id, total_members, active_members, payment_due, expiring_soon'),
+  ]);
 
-  if (error) {
-    // Fallback: try gym_summary view directly (simpler but no phone/address)
+  if (gymsRes.error) {
+    // Fallback: gym_summary alone still renders the list, just without
+    // phone/address/auto_reminders_enabled.
     const { data: summary, error: err2 } = await supabase
       .from('gym_summary')
       .select('*')
       .order('created_at', { ascending: false });
-
     if (err2) throw err2;
     return (summary || []).map(g => ({
       ...g,
@@ -40,12 +57,22 @@ export async function getAllGymsDetail() {
     }));
   }
 
-  // Compute member counts from the joined array
-  return (data || []).map(g => {
-    const memberCount = Array.isArray(g.members) ? g.members.length : 0;
-    const { members: _, ...gym } = g; // remove the joined array
-    return { ...gym, total_members: memberCount, payment_due: 0 };
-  });
+  // Counts are best-effort: if the view is unavailable the gym list
+  // still renders, with zeros rather than an error page.
+  const counts = {};
+  if (!summaryRes.error) {
+    (summaryRes.data || []).forEach(row => { counts[row.gym_id] = row; });
+  } else {
+    console.warn('[Flym Admin] gym_summary unavailable:', summaryRes.error.message);
+  }
+
+  return (gymsRes.data || []).map(g => ({
+    ...g,
+    total_members:  counts[g.id]?.total_members  ?? 0,
+    active_members: counts[g.id]?.active_members ?? 0,
+    payment_due:    counts[g.id]?.payment_due    ?? 0,
+    expiring_soon:  counts[g.id]?.expiring_soon  ?? 0,
+  }));
 }
 
 /**

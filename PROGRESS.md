@@ -502,3 +502,49 @@ by whichever gym owner happened to be using the app. The scheduled job replaces 
 7. `select jobname, schedule from cron.job;` — `flym-cleanup-old-logs` present.
 8. In the app, add or edit a member and confirm it still saves normally (the
    activity-log prune removal touched that path).
+
+---
+
+## PHASE 1b — admin dashboard stops downloading every member on the platform
+
+**Commit:** `perf(admin): count gyms via gym_summary instead of downloading every member row`
+
+### Why
+
+`AUDIT.md` finding **A7**. `getAllGymsDetail()` selected
+`members!members_gym_id_fkey(id)` — **every member row of every gym** — and then
+counted the arrays in JavaScript to show one number per table row.
+
+At 50 gyms averaging 5,000 members that is 250,000 rows into the admin's browser
+per page load. At the scale Flym is targeting it times out, and you lose the
+admin dashboard entirely — which is your ability to support customers.
+
+The daft part: `admin-dashboard.js:87-94` was *already* merging `getGymStats()`
+(which reads `gym_summary`, where Postgres computes these counts properly) over
+the top. Every one of those downloaded rows was discarded a moment later.
+
+### What changed
+
+`src/lib/admin.js` — `getAllGymsDetail()`
+
+- Dropped the members join. Now two parallel queries, both **one row per gym**:
+  the `gyms` columns, and the counts from `gym_summary`.
+- Merges them by gym id, and also surfaces `active_members` / `expiring_soon`
+  which the view already computed and nobody was using.
+- Counts are best-effort — if `gym_summary` is unavailable the gym list still
+  renders with zeros instead of failing to an error page.
+- Kept the existing `gym_summary`-only fallback for when the `gyms` query fails.
+
+The function's return shape is unchanged, so `loadData()` and the rest of the
+admin dashboard needed no edits.
+
+### How to verify
+
+1. Log in as admin. The **Gym Management** list must show the same gyms with the
+   same **member counts** and **payment due** counts as before.
+2. It should load visibly faster. In DevTools → Network, the `gyms` request
+   should now be a few KB rather than megabytes, and there should be no request
+   returning thousands of member rows.
+3. **Overview** page totals must be unchanged.
+4. Open a gym's detail view — phone, address, email and the auto-reminders badge
+   must still be populated (these come from the `gyms` query, not the view).
