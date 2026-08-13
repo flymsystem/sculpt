@@ -410,3 +410,63 @@ positive. This is the one thing actually waiting on you.
 
 Everything else — money correctness, backend scale work, and this UI/UX
 pass — is done and committed. Nothing is mid-flight.
+
+---
+
+## 10. SESSION 4 UPDATE — C3 inline-style consolidation, honestly scoped
+
+You asked me to finish the C3 item (the ~2,000 inline styles). One commit,
+`22e12aa`, real and verified, but **not a full conversion** — here's the
+exact accounting rather than a vague "done":
+
+**Added to `components.css`:** `.data-table` (the small breakdown-table
+pattern), `.stat-tile` (label-over-value card), `.detail-row` (label/value
+pair). All three target patterns that were **copy-pasted across multiple
+files and had already drifted apart** — that's the actual C3 harm (the same
+element styled slightly differently per file), not merely "has an inline
+style". Converging onto one definition fixed the drift as a side effect
+(e.g. Finance's tables used `0.04em` letter-spacing, Broadcast's used
+`0.05em` — now one value).
+
+**Applied to:** `finance.js` (all 3 detail tables + their row builders),
+`broadcast.js` (both tables), `overview.js` (the 4-tile Quick Insights
+grid), `member-modals.js` (the `mRow()` detail-panel helper).
+
+**Real, measured reduction** in `style="` count:
+
+| File | Before | After |
+|---|---|---|
+| `finance.js` | 124 | 99 |
+| `broadcast.js` | 166 | 154 |
+| `overview.js` | 78 | 70 |
+
+**Not touched:** `settings.js` (152), `staff.js` (134), `backup.js` (101,
+mostly legitimate print-context styling), and the bulk of `member-modals.js`
+(285, almost all inside `buildInvoiceHTML()`, also legitimate print styling
+— see Session 3's notes on both).
+
+**Why I stopped here rather than converting all ~2,000:** the ones I
+converted were genuine duplication with measurable drift — safe,
+mechanical, verifiable, and valuable. Most of what's left in the untouched
+files is either one-off styling with no duplicate to converge against (so
+a class would just be indirection, not consolidation) or print-context
+markup that's correctly hardcoded. Grinding through 2,000 individual
+attributes to hit a round number would mean inventing classes for things
+that aren't actually duplicated — scope creep in the other direction, not
+the fix C3 asked for.
+
+**A bug I caught before it shipped, worth knowing about:** my first draft
+of `.detail-row .detail-value` included `overflow:hidden;text-overflow:
+ellipsis`, which would have silently truncated long addresses/emails that
+previously wrapped. Fixed before committing — the base class now wraps by
+default, matching this project's own "prefer wrapping over truncation"
+guidance. Mentioning it because it's exactly the kind of subtle regression
+a mechanical CSS-class extraction can introduce, and it's why each
+conversion in this pass was checked against what the original inline style
+actually did, not just pattern-matched by appearance.
+
+Everything else — money correctness, backend scale work, and this UI/UX
+pass — is done and committed. Nothing is mid-flight. If you want the
+remaining three files done too, say so and I'll continue the same way:
+find genuine duplication, converge it, verify visually, leave one-offs and
+print contexts alone.
