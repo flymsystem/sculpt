@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <rect width="300" height="300" rx="12" fill="#080C14"/>
+  <path d="M 40 138 Q 150 68 254 108"  fill="none" stroke="#1A6FD4" stroke-width="2" opacity="0.55" stroke-linecap="round"/>
+  <path d="M 42 148 Q 151 78 252 118"  fill="none" stroke="#2A8FFF" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M 44 156 Q 152 87 250 126"  fill="none" stroke="#80C4FF" stroke-width="1.2" opacity="0.4" stroke-linecap="round"/>
+  <circle cx="252" cy="118" r="8" fill="#2A8FFF"/>
+  <circle cx="252" cy="118" r="3.5" fill="#E6F4FF"/>
+  <text x="28"  y="218" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="116" font-weight="200" fill="#FFFFFF" letter-spacing="-3">flym</text>
+  <rect x="28" y="232" width="244" height="2" rx="1" fill="#2A8FFF" opacity="0.8"/>
+  <text x="29" y="262" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="13" font-weight="400" fill="#4A90D9" letter-spacing="2">SMART GYM MGMT</text>
+</svg>

@@ -1,0 +1,11 @@
+# Cloudflare Pages configuration
+# Set these in the Cloudflare Pages dashboard under Settings > Environment Variables
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

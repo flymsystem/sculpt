@@ -1,0 +1,162 @@
+/* ═══════════════════════════════════════════════════════════════════
+   src/styles/mobile-fixes.css
+   Imported AFTER dashboard.css so these rules win without touching it.
+
+   Fixes:
+     1. iOS PWA — topbar cropped under the status bar / notch.
+        index.html sets apple-mobile-web-app-status-bar-style=black-translucent,
+        which makes the web view start at y=0 UNDER the status bar. Without
+        safe-area padding the Logout button sits beneath the clock and can't
+        be tapped. This is that fix.
+     2. Monthly Trends card cropping on narrow screens.
+     3. Mini-stat tiles wrapping properly + clickable affordance.
+     4. Bottom safe-area so the FAB clears the iOS home indicator.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --topbar-h: 56px;
+}
+
+/* ── 1. iOS safe-area: topbar ────────────────────────────────────── */
+
+.topbar {
+  padding-top: calc(var(--safe-top) + 8px) !important;
+  padding-left:  max(var(--space-5, 20px), var(--safe-left));
+  padding-right: max(var(--space-5, 20px), var(--safe-right));
+  /* Height must GROW by the inset, not absorb it */
+  min-height: calc(var(--topbar-h) + var(--safe-top));
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  /* Opaque so status-bar text never overlaps content behind it */
+  background: var(--surface-0, var(--bg, #0A0B0F));
+}
+
+/* Everything in the topbar stays tappable and above the inset */
+.topbar > * { position: relative; z-index: 1; }
+
+/* The content column must start below the (now taller) topbar */
+.app-content {
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
+
+/* Sidebar drawer must also clear the notch, and its own bottom inset */
+#gym-sidebar,
+.sidebar {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+.sidebar-overlay { top: 0; }
+
+/* FAB above the iOS home indicator */
+.fab {
+  bottom: calc(20px + var(--safe-bottom)) !important;
+  right:  calc(20px + var(--safe-right)) !important;
+}
+.fab-menu {
+  bottom: calc(84px + var(--safe-bottom)) !important;
+  right:  calc(20px + var(--safe-right)) !important;
+}
+
+/* Modals: never let the header slide under the notch */
+.modal, .modal-panel, #flym-modal-overlay .modal-content {
+  padding-top: var(--safe-top);
+}
+
+/* ── 2. Monthly Trends / chart cropping ──────────────────────────── */
+
+/* The section header packs a title + 4 tabs on one line. On narrow
+   screens that overflows and the card clips. Let it wrap, and let the
+   tab strip scroll horizontally instead of being cut off. */
+.overview-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+.chart-tabs::-webkit-scrollbar { display: none; }
+.chart-tab { flex: 0 0 auto; white-space: nowrap; }
+
+/* The bar chart itself: give each of the 6 columns a floor width and
+   scroll rather than squashing labels into an unreadable smear. */
+#overview-chart-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+#overview-chart-container > div {
+  min-width: 300px;
+}
+
+/* Cards in the overview grid must be allowed to shrink */
+.grid-2 > * { min-width: 0; }
+.card, .card-sm { min-width: 0; overflow: hidden; }
+
+@media (max-width: 900px) {
+  .overview-section-header .section-title-sm { flex: 1 1 100%; }
+  .chart-tabs { flex: 1 1 100%; }
+}
+
+@media (max-width: 768px) {
+  #overview-chart-container > div { min-width: 320px; height: 128px; }
+  .chart-tab { font-size: 11px; padding: 5px 10px; }
+}
+
+/* ── 3. Mini-stat tiles ──────────────────────────────────────────── */
+
+/* 3 columns is too tight below ~560px — the rupee values ellipsis out. */
+@media (max-width: 560px) {
+  .mini-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 340px) {
+  .mini-stat-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Clickable mini-stats (feature #3) */
+.mini-stat-clickable {
+  cursor: pointer;
+  transition: border-color .15s ease, transform .12s ease, background .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.mini-stat-clickable:hover {
+  border-color: var(--brand-fade-strong) !important;
+  background: var(--surface-2) !important;
+}
+.mini-stat-clickable:active { transform: scale(0.975); }
+.mini-stat-clickable:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── 4. General mobile overflow guards ───────────────────────────── */
+
+@media (max-width: 768px) {
+  .content-inner { min-width: 0; overflow-x: hidden; }
+  .members-table-scroll { -webkit-overflow-scrolling: touch; }
+  .page-header { flex-wrap: wrap; gap: 10px; }
+}
+
+/* Landscape phones / notched devices in landscape */
+@media (orientation: landscape) and (max-height: 480px) {
+  .topbar { min-height: calc(46px + var(--safe-top)); }
+}

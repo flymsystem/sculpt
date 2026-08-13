@@ -1,0 +1,114 @@
+═══════════════════════════════════════════════════════════════
+FLYM v4 — COMPLETE PROJECT
+═══════════════════════════════════════════════════════════════
+
+This is the full source code. Extract this to your project folder
+at C:\steven\flymm\flym current\
+
+═══════════════════════════════════════════════════════════════
+SETUP STEPS
+═══════════════════════════════════════════════════════════════
+
+1. Extract this zip to: C:\steven\flymm\flym current\
+   (The contents should be at that level — package.json, src/, public/, etc.)
+
+2. Install dependencies (node_modules is not included):
+
+   cd C:\steven\flymm\flym current
+   npm install
+
+3. Build:
+
+   npm run build
+
+4. Push the dist/ folder to Cloudflare Pages.
+
+═══════════════════════════════════════════════════════════════
+.env.local IS INCLUDED
+═══════════════════════════════════════════════════════════════
+
+The .env.local file (Supabase credentials) is included so you
+don't have to recreate it. KEEP THIS PRIVATE — do not commit to
+GitHub or share publicly.
+
+═══════════════════════════════════════════════════════════════
+DATABASE MIGRATIONS
+═══════════════════════════════════════════════════════════════
+
+If you haven't already, run migration 011 in Supabase SQL Editor:
+  supabase/migrations/011_schema_improvements.sql
+
+This adds:
+  - referred_by column to members
+  - wa_birthday_template, wa_welcome_template columns to gyms
+  - Converts member_addons TEXT → JSONB
+  - Rebuilds members_with_status view
+
+═══════════════════════════════════════════════════════════════
+WHAT'S INCLUDED
+═══════════════════════════════════════════════════════════════
+
+ALL features and fixes from this conversation:
+  ✓ Dashboard split into 15 modules
+  ✓ /verify page for intern certificates
+  ✓ Empty plans dropdown FIXED
+  ✓ num() now strips commas (1,000 → 1000)
+  ✓ Payment history limit raised to 1000
+  ✓ Photo upload race condition fix
+  ✓ Member delete UNDO toast
+  ✓ Stat card navigation working
+  ✓ Member profile click working
+  ✓ Renew/Edit/Delete/WA/Invoice buttons working
+  ✓ Alerts page Renew/Invoice/Remind buttons working
+  ✓ Expense table — Amount visible on mobile
+  ✓ Revenue forecast banner on Overview
+  ✓ Expiring today banner (amber, not stressful red)
+  ✓ Quick Insights — retention, avg revenue, cash/online, gender
+  ✓ Revenue from payment_history (not join_date)
+  ✓ CSS extracted from JS bundle
+  ✓ Member pagination (50/page)
+  ✓ Birthday + Welcome WhatsApp templates
+  ✓ Full backup as PDF
+  ✓ PWA — installable, offline shell
+  ✓ Referred By field
+  ✓ JSONB member_addons
+
+═══════════════════════════════════════════════════════════════
+VERIFY PAGE
+═══════════════════════════════════════════════════════════════
+
+Live URL: https://flym.in/verify?cert=FLYM-INT-2026-026
+
+To add a new intern certificate:
+  Edit src/pages/verify.js — add to the CERTIFICATES array at top.
+
+To revoke:
+  Change status: 'valid' to status: 'revoked' for that cert.
+
+═══════════════════════════════════════════════════════════════
+BEFORE DEPLOYING TO LIVE CLIENTS
+═══════════════════════════════════════════════════════════════
+
+PLEASE TEST these on your phone after deploying:
+
+[ ] Login works
+[ ] Sidebar items all navigate
+[ ] Total Members / Active / Payment Due / Expiring Soon
+    stat cards on Overview navigate when clicked
+[ ] Members page → Add Member → fill form → Save works
+[ ] Click a member row → detail modal opens
+[ ] Renew button on a member works
+[ ] Edit / Delete / WhatsApp / Invoice buttons
+[ ] Filter dropdowns (Status + Plan) on Members
+[ ] Finance section loads data (not "Loading..." forever)
+[ ] Expenses section loads + can add/edit/delete
+[ ] Expense amount visible on mobile
+[ ] Plan Settings → add/edit/delete plan
+[ ] Gym Settings → save changes
+[ ] Data & Backup → export buttons work
+[ ] Theme toggle (sun/moon icon)
+[ ] Mobile hamburger menu opens sidebar
+[ ] /verify?cert=FLYM-INT-2026-026 shows certificate
+
+If anything is broken, take a screenshot and report it.
+═══════════════════════════════════════════════════════════════

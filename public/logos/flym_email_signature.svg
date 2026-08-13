@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" width="600" height="120">
+  <rect width="600" height="120" fill="#080C14"/>
+  <path d="M 20 38 Q 110 12 220 28" fill="none" stroke="#1A6FD4" stroke-width="1.2" opacity="0.5" stroke-linecap="round"/>
+  <path d="M 22 44 Q 111 18 218 34" fill="none" stroke="#2A8FFF" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="218" cy="34" r="4.5" fill="#2A8FFF"/>
+  <circle cx="218" cy="34" r="2"   fill="#E6F4FF"/>
+  <text x="20" y="90" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="72" font-weight="200" fill="#FFFFFF" letter-spacing="-2">flym</text>
+  <rect x="20" y="100" width="260" height="1.5" rx="1" fill="#2A8FFF" opacity="0.8"/>
+  <text x="21" y="116" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#4A90D9" letter-spacing="3">SMART GYM MANAGEMENT</text>
+</svg>
