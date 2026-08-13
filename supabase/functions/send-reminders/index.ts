@@ -3,15 +3,15 @@
 // Runs daily at 9 AM IST via cron.
 // For each gym:
 //   1. Reads reminder_days and wa_template from gyms table
-//   2. Finds members expiring in exactly reminder_days from today
+//   2. Finds members expiring in exactly reminder_days from today,
+//      excluding Trial, deleted (is_active=false) and CANCELLED members
 //   3. Skips members who already got a reminder today
-//   4. Opens WhatsApp with the pre-filled message
-//   5. Marks last_reminder_sent = today
+//   4. Sends via WhatsApp Cloud API
+//   5. Marks last_reminder_sent = today — but ONLY if a message
+//      actually went out (see the 'simulated' outcome below)
 //
-// NOTE: WhatsApp Business API requires approval for bulk messaging.
-// This function uses the wa.me deep-link approach (free, no approval)
-// which works perfectly for small gyms (< 100 members).
-// For scale, swap the sendWhatsApp() call with WhatsApp Cloud API.
+// AUTH: shared secret in the x-cron-secret header, same as
+// generate-notifications. This is called by cron, not by a user.
 // ─────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -30,20 +30,45 @@ const WA_API_VERSION = 'v21.0';
 const DEFAULT_TEMPLATE =
   'Hi {name}! 👋\n\nYour *{plan}* at *{gym}* expires on *{date}*.\n\nPlease renew to continue your fitness journey! 💪\n\nContact us to renew.';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const json = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+
 Deno.serve(async (req) => {
-  // Allow manual trigger via POST (for testing) or scheduled cron
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { status: 200, headers: corsHeaders });
+  }
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, 405);
+  }
+
+  // ── Auth: shared secret, not a user JWT ─────────────────────────
+  // This handler had NO authorization check at all. Anyone who could
+  // reach the URL could trigger a platform-wide WhatsApp send across
+  // every gym and burn the message quota — and if it was deployed with
+  // --no-verify-jwt, that was the open internet.
+  //
+  // Same pattern as generate-notifications: the caller is a cron job, so
+  // a shared secret is the right control, not a user token.
+  const expected = Deno.env.get('CRON_SECRET');
+  const provided = req.headers.get('x-cron-secret');
+  if (!expected) return json({ error: 'CRON_SECRET not configured' }, 500);
+  if (provided !== expected) return json({ error: 'Unauthorized' }, 401);
+
   try {
     const result = await runReminders();
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return json(result, 200);
   } catch (err) {
     console.error('[send-reminders] Fatal error:', err);
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return json({ error: String(err) }, 500);
   }
 });
 
@@ -64,8 +89,9 @@ async function runReminders() {
   if (gymErr) throw new Error('Failed to fetch gyms: ' + gymErr.message);
   if (!gyms?.length) return { sent: 0, skipped: 0, message: 'No active gyms' };
 
-  let totalSent    = 0;
-  let totalSkipped = 0;
+  let totalSent      = 0;
+  let totalSkipped   = 0;
+  let totalSimulated = 0;
   const log: string[] = [];
 
   for (const gym of gyms) {
@@ -79,11 +105,19 @@ async function runReminders() {
 
     // Fetch members of this gym expiring on targetDate
     // who haven't been reminded today and are not Trial/Expired
+    // is_active + cancelled_at are NOT optional filters here. Without
+    // them this function WhatsApps people who removed their membership
+    // or were deleted, asking them to renew. Cancelled members are
+    // excluded from revenue, dues, broadcasts and notifications
+    // everywhere else in Flym; reminders were the one place that
+    // still chased them.
     const { data: members, error: memErr } = await supabase
       .from('members')
       .select('id, full_name, phone, plan_name, expiry_date, last_reminder_sent, member_type, payment_status')
       .eq('gym_id', gym.id)
       .eq('expiry_date', targetStr)
+      .eq('is_active', true)
+      .is('cancelled_at', null)
       .neq('member_type', 'Trial');
 
     if (memErr) {
@@ -119,9 +153,19 @@ async function runReminders() {
         .replace(/\{date\}/g,  expHuman);
 
       // Send the reminder (wa.me deep link approach)
-      const sent = await sendWhatsAppReminder(phone, message, gym);
+      const outcome = await sendWhatsAppReminder(phone, message, gym);
 
-      if (sent) {
+      // No WhatsApp credentials configured: nothing was actually sent, so
+      // do NOT stamp last_reminder_sent. Stamping here meant that once
+      // the API was finally configured, everyone "reminded" during the
+      // unconfigured period would never be re-reminded for that cycle.
+      if (outcome === 'simulated') {
+        totalSimulated++;
+        log.push(`○ Simulated (no WhatsApp API configured) for ${member.full_name}`);
+        continue;
+      }
+
+      if (outcome === 'sent') {
         // Mark last_reminder_sent = today
         const { error: updateErr } = await supabase
           .from('members')
@@ -141,7 +185,13 @@ async function runReminders() {
     }
   }
 
-  const summary = { date: todayStr, sent: totalSent, skipped: totalSkipped, log };
+  const summary = {
+    date: todayStr,
+    sent: totalSent,
+    skipped: totalSkipped,
+    simulated: totalSimulated,   // no WhatsApp credentials — nothing sent, nothing stamped
+    log,
+  };
   console.log('[send-reminders] Done:', summary);
   return summary;
 }
@@ -151,11 +201,13 @@ async function runReminders() {
 // Uses WhatsApp Cloud API if token is configured,
 // otherwise logs the message (you can swap in any SMS provider here)
 // ─────────────────────────────────────────────────────────────────
+type SendOutcome = 'sent' | 'failed' | 'simulated';
+
 async function sendWhatsAppReminder(
   phone: string,
   message: string,
   gym: { name: string; phone: string | null }
-): Promise<boolean> {
+): Promise<SendOutcome> {
   const waToken     = Deno.env.get('WA_CLOUD_API_TOKEN');
   const waPhoneId   = Deno.env.get('WA_PHONE_NUMBER_ID');
 
@@ -182,19 +234,22 @@ async function sendWhatsAppReminder(
       const data = await res.json();
       if (!res.ok) {
         console.error('[sendWhatsApp] API error:', JSON.stringify(data));
-        return false;
+        return 'failed';
       }
-      return true;
+      return 'sent';
     } catch (err) {
       console.error('[sendWhatsApp] fetch error:', err);
-      return false;
+      return 'failed';
     }
   }
 
   // ── Option B: Log only (no API configured) ───────────────────
-  // In this mode the cron still runs and marks last_reminder_sent
-  // so you know who would have been notified.
-  // The gym owner still manually sends from the Expiry Alerts page.
+  // Reported as 'simulated', NOT as sent. This used to return true, so
+  // the caller stamped last_reminder_sent even though no message went
+  // anywhere — meaning that once the WhatsApp API was finally
+  // configured, every member "reminded" during the unconfigured period
+  // would never be re-reminded for that expiry cycle.
+  // The gym owner still sends manually from the Member Alerts page.
   console.log('[sendWhatsApp] No API configured — would send to', phone, ':', message.slice(0, 60) + '...');
-  return true; // still marks as "reminded" so it doesn't repeat
+  return 'simulated';
 }

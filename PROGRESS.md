@@ -586,3 +586,78 @@ per file rather than a hunt through string literals.
 3. After deploying, send a **small** broadcast (1–2 recipients, real phone
    numbers you control) and confirm delivery. This is the only real test — the
    version is a string until Meta receives the call.
+
+---
+
+## PHASE 1d — send-reminders: add authorization, stop chasing cancelled members
+
+**Commit:** `fix(reminders): require CRON_SECRET, exclude cancelled/deleted members, stop false "reminded" stamps`
+
+### Why
+
+Three problems in `supabase/functions/send-reminders/index.ts`.
+
+**1. No authorization at all** (`AUDIT.md` **B7**). The handler ran
+`runReminders()` on any request — no secret, no admin check, not even a method
+check. Any authenticated Flym user, including a staff member at any gym, could
+trigger a **platform-wide WhatsApp send across every gym** and burn your message
+quota. If the function was deployed with `--no-verify-jwt`, that was the open
+internet.
+
+**2. It messaged cancelled and deleted members** (`AUDIT.md` **B6**). The member
+query filtered `expiry_date` and `member_type != 'Trial'` — but not `is_active`
+and not `cancelled_at`. Someone who quit the gym and was cancelled still got a
+WhatsApp asking them to renew. Cancelled members are excluded from revenue,
+dues, broadcasts and notifications everywhere else; reminders were the one place
+still chasing them.
+
+**3. It lied about sending.** When no WhatsApp credentials were configured, the
+sender returned `true` and the caller stamped `last_reminder_sent = today`. So
+the moment you finally configure the API, every member "reminded" during the
+unconfigured period is **permanently skipped for that expiry cycle** — they
+never get the message.
+
+### What changed
+
+`supabase/functions/send-reminders/index.ts`
+
+- **`x-cron-secret` check**, matching the pattern `generate-notifications`
+  already uses correctly. Plus `OPTIONS` preflight handling and a 405 for
+  non-POST. Returns 401 on a bad secret, 500 if `CRON_SECRET` isn't set at all.
+- Member query now also filters `.eq('is_active', true).is('cancelled_at', null)`.
+- The sender returns `'sent' | 'failed' | 'simulated'` instead of a boolean.
+  `'simulated'` (no credentials) is counted separately and **does not stamp**
+  `last_reminder_sent`. The response body now includes a `simulated` count.
+- Updated the stale file header, which claimed it used wa.me deep links.
+
+### ⚠️ Applying this needs a secret set, or reminders stop
+
+`CRON_SECRET` is already required by `generate-notifications`, so it is probably
+already set — but **confirm before deploying**, because if it isn't, this
+function will start returning 500 and no reminders will go out:
+
+```
+npx supabase secrets list          # look for CRON_SECRET
+npx supabase secrets set CRON_SECRET=<your-existing-value>
+```
+
+Whatever calls this function on a schedule must now send the
+`x-cron-secret` header. Migration 032 shows the pattern for
+`generate-notifications`; the same is needed here.
+
+### How to verify
+
+1. **Not deployed by me.** Deploy with `npx supabase functions deploy send-reminders`.
+2. **Auth works:** `curl -X POST <function-url>` with no header → **401
+   Unauthorized**. With the correct `x-cron-secret` header → 200 and a JSON
+   summary.
+3. **Cancelled members excluded:** cancel a member whose expiry is exactly
+   `reminder_days` away, run the function, and confirm they are **not** in the
+   returned `log` array.
+4. **Deleted members excluded:** same test with a removed (`is_active=false`)
+   member.
+5. **No false stamps:** if WhatsApp credentials are not configured, run it and
+   check the response — members should appear under `simulated`, and their
+   `last_reminder_sent` in the database must be **unchanged**.
+6. Confirm your scheduled caller sends the new header, or reminders will
+   silently stop the next morning.
