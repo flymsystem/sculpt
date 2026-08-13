@@ -1479,3 +1479,82 @@ figure would stay wrong for months.
    the renewals count must go up by one.
 3. A gym where nobody has ever renewed should still show 0% — that's correct,
    not the bug.
+
+---
+
+## PHASE 3g — broadcasts send in resumable chunks instead of timing out mid-send
+
+**Commit:** `fix(broadcast): send in resumable chunks so a paid campaign cannot stall forever`
+**Migration added:** `supabase/migrations/037_broadcast_resume_cron.sql` — **not applied, file only**
+
+### Why
+
+`AUDIT.md` finding **A12**, and the last money-losing bug on the list.
+
+`process-broadcast` looped over **every** recipient in one invocation, with a
+100ms rate-limit delay plus an API round-trip plus a database update each. For
+5,000 recipients that is roughly **29 minutes** — far beyond an Edge Function's
+wall clock.
+
+**What that costs the gym owner:** they pay ₹7,500 for a 5,000-person broadcast.
+Razorpay takes the money. The function dies partway through. The broadcast sits
+on `status = 'sending'` forever, the progress bar never completes, some members
+got the message and some didn't, and there is no retry and no refund path.
+
+### What changed
+
+**`supabase/functions/process-broadcast/index.ts`**
+
+- Each invocation now sends at most **150 recipients** (~50 seconds of work) and
+  then re-invokes itself for the remainder.
+- **Work is claimed per recipient.** Each row flips off `status='pending'` the
+  moment it's handled, and the next run selects on `pending` — so a crash costs
+  at most the single message in flight, and two overlapping runs cannot send the
+  same message twice.
+- **Counters are recounted from the rows, not accumulated.** A resumed run has no
+  memory of earlier chunks; counting `broadcast_recipients` by status is the only
+  figure that stays correct across invocations and retries.
+- Resume calls authenticate with `x-cron-secret` and skip payment verification —
+  the payment was already verified by the original call, which is what moved the
+  broadcast off `payment_pending`.
+- With no `broadcast_id`, a cron call enters **sweep mode** and finds the oldest
+  broadcast still mid-send itself.
+- Also fixed here (`AUDIT.md` **B13**): the ownership check now includes
+  `role = 'owner'`. It previously matched `user_id` + `gym_id` only, which any
+  **staff member** of that gym would pass — and there was no prior owner check on
+  this function at all.
+
+**`supabase/migrations/037_broadcast_resume_cron.sql` (new, not applied)** — a
+pg_cron job every 2 minutes that nudges the function to resume anything stuck in
+`paid`/`sending`. The self-invoke is the fast path; this is the safety net for
+when it fails (cold start, transient network, a deploy mid-send). It short-circuits
+when nothing is mid-send, so it costs essentially nothing.
+
+**`src/pages/dashboard/broadcast.js`** — the client gave up polling after 10
+minutes **silently**, leaving a frozen progress bar. With chunked sending a large
+broadcast legitimately runs longer than that, so it now says so: *"Still sending
+in the background. You can close this page — check Broadcast → History for the
+final result."*
+
+### How to verify
+
+1. Deploy: `npx supabase functions deploy process-broadcast`. Confirm
+   `CRON_SECRET` is set. Apply `037` after replacing `<PROJECT_REF>`.
+2. **Small broadcast (2 recipients)** — must complete exactly as before,
+   end-to-end, with both messages delivered.
+3. **The real test: a broadcast larger than 150 recipients.** In test mode (no
+   WhatsApp credentials configured) it's safe to try a few hundred. Watch
+   `sent_count` climb **past 150** across multiple invocations, and confirm the
+   status ends as `completed` with `sent_count + failed_count = total_recipients`.
+4. **No double-sends:**
+   ```sql
+   select status, count(*) from broadcast_recipients
+    where broadcast_id = '<id>' group by status;
+   ```
+   The totals must add up to `total_recipients` exactly, with **no** rows left
+   `pending`.
+5. **The safety net:** start a broadcast, and while it's sending force a stall
+   with `update broadcasts set status='sending' where id='<id>';`. Within ~2
+   minutes the cron must pick it up and `sent_count` must start climbing again.
+6. **Staff cannot process a broadcast:** as a staff user, call the function with
+   your gym's `broadcast_id` — must return **403**, not proceed.

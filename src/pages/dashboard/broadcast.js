@@ -660,10 +660,19 @@ function renderSending(c) {
       }
 
       pollCount++;
-      // Stop polling after 10 minutes (200 polls × 3s)
+      // Stop polling after 10 minutes (200 polls × 3s).
+      // Sending is chunked server-side, so a large broadcast legitimately
+      // runs longer than this. Say so, rather than leaving a frozen
+      // progress bar and letting the owner assume it broke.
       if (pollCount > 200 && _pollTimer) {
         clearInterval(_pollTimer);
         _pollTimer = null;
+        const sub = document.getElementById('bc-send-sub');
+        if (sub) {
+          sub.textContent = 'Still sending in the background. You can close this page — '
+            + 'check Broadcast → History for the final result.';
+        }
+        showToast('Sending continues in the background — check History for the result', 'amber');
       }
     } catch (err) {
       console.warn('[Broadcast] Poll error:', err);
