@@ -4,10 +4,18 @@ import { scard } from './overview.js';
 import { openRenewModal, openInvoiceModal, openWAModal } from './member-modals.js';
 import { callBtn, formatPhone, normalizePhone } from '../../components/call-button.js';
 
+// One card per alerting member, all built into a single innerHTML
+// string, was fine at 200 members. At 100,000 with a realistic 25%
+// expired/due rate it is 25,000 cards in one write: the tab hangs and
+// then dies. Even 500 cards is a visible multi-second freeze on a cheap
+// phone, and a page that scrolls badly forever afterwards.
+const ALERTS_PAGE_SIZE = 50;
+
 function renderMemberAlerts(c) {
   const reminderDays = S.gym?.reminder_days || 7;
   let alertFilter = 'all';
   let sortBy = 'urgency';
+  let page = 1;
 
   // ── Helper: does this member have a pending payment? ──────────
   // Uses payment_status directly (not memberStatus) so expired members
@@ -51,6 +59,11 @@ function renderMemberAlerts(c) {
     const list = filteredAlerts();
     const callable = allAlerts.filter(m => normalizePhone(m.phone)).length;
 
+    const totalPages = Math.max(1, Math.ceil(list.length / ALERTS_PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const pageStart = (page - 1) * ALERTS_PAGE_SIZE;
+    const pageList  = list.slice(pageStart, pageStart + ALERTS_PAGE_SIZE);
+
     c.innerHTML = `<div class="content-inner page-enter">
       <div class="page-header">
         <div class="page-header-left">
@@ -86,20 +99,31 @@ function renderMemberAlerts(c) {
               <div class="empty-title">All clear!</div>
               <p>No alerts match this filter. Your members are in good standing.</p>
             </div>`
-          : list.map((m, i) => renderAlertCard(m, i)).join('')}
+          : pageList.map((m, i) => renderAlertCard(m, i)).join('')}
       </div>
 
       ${list.length > 0 ? `<div style="margin-top:var(--space-5);padding:var(--space-4) var(--space-5);background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);">
-        <div style="font-size:var(--text-sm);color:var(--text-tertiary);">Showing ${list.length} of ${allAlerts.length} alerts</div>
+        <div style="font-size:var(--text-sm);color:var(--text-tertiary);">Showing ${pageStart + 1}–${pageStart + pageList.length} of ${list.length}${list.length !== allAlerts.length ? ' filtered' : ''} alert${list.length !== 1 ? 's' : ''}</div>
+        ${totalPages > 1 ? `<div style="display:flex;gap:var(--space-2);align-items:center;">
+          <button class="btn btn-ghost btn-sm" id="alert-prev" type="button" ${page <= 1 ? 'disabled aria-disabled="true"' : ''} style="padding:4px 10px;font-size:12px;" aria-label="Previous page of alerts">← Prev</button>
+          <span style="font-size:12px;font-weight:500;color:var(--text-secondary);" aria-live="polite">Page ${page} of ${totalPages}</span>
+          <button class="btn btn-ghost btn-sm" id="alert-next" type="button" ${page >= totalPages ? 'disabled aria-disabled="true"' : ''} style="padding:4px 10px;font-size:12px;" aria-label="Next page of alerts">Next →</button>
+        </div>` : ''}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);">Total Outstanding: ${fmtCurrency(totalDue)}</div>
       </div>` : ''}
     </div>`;
 
     document.querySelectorAll('.alert-filter-pill').forEach(pill => {
-      pill.addEventListener('click', () => { alertFilter = pill.dataset.filter; render(); });
+      pill.addEventListener('click', () => { alertFilter = pill.dataset.filter; page = 1; render(); });
     });
     document.getElementById('alert-sort')?.addEventListener('change', (e) => {
-      sortBy = e.target.value; render();
+      sortBy = e.target.value; page = 1; render();
+    });
+    document.getElementById('alert-prev')?.addEventListener('click', () => {
+      if (page > 1) { page--; render(); c.scrollIntoView?.({ block: 'start' }); }
+    });
+    document.getElementById('alert-next')?.addEventListener('click', () => {
+      page++; render(); c.scrollIntoView?.({ block: 'start' });
     });
   }
 

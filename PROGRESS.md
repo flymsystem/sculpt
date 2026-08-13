@@ -1018,3 +1018,55 @@ them in the user's cache.
    get the "Couldn't load this page / Refresh" panel — **not** a blank screen.
 5. Log in as admin — the `admin-dashboard` chunk loads only then.
 6. Confirm the browser back/forward buttons still move between sections.
+
+---
+
+## PHASE 3d — Alerts page paginated
+
+**Commit:** `perf(alerts): paginate alert cards instead of rendering every alerting member`
+
+### Why
+
+`AUDIT.md` finding **A6**. The Alerts page built **one card per alerting member**
+— avatar, three buttons, a phone link each — into a single `innerHTML` string,
+with no limit.
+
+For a gym with 100,000 members and a realistic 25% expired/due rate that is
+**25,000 cards in one DOM write**: the tab hangs, then dies. Even 500 cards is a
+visible multi-second freeze on a cheap phone, and a page that scrolls badly
+forever afterwards.
+
+### What changed
+
+`src/pages/dashboard/alerts.js` — 50 cards per page, using the same
+Prev/Page N of M/Next pattern the members table already uses (`members.js:420`),
+so it looks and behaves like the rest of the app.
+
+- Changing filter or sort resets to page 1.
+- Paging scrolls back to the top of the list.
+- The header counts, the pill counts and **Total Outstanding are still computed
+  across every alerting member**, not just the visible page — those are the
+  numbers the owner acts on and they must not change with pagination.
+- The footer now reads "Showing 1–50 of 312 alerts".
+
+### Still to do here
+
+The full alerting list is still derived in the browser from `S.members`, so the
+*download* is unchanged — only the rendering is bounded. Moving the filtering
+itself server-side is part of the members data-flow change described at the end
+of this file, which needs your sign-off.
+
+### How to verify
+
+1. Open **Member Alerts**. If the gym has more than 50 alerts you now get pager
+   controls; fewer than 50 and it looks exactly as before.
+2. The four stat cards at the top (All / Expired / Expiring / Payment Due) and
+   **Total Outstanding** must match what they showed before this change —
+   they count all alerts, not the page.
+3. Click **Next** / **Prev**; the page indicator updates and the list scrolls to
+   the top.
+4. Switch the filter pills (All / Expired / Expiring / Due) — it must jump back
+   to page 1 and the counts must stay correct.
+5. Change the sort dropdown — same.
+6. Renew / Invoice / Remind / Call buttons must still work on a card from
+   **page 2**, not just page 1.
