@@ -1315,8 +1315,8 @@ function openMemberDetailModal(memberId) {
       <!-- Contact -->
       <div style="margin-bottom:16px;">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Contact</div>
-        ${mRow('Phone',  m.phone ? `<a href="tel:${m.phone}" style="color:var(--brand-text);text-decoration:none;font-weight:500;">${escHtml(m.phone)}</a>` : '—')}
-        ${m.email ? mRow('Email', `<a href="mailto:${m.email}" style="color:var(--brand-text);text-decoration:none;">${escHtml(m.email)}</a>`) : ''}
+        ${mRow('Phone',  m.phone ? `<a href="tel:${encodeURIComponent(m.phone)}" style="color:var(--brand-text);text-decoration:none;font-weight:500;">${escHtml(m.phone)}</a>` : '—')}
+        ${m.email ? mRow('Email', `<a href="mailto:${encodeURIComponent(m.email)}" style="color:var(--brand-text);text-decoration:none;">${escHtml(m.email)}</a>`) : ''}
         ${m.gender ? mRow('Gender', escHtml(m.gender)) : ''}
         ${dobStr   ? mRow('Date of Birth', dobStr) : ''}
         ${m.aadhar_number ? mRow('Aadhar ID', `<span style="font-family:var(--font-mono);color:var(--text-primary);letter-spacing:0.05em;font-size:12px;">${escHtml(m.aadhar_number.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`) : ''}

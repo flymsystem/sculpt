@@ -14,6 +14,18 @@ let _lastFocusedEl       = null;
 let _scrollLockY         = 0;
 let _scrollLockActive    = false;
 
+/**
+ * WARNING: `title`, `body` and `footer` are inserted as HTML, not text.
+ *
+ * That is intentional — nearly every caller passes markup. It does mean
+ * the CALLER is responsible for running escHtml() over any user-entered
+ * value it interpolates, e.g.
+ *     title: `Edit — ${escHtml(member.full_name)}`
+ *
+ * Escaping here instead would double-escape the ~30 call sites that
+ * already do it correctly, turning "Ram & Co" into "Ram &amp; Co" on
+ * screen. If you add a caller, escape at the call site.
+ */
 export function openModal({ title, body, footer = '', size = 'md', onOpen, mobileCompact = false }) {
   closeModal(); // always close any existing modal first
 

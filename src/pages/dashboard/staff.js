@@ -616,7 +616,7 @@ function openEditStaffModal(id) {
   if (!s) return;
   const roleOpts = STAFF_ROLES.map(r => `<option value="${r}" ${s.role === r ? 'selected' : ''}>${r}</option>`).join('');
   openModal({
-    title: `Edit \u2014 ${s.full_name}`,
+    title: `Edit \u2014 ${escHtml(s.full_name)}`,
     size: 'md',
     mobileCompact: true,
     body: `

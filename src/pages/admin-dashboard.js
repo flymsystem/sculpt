@@ -1396,7 +1396,7 @@ function openSubModal(existing) {
         </select></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Plan Name *</label>
-          <input class="form-input" id="sub-plan" value="${existing?.plan_name||''}" placeholder="e.g. Monthly, 6 Months, Yearly"></div>
+          <input class="form-input" id="sub-plan" value="${escH(existing?.plan_name||'')}" placeholder="e.g. Monthly, 6 Months, Yearly"></div>
         <div class="form-group"><label class="form-label">Total Amount (₹) *</label>
           <input class="form-input" id="sub-amount" type="number" min="0" value="${existing?.amount||''}"></div>
       </div>
@@ -1407,7 +1407,7 @@ function openSubModal(existing) {
           <input class="form-input" id="sub-end" type="date" value="${existing?.end_date||''}"></div>
       </div>
       <div class="form-group"><label class="form-label">Notes</label>
-        <input class="form-input" id="sub-notes" placeholder="Any notes..." value="${existing?.notes||''}"></div>
+        <input class="form-input" id="sub-notes" placeholder="Any notes..." value="${escH(existing?.notes||'')}"></div>
 
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">

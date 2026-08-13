@@ -1375,3 +1375,59 @@ too heavy, tell me where and I'll tune that spot rather than reverting the token
 5. **Analytics** month labels and value labels must be legibly larger.
 6. Check both themes on Overview, Members, Finance, Analytics and Settings for
    anything that now looks wrong.
+
+---
+
+## PHASE 5b — escape the remaining user text reaching innerHTML
+
+**Commit:** `fix(xss): escape user text at the five remaining unescaped innerHTML sites`
+
+### Why
+
+`AUDIT.md` finding **B12**. The codebase is genuinely disciplined about
+`escHtml()` — I checked every interpolation of a user-controlled field. Five
+sites had slipped through.
+
+Practical severity is low: these fields are typed by the gym's own staff, so it
+is mostly self-XSS. But `finance.js` is the one I'd have fixed regardless —
+`addExpense()` accepts **any** string via the API even though the UI uses a
+`<select>`, so the category is not as constrained as it looks.
+
+### What changed
+
+| File | Was | Now |
+|---|---|---|
+| `staff.js:619` | `` title: `Edit — ${s.full_name}` `` | wrapped in `escHtml()` |
+| `admin-dashboard.js:1399` | `value="${existing?.plan_name}"` | `escH(...)` |
+| `admin-dashboard.js:1410` | `value="${existing?.notes}"` | `escH(...)` |
+| `member-modals.js` | `href="tel:${m.phone}"` / `mailto:${m.email}"` | `encodeURIComponent(...)` |
+| `finance.js:311` | `${cat}` in Top Expense Categories | `escHtml(cat)` |
+
+The `tel:`/`mailto:` cases use `encodeURIComponent`, not `escHtml` — they are URL
+contexts, and HTML-escaping a URL produces a broken link rather than a safe one.
+
+**`modal.js`** — I did **not** make it escape its own title. `title`, `body` and
+`footer` are inserted as HTML on purpose, because nearly every caller passes
+markup; escaping centrally would double-escape the ~30 call sites that already
+do it correctly and turn *"Ram & Co"* into *"Ram &amp; Co"* on screen. Instead
+the contract is now documented in a comment above `openModal()`, so the next
+person adding a caller knows to escape at the call site.
+
+### Left alone deliberately
+
+Three other `value="${existing?...}"` interpolations in the admin subscription
+modal bind `type="number"` and `type="date"` inputs to `numeric` and `date`
+columns. A quote character cannot occur in those values, so escaping would be
+noise. Flagging them here so it's a recorded decision rather than an oversight.
+
+### How to verify
+
+1. Create a staff member named `Ram "The Rock" & Co` and click **Edit**. The
+   modal title must show the name **literally**, with the quotes and ampersand
+   intact, and the modal must render normally.
+2. Open that member's detail modal — the phone and email links must still dial
+   and compose correctly.
+3. **Admin → Subscriptions →** edit one with an apostrophe or quote in the plan
+   name or notes. The form fields must be populated correctly rather than
+   truncated at the quote.
+4. **Finance → Top Expense Categories** — categories render normally.
