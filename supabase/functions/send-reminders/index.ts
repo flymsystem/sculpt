@@ -21,6 +21,12 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')! // service role bypasses RLS
 );
 
+// WhatsApp Cloud API version. Pinned deliberately — Meta sunsets old
+// versions, and when v19 goes the failure is silent from the gym's side:
+// automated reminders just stop. Keep this in step with
+// process-broadcast/index.ts.
+const WA_API_VERSION = 'v21.0';
+
 const DEFAULT_TEMPLATE =
   'Hi {name}! 👋\n\nYour *{plan}* at *{gym}* expires on *{date}*.\n\nPlease renew to continue your fitness journey! 💪\n\nContact us to renew.';
 
@@ -158,7 +164,7 @@ async function sendWhatsAppReminder(
     try {
       const phoneWithCountry = phone.startsWith('91') ? phone : '91' + phone;
       const res = await fetch(
-        `https://graph.facebook.com/v19.0/${waPhoneId}/messages`,
+        `https://graph.facebook.com/${WA_API_VERSION}/${waPhoneId}/messages`,
         {
           method: 'POST',
           headers: {

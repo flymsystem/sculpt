@@ -17,6 +17,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// WhatsApp Cloud API version. Pinned deliberately — Meta sunsets old
+// versions, and when v19 goes the failure is silent from the gym's side:
+// paid broadcasts stop delivering with an opaque API error. Keep this in
+// step with send-reminders/index.ts.
+const WA_API_VERSION = 'v21.0';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -177,7 +183,7 @@ Deno.serve(async (req) => {
         // ── Send via WhatsApp Cloud API ─────────────────────────
         try {
           const waRes = await fetch(
-            `https://graph.facebook.com/v19.0/${waPhoneId}/messages`,
+            `https://graph.facebook.com/${WA_API_VERSION}/${waPhoneId}/messages`,
             {
               method: 'POST',
               headers: {

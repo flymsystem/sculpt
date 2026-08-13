@@ -548,3 +548,41 @@ admin dashboard needed no edits.
 3. **Overview** page totals must be unchanged.
 4. Open a gym's detail view — phone, address, email and the auto-reminders badge
    must still be populated (these come from the `gyms` query, not the view).
+
+---
+
+## PHASE 1c — WhatsApp Cloud API pinned to v21.0
+
+**Commit:** `fix(wa): pin WhatsApp Cloud API to v21.0 in both senders`
+
+### Why
+
+`AUDIT.md` finding **B9**, and a stated project constraint: WhatsApp Cloud API
+stays on **v21.0**. Both senders were calling **v19.0**.
+
+Nothing looks wrong today. But when Meta sunsets v19 the failure is invisible
+from the gym's side: automated renewal reminders silently stop, and paid
+broadcasts fail *after* the owner has been charged.
+
+### What changed
+
+- `supabase/functions/process-broadcast/index.ts` — v19.0 → **v21.0**
+- `supabase/functions/send-reminders/index.ts` — v19.0 → **v21.0**
+
+Both now build the URL from a `WA_API_VERSION` constant at the top of the file
+with a comment explaining why it's pinned, so the next bump is one obvious edit
+per file rather than a hunt through string literals.
+
+### How to verify
+
+1. `grep -rn 'graph.facebook.com' supabase/functions/` — both hits must show
+   `${WA_API_VERSION}` and no `v19.0` anywhere.
+2. **These are Edge Functions — I have not deployed them.** They take effect
+   only when you run:
+   ```
+   npx supabase functions deploy process-broadcast
+   npx supabase functions deploy send-reminders
+   ```
+3. After deploying, send a **small** broadcast (1–2 recipients, real phone
+   numbers you control) and confirm delivery. This is the only real test — the
+   version is a string until Meta receives the call.
