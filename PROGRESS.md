@@ -99,3 +99,82 @@ which moves the summation into Postgres. Correctness first.
    payment must now appear. Before this commit it was missing.
 5. Watch the Network tab on the Finance page. You should now see one or more
    `payment_history` requests with a `Range` header, not a single capped one.
+
+---
+
+## HOTFIX 2 — clearBalance no longer loses concurrent payments
+
+**Commit:** `fix(money): make clearBalance a compare-and-swap and surface failed payment writes`
+
+### Why
+
+`AUDIT.md` finding **B4**. `clearBalance()` was read → compute in JavaScript →
+write:
+
+```js
+const { data: member } = await supabase.from('members').select('balance_due')…
+const newBalance = currentBalance - paid;
+await supabase.from('members').update({ balance_due: newBalance })…
+```
+
+Two devices collecting against the same member both read the old balance, and
+the second write silently overwrites the first.
+
+**What that looks like in the gym:** a member owes ₹2,000. The owner takes
+₹1,000 on their phone while a staff member records ₹1,000 at the desk. Both see
+a green success toast. The member's balance shows **₹1,000 still owing instead
+of ₹0** — but *both* payment rows landed, so Finance shows ₹2,000 collected. The
+books and the member's account now disagree and nothing flags it.
+
+Second problem in the same function: the `payment_history` insert logged its
+error to the console and carried on. The user got a green "payment recorded!"
+toast for a payment that was never recorded.
+
+### What changed
+
+`src/lib/members.js` — `clearBalance()`
+
+- The update is now **conditional on the balance we actually read**
+  (`.eq('balance_due', rawBalance)`). If anyone changed the row in between, zero
+  rows match, and the function throws a plain-English error instead of
+  clobbering: *"This member's balance was changed on another device just now…
+  no payment has been recorded."*
+- The raw column value is passed to the comparison, not the parsed float, so JS
+  number formatting can't drift from the stored `NUMERIC`.
+- Handles legacy rows where `balance_due` is `NULL` (uses `.is()` not `.eq()`).
+- Zero matched rows is treated as a genuine conflict, not a possible
+  RLS-blocked-select-back. That is safe to assume here: the `SELECT` at the top
+  of the same function already succeeded for this user on this exact row, so
+  reads are demonstrably permitted.
+- Returns `_paymentRecorded` alongside the row, matching the flag `addMember()`
+  already used.
+
+`src/pages/dashboard/member-modals.js` — clear-balance modal
+
+- On `_paymentRecorded === false`, shows an amber warning
+  (*"Balance updated, but the ₹X payment did NOT save to Finance — record it
+  manually"*) instead of a green success.
+
+### Deliberately not done here
+
+This makes the balance update **safe**, not **atomic**. The balance write and
+the payment-history write are still two separate requests, so a phone that dies
+between them still leaves them out of step — just with a visible warning now
+instead of silence. True atomicity needs a transaction, which needs a migration;
+that is the next unit.
+
+### How to verify
+
+1. **Normal path.** Open a member with a balance due → **Clear Balance** → enter
+   part of the balance → confirm. Balance drops by that amount, status becomes
+   `Partial`, and the payment shows in **Finance → Revenue** breakdown. Clear the
+   rest — status becomes `Paid`.
+2. **The race, which is the point of this commit.** Open the *same* member's
+   Clear Balance modal in **two browser windows** side by side. Enter ₹500 in
+   each. Submit the first — it succeeds. Submit the second — it must now show a
+   red error saying the balance changed on another device, and must **not**
+   record a payment. Before this commit both succeeded and the books went wrong.
+3. Confirm the failed second attempt left **exactly one** new row in Finance,
+   not two.
+4. **Over-payment guard still works.** Try to clear more than the balance due —
+   still rejected with the existing message.

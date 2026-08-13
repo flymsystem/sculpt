@@ -315,7 +315,8 @@ export async function clearBalance(memberId, gymId, amountPaid, paymentMode) {
     .single();
   if (fetchErr) throw fetchErr;
 
-  const currentBalance = parseFloat(member?.balance_due) || 0;
+  const rawBalance     = member?.balance_due;
+  const currentBalance = parseFloat(rawBalance) || 0;
   const paid = num(amountPaid) || 0;
   if (paid <= 0) throw new Error('Enter an amount greater than zero.');
   if (paid > currentBalance) throw new Error(`Amount cannot exceed the balance due (₹${currentBalance.toLocaleString('en-IN')}).`);
@@ -323,16 +324,48 @@ export async function clearBalance(memberId, gymId, amountPaid, paymentMode) {
   const newBalance = Math.round((currentBalance - paid) * 100) / 100;
   const newStatus  = newBalance <= 0 ? 'Paid' : 'Partial';
 
-  const { data, error } = await supabase
+  // ── Compare-and-swap, not a blind write ─────────────────────────
+  // This used to be read → compute in JS → write, which loses updates.
+  // Two devices collecting against the same member both read the old
+  // balance, and the second write silently overwrites the first: the
+  // member ends up owing money they already paid, while BOTH payment
+  // rows land in Finance. The books and the member's account disagree,
+  // permanently, with nothing to flag it.
+  //
+  // Pinning the update to the balance we actually read makes the write
+  // conditional. If anyone changed the row in between, zero rows match
+  // and we refuse instead of clobbering.
+  //
+  // rawBalance is passed through verbatim (not the parsed float) so no
+  // JS number formatting can drift away from the stored NUMERIC.
+  let upd = supabase
     .from('members')
     .update({ balance_due: newBalance, payment_status: newStatus })
     .eq('id', memberId)
-    .eq('gym_id', gymId)
-    .select()
-    .single();
-  if (error && error.code !== 'PGRST116') throw error;
+    .eq('gym_id', gymId);
+  upd = (rawBalance === null || rawBalance === undefined)
+    ? upd.is('balance_due', null)
+    : upd.eq('balance_due', rawBalance);
 
-  // HARDENED: await payment_history insert — balance payments must be recorded
+  const { data: rows, error } = await upd.select('id, gym_id, balance_due, payment_status');
+  if (error) throw error;
+
+  // Zero rows can only mean the balance moved under us. It cannot mean
+  // "RLS blocked the select-back" — the SELECT at the top of this
+  // function already succeeded for this user on this exact row.
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      'This member’s balance was changed on another device just now. ' +
+      'Close this and reopen it to see the current amount — no payment has been recorded.'
+    );
+  }
+  const data = rows[0];
+
+  // HARDENED: await payment_history insert — balance payments must be recorded.
+  // The member's balance has already been reduced at this point, so a failure
+  // here means money was collected but not recorded. The caller MUST surface
+  // _paymentRecorded === false to the user; it is not safe to swallow.
+  let _paymentRecorded = true;
   const { error: phErr } = await supabase.from('payment_history').insert({
     gym_id: gymId, member_id: memberId,
     amount: paid,
@@ -342,11 +375,11 @@ export async function clearBalance(memberId, gymId, amountPaid, paymentMode) {
   });
   if (phErr) {
     console.error('[Flym] CRITICAL: balance payment_history insert failed:', phErr.message);
-    // Don't throw — member balance was already updated. But warn loudly.
+    _paymentRecorded = false;
   }
   safeLog(gymId, 'balance_cleared', `₹${paid.toLocaleString('en-IN')} balance payment recorded`);
 
-  return data || { id: memberId, gym_id: gymId, balance_due: newBalance, payment_status: newStatus };
+  return { ...data, _paymentRecorded };
 }
 
 /**

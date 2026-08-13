@@ -1647,7 +1647,14 @@ function openClearBalanceModal(id) {
           try { S.payHistory = await getPaymentHistory(S.gym.id); } catch(e) { /* best-effort */ }
           closeModal();
           _nav(S.section || 'members');
-          showToast(`₹${amount.toLocaleString('en-IN')} payment recorded!`, 'green');
+          // The balance was reduced before the payment row was written. If that
+          // write failed, the money is collected but missing from Finance —
+          // never report that as a plain success.
+          if (saved && saved._paymentRecorded === false) {
+            showToast(`Balance updated, but the ₹${amount.toLocaleString('en-IN')} payment did NOT save to Finance — record it manually`, 'amber');
+          } else {
+            showToast(`₹${amount.toLocaleString('en-IN')} payment recorded!`, 'green');
+          }
         } catch (err) {
           errEl.textContent = err.message || 'Failed to record payment.';
           errEl.style.display = 'block';
