@@ -300,3 +300,65 @@ after, the money work is sound.
    ESLint, reading the code, and inspecting the built bundle. **No behaviour was
    verified in a browser.** That's what the checklist in section 4 is for, and
    it's why I kept every risky change behind a fallback.
+
+---
+
+## 8. SESSION 2 UPDATE — UI/UX phase (resume point)
+
+After the handover above, a second session did UI/UX work on top of it.
+Repo is clean, builds green, nothing uncommitted, safe to close the laptop.
+**Two new commits, both already pushed to `master` locally (not to remote):**
+
+- `b1dd93d` — token consolidation: 3 new token tiers (font-weight, line-height,
+  icon-size) + documented breakpoint reference, and 4 real bugs fixed (broken
+  sidebar tier-badge background, broken admin text color, iOS auto-zoom on
+  inputs outside modals, a z-index collision with `--z-overlay`).
+- `e697cd8` — command palette (Ctrl+K) given real dialog semantics
+  (`role="dialog"`, `aria-activedescendant`, focus restoration, Tab trap).
+  Also verified — with a real Playwright keyboard-interaction test, not by
+  reading code — that the main modal system's focus trap/Escape/focus-restore
+  already worked correctly. Zero code changes needed there.
+
+Full detail and verification steps for both are in `PROGRESS.md` under
+"UI/UX Phase (AUDIT.md Section C)".
+
+### What's left — pick up here
+
+**Not started, ranked by value:**
+1. **Finance renders stale cached revenue with no warning if a refresh
+   fails** (`AUDIT.md` C4) — small, real, currently misleads an owner about
+   their own money. Best next task.
+2. **Page-by-page pass, not yet reviewed**: Enquiries, Finance, Staff, Plans,
+   Settings (Overview/Members/Alerts got incidental scrutiny via the
+   verification harness but weren't deliberately redesigned).
+3. Standard loading/empty/error components (C4) — only Finance uses the
+   skeleton helper.
+4. Form validation feedback (C8) — three inconsistent patterns, none
+   accessible.
+5. Dashboard information hierarchy (C9) — "Today's Revenue" is a small stat
+   next to a full-size "Total Members" card.
+6. Minor: 3 date formats in one table, dead `animateCounter()`, toast calls
+   using colour names instead of semantic names (all C10).
+
+**Flagged, deliberately not touched:**
+- `landing.js` has ~30 inline SVG icons hardcoding brand colours via
+  `stroke="#hex"` — can't read CSS tokens without converting each to
+  `style=`. Low priority; the page has its own separate theme lifecycle.
+- The ~2,000 inline styles across the dashboard (`AUDIT.md` C3) — the real
+  blocker to full visual consistency, but this **crosses the "no rewrites
+  without sign-off" line** and needs an explicit go-ahead before starting.
+
+**Correction to the original audit, worth remembering:** the audit's raw
+"hardcoded hex color count" per file (`member-modals.js` 65, `landing.js` 41,
+`attendance-report.js` 132) is a **misleading signal** — most of those are
+inside print/receipt HTML generators that are *supposed* to be hardcoded
+light-on-white regardless of app theme (paper has no dark mode). Don't use
+that metric to pick the next file to "fix" — it'll point at the wrong thing.
+
+### Nothing pending from Supabase/deploy side
+
+Still true from Section 1–3 above: no migration applied, no Edge Function
+deployed, nothing pushed to a git remote. This session's two commits are
+pure frontend (tokens.css, dashboard.css, mobile-fixes.css, components.css,
+admin-dashboard.js, dashboard/index.js) — no new migrations, no backend risk
+added.
