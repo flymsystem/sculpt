@@ -732,3 +732,73 @@ review screen and the bill.
    the amber "can no longer be messaged" toast, and the bill must be lower.
 5. Check the `broadcast_recipients` rows — `phone` must be digits-only and match
    what's in the `members` table.
+
+---
+
+## PHASE 2b — exports read the complete data set, not the capped dashboard state
+
+**Commit:** `fix(backup): export the full member and expense sets instead of the capped in-memory state`
+
+### Why
+
+`AUDIT.md` finding **A2**. Every export in **Data & Backup** was built from
+`S.members`, which `getMembers()` caps at 5,000 because that array drives the
+dashboard UI. So the "Full Backup" for a gym over 5,000 members was silently
+missing everyone after the 5,000th.
+
+An owner clicks **JSON Backup**, gets a file, and believes their business is
+safe. They find out otherwise on the worst day of their year.
+
+Hotfix 1 already fixed the payment-history half of this. This is the member and
+expense half.
+
+Expenses had a related problem: `getAllExpenses()` and `getExpensesByRange()`
+had no paging, and PostgREST applies a server-side row cap of its own — so the
+P&L, year-end and GST reports could be summing a *prefix* of the expense ledger.
+For money, a silently-truncated total is worse than an error.
+
+### What changed
+
+**`src/lib/members.js`** — new `getAllMembers(gymId)`: pages the full member set
+with no cap. `getMembers()` is untouched and still caps at 5,000 for the UI;
+the rule is now simply *anything that writes a file uses `getAllMembers`*.
+
+**`src/lib/expenses.js`** — `getAllExpenses()` and `getExpensesByRange()` now
+page through their full result sets.
+
+Both use a `(date DESC, id DESC)` sort. The date columns are `DATE`, not
+timestamps, so same-day rows tie *exactly*; without the `id` tiebreaker rows
+shuffle between pages and an export gets duplicates and omissions — the same
+trap as hotfix 1.
+
+**`src/pages/dashboard/backup.js`** — added `exportMembers()`, fetched once per
+visit to the page and reused, and switched all nine export paths to it: members
+CSV, members PDF, payments report (both the payment-history branch and the
+member fallback branch), year-end summary, outstanding payments, JSON backup and
+the full PDF backup. Four click handlers became `async` as a result.
+
+`filterMembersForExport()` now takes the member list as its first argument
+rather than reaching for `S.members`, so it can't silently regress to the capped
+list later.
+
+### Note on cost
+
+For a gym with 50,000 members the JSON backup now downloads 50,000 rows. That is
+slower than before, and correct rather than wrong. Streaming exports would be
+the next step if it becomes a problem in practice.
+
+### How to verify
+
+1. **Data & Backup → JSON Backup.** Open the file and count the `members` array.
+   It must equal the true total:
+   ```sql
+   select count(*) from members where gym_id = '<gym-id>' and is_active = true;
+   ```
+   For a gym over 5,000 members it used to stop at exactly 5,000.
+2. **Members CSV** — row count must match the same total (minus any filters).
+3. **Outstanding Payments report** — the member count and total must match
+   Finance → Pending Dues.
+4. Run every other export and confirm none of them error, since four handlers
+   changed to `async`: Members PDF, Payments report, Year-End Summary, P&L, GST
+   Summary, Full PDF Backup, Expenses CSV.
+5. Open the console during a large export — no `hit the ... ceiling` warning.

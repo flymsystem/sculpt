@@ -18,25 +18,51 @@ export async function getExpenses(gymId, month) {
   return data || [];
 }
 
+// ── Paging ────────────────────────────────────────────────────────
+// Expense totals feed Finance, the P&L report, the year-end summary and
+// the GST summary. PostgREST applies a server-side row cap of its own,
+// so an un-paged query silently returns a prefix — which for money means
+// a total that is simply too low, with nothing to indicate it.
+//
+// Ordered by (expense_date DESC, id DESC): expense_date is a DATE, so
+// same-day expenses tie exactly and need a tiebreaker for paging to be
+// stable, or rows shuffle between pages and the sum comes out wrong.
+const EXP_PAGE = 1000;
+const EXP_MAX  = 100_000;
+
+async function fetchAllExpenses(buildQuery) {
+  const out = [];
+  for (let from = 0; from < EXP_MAX; from += EXP_PAGE) {
+    const { data, error } = await buildQuery()
+      .order('expense_date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + EXP_PAGE - 1);
+    if (error) throw error;
+    const page = data || [];
+    out.push(...page);
+    if (page.length < EXP_PAGE) return out;
+  }
+  console.warn(`[Flym] expenses hit the ${EXP_MAX}-row ceiling — totals are incomplete.`);
+  out._truncated = true;
+  return out;
+}
+
 /** Get expenses across a date range (for Finance section) */
 export async function getExpensesByRange(gymId, startDate, endDate) {
-  let q = supabase.from('expenses').select('*').eq('gym_id', gymId);
-  if (startDate) q = q.gte('expense_date', startDate);
-  if (endDate)   q = q.lte('expense_date', endDate);
-  const { data, error } = await q.order('expense_date', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  return fetchAllExpenses(() => {
+    let q = supabase.from('expenses').select('*').eq('gym_id', gymId);
+    if (startDate) q = q.gte('expense_date', startDate);
+    if (endDate)   q = q.lte('expense_date', endDate);
+    return q;
+  });
 }
 
 /** Get all expenses for a gym (for "All Time" in Finance) */
 export async function getAllExpenses(gymId) {
-  const { data, error } = await supabase
+  return fetchAllExpenses(() => supabase
     .from('expenses')
     .select('*')
-    .eq('gym_id', gymId)
-    .order('expense_date', { ascending: false });
-  if (error) throw error;
-  return data || [];
+    .eq('gym_id', gymId));
 }
 
 /** Get monthly expense totals for the last N months (for charts) */

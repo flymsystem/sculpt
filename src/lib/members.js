@@ -105,6 +105,45 @@ export async function checkDuplicatePhone(gymId, phone, excludeMemberId) {
   return data && data.length > 0 ? data[0].full_name : null;
 }
 
+/**
+ * Every member of a gym, paged — no cap.
+ *
+ * `getMembers()` deliberately stops at 5,000 because that array drives
+ * the dashboard UI. Exports and backups must not: a backup that quietly
+ * omits members 5,001+ is worse than no backup, because the owner
+ * believes they are covered. Anything that writes a file to disk should
+ * use this, not S.members.
+ *
+ * Ordering is (join_date DESC, id DESC) rather than join_date alone —
+ * join_date is a DATE, so bulk-imported members share it exactly, and
+ * without a tiebreaker rows shuffle between pages and the export ends up
+ * with duplicates and omissions.
+ */
+export async function getAllMembers(gymId) {
+  const PAGE = 1000;
+  const MAX  = 200_000;
+  const out = [];
+
+  for (let from = 0; from < MAX; from += PAGE) {
+    const { data, error } = await supabase
+      .from('members_with_status')
+      .select('*')
+      .eq('gym_id', gymId)
+      .order('join_date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + PAGE - 1);
+
+    if (error) throw error;
+    const page = data || [];
+    out.push(...page);
+    if (page.length < PAGE) return out;
+  }
+
+  console.warn(`[Flym] getAllMembers hit the ${MAX}-row ceiling — export is incomplete.`);
+  out._truncated = true;
+  return out;
+}
+
 export async function getMembers(gymId) {
   // Fetches up to 5000 active members (via the members_with_status view
   // which filters is_active = true). For gyms approaching this limit,

@@ -1,7 +1,7 @@
 import { S } from './state.js';
 import { escHtml, fmtDate, memberStatus, expiryDate, memberTotal, parseMemberAddons, outstandingAmount } from './helpers.js';
 import { getAllExpenses, getExpenses, getExpensesByRange, EXPENSE_CATEGORIES } from '../../lib/expenses.js';
-import { getPaymentHistory, getPaymentsByMonth } from '../../lib/members.js';
+import { getPaymentHistory, getPaymentsByMonth, getAllMembers } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 import { showPrintPreview } from '../../components/print-preview.js';
 import { attendanceReportCardHTML, bindAttendanceReport } from './attendance-report.js';
@@ -280,9 +280,22 @@ ${summaryBlock}
     return true;
   }
 
+  // ── HELPER: complete member list for exports ────────────────────
+  // S.members is capped at 5,000 by getMembers() because it drives the
+  // dashboard UI. Exports must never use it: a backup that quietly omits
+  // members 5,001+ is worse than no backup, because the owner believes
+  // they are covered. Fetched once per visit to this page and reused.
+  let _exportMembers = null;
+  async function exportMembers() {
+    if (_exportMembers) return _exportMembers;
+    if (!S.gym?.id) return S.members || [];
+    _exportMembers = await getAllMembers(S.gym.id);
+    return _exportMembers;
+  }
+
   // ── HELPER: Filter members ──────────────────────────────────────
-  function filterMembersForExport(opts) {
-    return S.members.filter(m => {
+  function filterMembersForExport(members, opts) {
+    return (members || []).filter(m => {
       if (opts.status !== 'all') {
         const s = memberStatus(m);
         if (opts.status === 'active'   && s !== 'Active') return false;
@@ -298,14 +311,14 @@ ${summaryBlock}
   }
 
   // ── MEMBERS EXPORT ──────────────────────────────────────────────
-  document.getElementById('btn-export-members')?.addEventListener('click', () => {
+  document.getElementById('btn-export-members')?.addEventListener('click', async () => {
     const opts = {
       status:    document.getElementById('bk-m-status')?.value || 'all',
       payMode:   document.getElementById('bk-m-paymode')?.value || 'all',
       plan:      document.getElementById('bk-m-plan')?.value || 'all',
       payStatus: document.getElementById('bk-m-paystatus')?.value || 'all',
     };
-    const filtered = filterMembersForExport(opts);
+    const filtered = filterMembersForExport(await exportMembers(), opts);
     if (!filtered.length) { showToast('No members match these filters', 'amber'); return; }
 
     const parts = [];
@@ -348,6 +361,7 @@ ${summaryBlock}
     if (btn) { btn.disabled = true; btn.innerHTML = 'Loading…'; }
 
     try {
+      const allM = await exportMembers();
       let records = await getPaymentsByMonth(S.gym.id, month);
       // Apply filters
       if (payMode !== 'all') records = records.filter(r => r.payment_mode === payMode);
@@ -358,7 +372,7 @@ ${summaryBlock}
 
       if (!records.length) {
         // Fallback to member data for this month
-        const filtered = S.members.filter(m => {
+        const filtered = allM.filter(m => {
           if (m.member_type === 'Trial' || !m.plan_price) return false;
           if (!(m.join_date||'').startsWith(month)) return false;
           if (payMode !== 'all' && m.payment_mode !== payMode) return false;
@@ -400,7 +414,7 @@ ${summaryBlock}
         const rows = records.map((r,i) => {
           const name = r.members?.full_name || '—';
           const phone = r.members?.phone || '—';
-          const linkedMember = S.members.find(m => m.id === r.member_id);
+          const linkedMember = allM.find(m => m.id === r.member_id);
           const appNo = linkedMember?.application_number || '—';
           const paidAt = r.paid_at ? fmtDate(r.paid_at) : '—';
           return [i+1, appNo, name, phone, r.plan_name||'—', '₹'+Number(parseFloat(r.amount)||0).toLocaleString('en-IN'), r.payment_mode||'—', paidAt];
@@ -508,9 +522,10 @@ ${summaryBlock}
       const sortedCats = Object.entries(catTotals).sort((a,b) => b[1]-a[1]);
 
       // Member stats
-      const totalMembers = S.members.length;
-      const activeMembers = S.members.filter(m => memberStatus(m) === 'Active').length;
-      const newThisYear = S.members.filter(m => m.join_date && m.join_date.startsWith(String(year))).length;
+      const allM = await exportMembers();
+      const totalMembers = allM.length;
+      const activeMembers = allM.filter(m => memberStatus(m) === 'Active').length;
+      const newThisYear = allM.filter(m => m.join_date && m.join_date.startsWith(String(year))).length;
 
       const headers = ['Month', 'Revenue', 'Expenses', 'Net Profit'];
       const rows = monthlyData.map(m => [m.label, '₹'+m.rev.toLocaleString('en-IN'), '₹'+m.exp.toLocaleString('en-IN'), '₹'+m.profit.toLocaleString('en-IN')]);
@@ -543,14 +558,14 @@ ${summaryBlock}
   });
 
   // ── MEMBERS CSV EXPORT ──────────────────────────────────────────
-  document.getElementById('btn-export-members-csv')?.addEventListener('click', () => {
+  document.getElementById('btn-export-members-csv')?.addEventListener('click', async () => {
     const opts = {
       status: document.getElementById('bk-m-status')?.value || 'all',
       payMode: document.getElementById('bk-m-paymode')?.value || 'all',
       plan: document.getElementById('bk-m-plan')?.value || 'all',
       payStatus: document.getElementById('bk-m-paystatus')?.value || 'all',
     };
-    const filtered = filterMembersForExport(opts);
+    const filtered = filterMembersForExport(await exportMembers(), opts);
     if (!filtered.length) { showToast('No members match these filters', 'amber'); return; }
     const headers = ['App #','Name','Phone','Join Date','Plan','Price','Discount','Balance Due','Expiry','Payment Mode','Payment Status','Member Type'];
     const rows = filtered.map(m => {
@@ -566,8 +581,8 @@ ${summaryBlock}
   });
 
   // ── OUTSTANDING PAYMENTS REPORT ───────────────────────────────
-  document.getElementById('btn-outstanding')?.addEventListener('click', () => {
-    const outstanding = S.members.filter(m => !m.cancelled_at && (m.payment_status === 'Due' || m.payment_status === 'Partial'));
+  document.getElementById('btn-outstanding')?.addEventListener('click', async () => {
+    const outstanding = (await exportMembers()).filter(m => !m.cancelled_at && (m.payment_status === 'Due' || m.payment_status === 'Partial'));
     if (!outstanding.length) { showToast('No outstanding payments', 'green'); return; }
     const headers = ['#','App #','Name','Phone','Plan','Total','Paid','Balance Due','Status','Join Date'];
     const rows = outstanding.map((m, i) => {
@@ -657,14 +672,15 @@ ${summaryBlock}
     const btn = document.getElementById('btn-full-backup');
     if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
     try {
-      const [allExpenses, payHistory] = await Promise.all([
+      const [allExpenses, payHistory, allM] = await Promise.all([
         getAllExpenses(S.gym.id).catch(() => []),
         getPaymentHistory(S.gym.id).catch(() => []),
+        exportMembers(),
       ]);
       const backup = {
         exported_at: new Date().toISOString(),
         gym: { name: S.gym?.name, gym_code: S.gym?.gym_code, id: S.gym?.id },
-        members: S.members.map(m => ({ application_number:m.application_number, full_name:m.full_name, phone:m.phone, email:m.email, date_of_birth:m.date_of_birth, gender:m.gender, plan_name:m.plan_name, plan_price:m.plan_price, discount_amount:m.discount_amount, balance_due:m.balance_due, member_type:m.member_type, payment_mode:m.payment_mode, payment_status:m.payment_status, join_date:m.join_date, expiry_date:m.expiry_date, member_addons:m.member_addons, notes:m.notes, is_active:m.is_active, cancelled_at:m.cancelled_at })),
+        members: allM.map(m => ({ application_number:m.application_number, full_name:m.full_name, phone:m.phone, email:m.email, date_of_birth:m.date_of_birth, gender:m.gender, plan_name:m.plan_name, plan_price:m.plan_price, discount_amount:m.discount_amount, balance_due:m.balance_due, member_type:m.member_type, payment_mode:m.payment_mode, payment_status:m.payment_status, join_date:m.join_date, expiry_date:m.expiry_date, member_addons:m.member_addons, notes:m.notes, is_active:m.is_active, cancelled_at:m.cancelled_at })),
         plans: S.plans.map(p => ({ name:p.name, price:p.price, duration_months:p.duration_months, features:p.features, is_featured:p.is_featured, is_active:p.is_active })),
         addon_templates: (S.addonTemplates||[]).map(t => ({ name:t.name, default_price:t.default_price, is_one_time:t.is_one_time, is_active:t.is_active })),
         expenses: (allExpenses||[]).map(e => ({ category:e.category, description:e.description, amount:e.amount, expense_date:e.expense_date, expense_month:e.expense_month, is_recurring:e.is_recurring })),
@@ -686,15 +702,16 @@ ${summaryBlock}
     const btn = document.getElementById('btn-full-backup-pdf');
     if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
     try {
-      const [allExpenses, payHistory] = await Promise.all([
+      const [allExpenses, payHistory, allM] = await Promise.all([
         getAllExpenses(S.gym.id).catch(() => []),
         getPaymentHistory(S.gym.id).catch(() => []),
+        exportMembers(),
       ]);
       const dateStr = fmtDate(new Date().toISOString().split('T')[0]);
 
       // Members section
       const mHeaders = ['App #','Name','Phone','Plan','Price','Discount','Balance Due','Type','Payment','Status','Join','Expiry','Cancelled'];
-      const mRows = S.members.map(m => {
+      const mRows = allM.map(m => {
         const discount = parseFloat(m.discount_amount) || 0;
         const balance = parseFloat(m.balance_due) || 0;
         return [
@@ -727,7 +744,7 @@ ${summaryBlock}
       // Payment history
       const phHeaders = ['Date','App #','Member','Plan','Amount','Mode'];
       const phRows = (payHistory||[]).slice(0,200).map(p => {
-        const linkedMember = S.members.find(m => m.id === p.member_id);
+        const linkedMember = allM.find(m => m.id === p.member_id);
         return [
           p.paid_at ? fmtDate(p.paid_at) : '—',
           linkedMember?.application_number || '—',
@@ -747,10 +764,10 @@ ${summaryBlock}
 
       const totalRev = (payHistory||[]).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
       const totalExp = (allExpenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
-      const totalOutstanding = S.members.filter(m=>!m.cancelled_at&&(m.payment_status==='Due'||m.payment_status==='Partial'))
+      const totalOutstanding = allM.filter(m=>!m.cancelled_at&&(m.payment_status==='Due'||m.payment_status==='Partial'))
         .reduce((s,m)=>s+outstandingAmount(m),0);
-      const totalDiscount = S.members.reduce((s,m)=>s+(parseFloat(m.discount_amount)||0),0);
-      const cancelledCount = S.members.filter(m=>m.cancelled_at).length;
+      const totalDiscount = allM.reduce((s,m)=>s+(parseFloat(m.discount_amount)||0),0);
+      const cancelledCount = allM.filter(m=>m.cancelled_at).length;
       const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Full Backup — ${escHtml(gymName)}</title>
 <style>@page{size:A4 landscape;margin:10mm;}*{box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#222;margin:0;padding:20px;background:#fff;font-size:11px;}table{width:100%;border-collapse:collapse;}h2{font-size:15px;color:#1A6FD4;margin:20px 0 8px;border-bottom:2px solid #1A6FD4;padding-bottom:4px;}@media print{body{padding:0;}.no-print{display:none!important;}}</style></head><body>
 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;border-bottom:2px solid #1A6FD4;padding-bottom:12px;">
@@ -758,7 +775,7 @@ ${summaryBlock}
   <div style="text-align:right;font-size:10px;color:#666;line-height:1.6;"><strong style="color:#222;font-size:12px;">${escHtml(gymName)}</strong><br>${gymCode?escHtml(gymCode)+'<br>':''}Generated: ${escHtml(dateStr)}</div>
 </div>
 <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:18px;padding:10px 14px;background:#f4f7fb;border-left:3px solid #1A6FD4;border-radius:4px;">
-  <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Total Members</div><div style="font-size:14px;font-weight:600;">${S.members.length}</div></div>
+  <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Total Members</div><div style="font-size:14px;font-weight:600;">${allM.length}</div></div>
   <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Active Plans</div><div style="font-size:14px;font-weight:600;">${S.plans.length}</div></div>
   <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Total Revenue</div><div style="font-size:14px;font-weight:600;">₹${totalRev.toLocaleString('en-IN')}</div></div>
   <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Total Expenses</div><div style="font-size:14px;font-weight:600;">₹${totalExp.toLocaleString('en-IN')}</div></div>
@@ -766,7 +783,7 @@ ${summaryBlock}
   <div><div style="font-size:9px;color:#888;text-transform:uppercase;">Discounts Given</div><div style="font-size:14px;font-weight:600;">₹${totalDiscount.toLocaleString('en-IN')}</div></div>
   ${cancelledCount > 0 ? `<div><div style="font-size:9px;color:#888;text-transform:uppercase;">Cancelled</div><div style="font-size:14px;font-weight:600;color:#c00;">${cancelledCount}</div></div>` : ''}
 </div>
-<h2>Members (${S.members.length})</h2>${makeTable(mHeaders, mRows)}
+<h2>Members (${allM.length})</h2>${makeTable(mHeaders, mRows)}
 <h2>Plans (${S.plans.length})</h2>${makeTable(pHeaders, pRows)}
 <h2>Expenses (${(allExpenses||[]).length})</h2>${makeTable(eHeaders, eRows)}
 <h2>Payment History (${(payHistory||[]).length})</h2>${makeTable(phHeaders, phRows)}
