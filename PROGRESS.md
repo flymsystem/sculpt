@@ -178,3 +178,117 @@ that is the next unit.
    not two.
 4. **Over-payment guard still works.** Try to clear more than the balance due —
    still rejected with the existing message.
+
+---
+
+## HOTFIX 3 — add / renew / clear-balance are now single transactions
+
+**Commit:** `fix(money): make add-member, renew and clear-balance atomic via migration 033 RPCs`
+**Migration added:** `supabase/migrations/033_money_integrity.sql` — **not applied, file only**
+
+### Why
+
+`AUDIT.md` finding **B3**. Each of these operations was two or three
+independent HTTP writes from the phone:
+
+```
+add    : INSERT members            → INSERT payment_history
+renew  : UPDATE members            → clear cancelled_at → INSERT payment_history
+clear  : SELECT + UPDATE members   → INSERT payment_history
+```
+
+There is no transaction across separate HTTP requests. On a cheap Android on a
+weak connection — the entire target market — the first write lands and the
+second doesn't. **The membership moves forward and the money disappears.**
+
+Nothing in the app can detect it afterwards, because the member record looks
+completely normal. The owner finds out at month end when Finance doesn't match
+the cash in the drawer, with no way to tell which record is wrong.
+
+### What changed
+
+**`supabase/migrations/033_money_integrity.sql` (new, not applied)**
+
+Three functions — `flym_clear_balance`, `flym_renew_member`, `flym_add_member`.
+A function body is one transaction, so every write inside it commits together
+or not at all. `flym_clear_balance` also takes `SELECT … FOR UPDATE` on the
+member row, which serialises two staff collecting from the same member.
+
+They are **not** `SECURITY DEFINER`, deliberately. They run as the calling user,
+so the existing RLS policies apply unchanged and no new privilege or bypass is
+created. A `SECURITY DEFINER` version would have had to re-implement
+owner/staff/admin authorisation by hand, and any mistake there is a
+cross-tenant data leak.
+
+`p_member_addons` is typed `text`, not `jsonb`, on purpose — see the note below.
+
+**`src/lib/members.js`**
+
+- `clearBalance()` and `addMember()` now call their RPC first.
+- New `renewMember()` holds the renewal logic (it had been inline in the modal,
+  which is why the RPC needed a home in the lib).
+- `isMissingFunction()` — each RPC call falls back to the **old multi-step path**
+  only when the error means "migration 033 isn't applied here yet"
+  (`PGRST202` / `42883`). Any other error — a validation failure, an RLS
+  refusal, a network drop — is thrown. This matters: silently retrying a
+  *rejected* payment down the non-atomic path could double-record it.
+
+**`src/pages/dashboard/member-modals.js`**
+
+- The renew handler now calls `renewMember()` instead of doing the three writes
+  itself. Its amber "renewed but payment record failed" warning still works, and
+  is now only reachable on the pre-033 fallback path.
+
+### This is safe to deploy before the migration runs
+
+Nothing breaks if you deploy the frontend and never apply 033 — every path
+falls back to exactly what it did before (plus hotfix 2's compare-and-swap).
+Apply the migration and the same code becomes atomic with no redeploy. The two
+can happen in either order.
+
+### Something I was unsure about — please read
+
+The `members.member_addons` column is `jsonb` **if migration 011 was applied**,
+and `text` otherwise. Migrations 008, 009, 020, 021 and 026 are missing from
+this repo (`AUDIT.md` D3), so I can't tell which your live database has, and I
+was not going to query it to find out.
+
+I sidestepped it: the RPC takes `member_addons` as `text` and assigns it to the
+column, letting Postgres assignment-cast it. That is byte-for-byte what
+PostgREST already does today, so the stored value is identical either way.
+
+Related, and worth checking separately: if the column **is** `jsonb`,
+`parseMemberAddons()` in `helpers.js:103` does `JSON.parse()` on a value that
+supabase-js already returned as a real array, which throws and silently yields
+`[]`. That would mean member add-ons never render anywhere. I have not touched
+it — **please check whether add-ons currently display on a member with add-ons**,
+and tell me, because it changes what the right fix is.
+
+### How to verify
+
+**Before applying migration 033** (proves the fallback is intact):
+
+1. Add a member with a payment → member appears, payment appears in Finance.
+2. Renew a member → expiry moves, payment appears in Finance.
+3. Clear a balance → balance drops, payment appears in Finance.
+   All three should behave exactly as they did yesterday.
+
+**Then apply `033_money_integrity.sql`** in the Supabase SQL editor and repeat
+1–3. Same results, now atomic. Then the tests that actually prove it:
+
+4. **Atomicity.** Open the renew modal, DevTools → Network → **Offline**, click
+   Renew. It must fail with an error, and the member's expiry must be
+   **unchanged** — check the members table. Go back online, renew again;
+   expiry *and* payment must both appear together.
+5. **Rejected payment leaves nothing.** In the SQL editor:
+   ```sql
+   select flym_clear_balance('<member-id>', '<gym-id>', 999999, 'Cash');
+   ```
+   Expect *"Amount cannot exceed the balance due"*. Then confirm `balance_due`
+   is unchanged **and** no new `payment_history` row exists.
+6. **Tenant isolation.** Logged in as one gym, call `flym_clear_balance` with
+   another gym's member id. Must fail with *"Member not found, or you do not
+   have access to them."* — not succeed.
+7. **Trial members still record no joining payment.** Add a Trial member; no
+   `payment_history` row should be created.
+8. **Renewing a cancelled member un-cancels them** and records the payment.

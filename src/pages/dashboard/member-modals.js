@@ -1,6 +1,6 @@
 import { S, DEFAULT_WA_TEMPLATE } from './state.js';
 import { expiryDate, daysLeft, memberStatus, escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, parseMemberAddons, planTotalPrice, genInvoiceNo, memberTotal, parsePlanData, todayLocalISO } from './helpers.js';
-import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, logReminder, clearBalance, cancelMembership, reactivateMembership, checkDuplicatePhone, toPaidAtTimestamp, generateMemberId, findMemberById } from '../../lib/members.js';
+import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { supabase } from '../../lib/supabase.js';
@@ -1220,28 +1220,22 @@ function openRenewModal(id) {
         const selMode=paymodeEl?.value||'Cash';
         if(btn){btn.disabled=true;btn.textContent='Renewing…';}
         try{
-          const renewUpdates = {fullName:m.full_name||m.name,phone:m.phone,email:m.email,
-            dateOfBirth:m.date_of_birth,gender:m.gender,joinDate:renewISO,
-            planId:selPlanId,planName:selPlanName,planPrice:totalP,planDurationMonths:durN,
+          // renewMember() does the member update + the payment row in ONE
+          // transaction (migration 033), so a dropped connection can no
+          // longer extend a membership without recording the money.
+          const renewed = await renewMember(m.id, gymId, {
+            fullName:m.full_name||m.name, phone:m.phone, email:m.email,
+            dateOfBirth:m.date_of_birth, gender:m.gender, joinDate:renewISO,
+            planId:selPlanId, planName:selPlanName, planPrice:totalP, planDurationMonths:durN,
             memberAddons:renewAddons.length>0?JSON.stringify(renewAddons):null,
-            paymentMode:selMode,paymentStatus:newStatus,memberType:m.member_type||m.memberType||'Paid',notes:m.notes,
-            discountAmount:discount,balanceDue:balanceDue};
-          await updateMember(m.id,gymId,renewUpdates,{skipPaidAtSync:true});
-          // Clear cancelled status on renewal — member is back to active
-          if (m.cancelled_at) {
-            await supabase.from('members').update({ cancelled_at: null }).eq('id', m.id).eq('gym_id', gymId);
-          }
-          // HARDENED: await payment insert — renewals must be recorded
-          let renewPaymentOk = true;
-          if(paidNow>0){
-            try {
-              const { error: phErr } = await supabase.from('payment_history').insert({gym_id:gymId,member_id:m.id,amount:paidNow,
-                payment_mode:selMode,plan_id:selPlanId,plan_name:selPlanName,
-                paid_at:toPaidAtTimestamp(renewISO),
-                notes:renewAddons.length>0?`Addons: ${JSON.stringify(renewAddons)}`:'Membership renewal'});
-              if(phErr){console.error('[Flym] CRITICAL: renewal payment_history failed:',phErr.message);renewPaymentOk=false;}
-            } catch(phCatchErr){console.error('[Flym] CRITICAL: renewal payment_history threw:',phCatchErr.message);renewPaymentOk=false;}
-          }
+            paymentMode:selMode, paymentStatus:newStatus,
+            memberType:m.member_type||m.memberType||'Paid', notes:m.notes,
+            discountAmount:discount, balanceDue:balanceDue,
+            amountPaid:paidNow,
+            paymentNotes:renewAddons.length>0?`Addons: ${JSON.stringify(renewAddons)}`:'Membership renewal',
+            wasCancelled:!!m.cancelled_at,
+          });
+          const renewPaymentOk = renewed._paymentRecorded !== false;
           S.members=await getMembers(gymId);
           try{S.payHistory=await getPaymentHistory(gymId);}catch(e){/* best-effort */}
           closeModal();

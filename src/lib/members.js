@@ -55,6 +55,25 @@ export function generateMemberId() {
   });
 }
 
+/**
+ * True when an RPC failed only because migration 033 has not been applied
+ * to this database yet.
+ *
+ * PGRST202 = PostgREST could not find the function in its schema cache.
+ * 42883    = Postgres "function does not exist".
+ *
+ * Anything else — a validation error raised by the function, an RLS
+ * refusal, a network failure — is a REAL error and must NOT be swallowed
+ * into the legacy path, or a rejected payment would get retried
+ * non-atomically and could double-record.
+ */
+function isMissingFunction(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === 'PGRST202' || code === '42883') return true;
+  return /could not find the function|function .* does not exist/i.test(error.message || '');
+}
+
 // ── Public API ───────────────────────────────────────────────────
 
 /**
@@ -158,6 +177,49 @@ export async function addMember(gymId, d) {
     balance_due:          num(d.balanceDue) || 0,
   };
 
+  const amountPaidNow = d.amountPaidNow != null ? (num(d.amountPaidNow) || 0) : (payload.plan_price || 0);
+  const paymentNotes  = payload.member_addons ? `Addons: ${payload.member_addons}` : null;
+
+  // ── Preferred path: one transaction (migration 033) ─────────────
+  // The member row and the joining payment commit together. Previously a
+  // dropped connection between the two writes created a member whose
+  // money was never recorded, undetectably.
+  const rpc = await supabase.rpc('flym_add_member', {
+    p_id:                   memberId,
+    p_gym_id:               gymId,
+    p_full_name:            payload.full_name,
+    p_phone:                payload.phone,
+    p_email:                payload.email,
+    p_date_of_birth:        payload.date_of_birth,
+    p_gender:               payload.gender,
+    p_join_date:            payload.join_date,
+    p_plan_id:              payload.plan_id,
+    p_plan_name:            payload.plan_name,
+    p_plan_price:           payload.plan_price,
+    p_plan_duration_months: payload.plan_duration_months,
+    p_member_addons:        payload.member_addons,
+    p_expiry_date:          payload.expiry_date,
+    p_payment_mode:         payload.payment_mode,
+    p_payment_status:       payload.payment_status,
+    p_member_type:          payload.member_type,
+    p_notes:                payload.notes,
+    p_application_number:   payload.application_number,
+    p_aadhar_number:        payload.aadhar_number,
+    p_discount_amount:      payload.discount_amount,
+    p_balance_due:          payload.balance_due,
+    p_amount_paid:          amountPaidNow,
+    p_paid_at:              toPaidAtTimestamp(payload.join_date),
+    p_payment_notes:        paymentNotes,
+  });
+
+  if (!rpc.error) {
+    safeLog(gymId, 'member_added', `New member added: ${payload.full_name}`);
+    // Atomic path — if we got here the payment row is committed too.
+    return { ...(rpc.data || { id: memberId, ...payload }), _paymentRecorded: true };
+  }
+  if (!isMissingFunction(rpc.error)) throw new Error(rpc.error.message || 'Could not save this member.');
+
+  // ── Fallback: pre-033 databases. Two writes, not atomic. ────────
   const { data, error } = await supabase
     .from('members')
     .insert(payload)
@@ -191,7 +253,6 @@ export async function addMember(gymId, d) {
 
   // Record only the amount actually collected now (may be partial — balance_due tracks the rest)
   // HARDENED: await insert + flag result so UI can warn on failure
-  const amountPaidNow = d.amountPaidNow != null ? (num(d.amountPaidNow) || 0) : (payload.plan_price || 0);
   saved._paymentRecorded = true; // default true (no payment needed = success)
   if (amountPaidNow > 0 && d.memberType !== 'Trial') {
     try {
@@ -201,7 +262,7 @@ export async function addMember(gymId, d) {
         payment_mode: payload.payment_mode,
         plan_id: payload.plan_id, plan_name: payload.plan_name,
         paid_at: toPaidAtTimestamp(payload.join_date),
-        notes: payload.member_addons ? `Addons: ${payload.member_addons}` : null,
+        notes: paymentNotes,
       });
       if (phErr) {
         console.error('[Flym] CRITICAL: payment_history insert failed for', payload.full_name, ':', phErr.message);
@@ -290,6 +351,95 @@ export async function updateMember(memberId, gymId, u, opts = {}) {
   return data || { id: memberId, gym_id: gymId, ...payload };
 }
 
+/**
+ * Renew a membership and record the renewal payment as ONE operation.
+ *
+ * Previously the renew modal did this as three separate requests:
+ * update the member, clear cancelled_at, insert the payment. A phone
+ * that lost signal partway through left the membership extended with
+ * the money missing from Finance — and nothing could detect it later,
+ * because the member record looked completely normal.
+ *
+ * @returns the saved member row, plus `_paymentRecorded: false` if the
+ *          membership was renewed but the payment row could not be
+ *          written (only reachable on the pre-033 fallback path).
+ */
+export async function renewMember(memberId, gymId, r) {
+  const amountPaid = num(r.amountPaid) || 0;
+  const paidAt     = toPaidAtTimestamp(r.joinDate);
+  const addons     = r.memberAddons == null
+    ? null
+    : (typeof r.memberAddons === 'string' ? r.memberAddons : JSON.stringify(r.memberAddons));
+  const notes      = r.paymentNotes || 'Membership renewal';
+
+  // ── Preferred path: one transaction (migration 033) ─────────────
+  const rpc = await supabase.rpc('flym_renew_member', {
+    p_member_id:            memberId,
+    p_gym_id:               gymId,
+    p_plan_id:              txt(r.planId),
+    p_plan_name:            txt(r.planName),
+    p_plan_price:           num(r.planPrice),
+    p_plan_duration_months: int(r.planDurationMonths),
+    p_join_date:            txt(r.joinDate),
+    p_member_addons:        addons,
+    p_payment_mode:         txt(r.paymentMode),
+    p_payment_status:       txt(r.paymentStatus) || 'Paid',
+    p_member_type:          txt(r.memberType) || 'Paid',
+    p_discount_amount:      num(r.discountAmount) || 0,
+    p_balance_due:          num(r.balanceDue) || 0,
+    p_amount_paid:          amountPaid,
+    p_paid_at:              paidAt,
+    p_payment_notes:        notes,
+  });
+
+  if (!rpc.error) {
+    safeLog(gymId, 'member_renewed', `Membership renewed: ${txt(r.fullName) || memberId}`);
+    return { ...(rpc.data || {}), _paymentRecorded: true };
+  }
+  if (!isMissingFunction(rpc.error)) throw new Error(rpc.error.message || 'Renewal failed.');
+
+  // ── Fallback: pre-033 databases. Same sequence as before. ───────
+  // skipPaidAtSync: a renewal creates a NEW payment; historic payments
+  // must keep their original dates.
+  const saved = await updateMember(memberId, gymId, {
+    fullName: r.fullName, phone: r.phone, email: r.email,
+    dateOfBirth: r.dateOfBirth, gender: r.gender, joinDate: r.joinDate,
+    planId: r.planId, planName: r.planName, planPrice: r.planPrice,
+    planDurationMonths: r.planDurationMonths, memberAddons: addons,
+    paymentMode: r.paymentMode, paymentStatus: r.paymentStatus,
+    memberType: r.memberType, notes: r.notes,
+    discountAmount: r.discountAmount, balanceDue: r.balanceDue,
+  }, { skipPaidAtSync: true });
+
+  if (r.wasCancelled) {
+    await supabase.from('members')
+      .update({ cancelled_at: null }).eq('id', memberId).eq('gym_id', gymId);
+  }
+
+  let _paymentRecorded = true;
+  if (amountPaid > 0) {
+    try {
+      const { error: phErr } = await supabase.from('payment_history').insert({
+        gym_id: gymId, member_id: memberId,
+        amount: amountPaid,
+        payment_mode: txt(r.paymentMode) || 'Cash',
+        plan_id: txt(r.planId), plan_name: txt(r.planName),
+        paid_at: paidAt,
+        notes,
+      });
+      if (phErr) {
+        console.error('[Flym] CRITICAL: renewal payment_history failed:', phErr.message);
+        _paymentRecorded = false;
+      }
+    } catch (err) {
+      console.error('[Flym] CRITICAL: renewal payment_history threw:', err.message);
+      _paymentRecorded = false;
+    }
+  }
+
+  return { ...(saved || { id: memberId, gym_id: gymId }), _paymentRecorded };
+}
+
 export async function deleteMember(memberId, gymId) {
   const { error } = await supabase
     .from('members')
@@ -307,6 +457,33 @@ export async function deleteMember(memberId, gymId) {
  * the balance reaches zero (otherwise stays 'Partial').
  */
 export async function clearBalance(memberId, gymId, amountPaid, paymentMode) {
+  const paidRpc = num(amountPaid) || 0;
+  const modeRpc = txt(paymentMode) || 'Cash';
+
+  // ── Preferred path: one transaction (migration 033) ─────────────
+  // Balance update + payment row commit together or not at all, and
+  // FOR UPDATE inside the function serialises two devices collecting
+  // against the same member.
+  const rpc = await supabase.rpc('flym_clear_balance', {
+    p_member_id:    memberId,
+    p_gym_id:       gymId,
+    p_amount:       paidRpc,
+    p_payment_mode: modeRpc,
+  });
+
+  if (!rpc.error) {
+    safeLog(gymId, 'balance_cleared', `₹${paidRpc.toLocaleString('en-IN')} balance payment recorded`);
+    return { ...(rpc.data || {}), _paymentRecorded: true };
+  }
+  // A validation/RLS/network error is real — surface it. Only fall back
+  // when the function simply isn't in the database yet.
+  if (!isMissingFunction(rpc.error)) throw new Error(rpc.error.message || 'Failed to record payment.');
+
+  // ── Fallback: pre-033 databases. Compare-and-swap, not atomic. ──
+  return clearBalanceLegacy(memberId, gymId, amountPaid, paymentMode);
+}
+
+async function clearBalanceLegacy(memberId, gymId, amountPaid, paymentMode) {
   const { data: member, error: fetchErr } = await supabase
     .from('members')
     .select('balance_due, plan_id, plan_name')
