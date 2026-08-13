@@ -2,11 +2,17 @@
 import './styles/global.css';
 import './styles/components.css';
 
-import { renderLanding }        from './pages/landing.js';
-import { renderLogin }          from './pages/login.js';
-import { renderGymDashboard }   from './pages/dashboard/index.js';
-import { renderAdminDashboard } from './pages/admin-dashboard.js';
-import { renderVerify }         from './pages/verify.js';
+// ── Pages are loaded on demand ────────────────────────────────────
+// These five modules are ~300 KB of source between them and no visitor
+// ever needs more than one of them. Importing them statically meant the
+// landing page downloaded the entire gym dashboard AND the admin
+// product before it could render a single pixel — on a cheap Android on
+// 3G, tens of seconds of staring at a blank screen.
+//
+// The router already handles a render function that returns a promise
+// (see routes below), so making these async needs no other change.
+// Lazily importing dashboard/index.js also breaks the static import
+// cycle it had with this file via pushDashboardSection().
 import { getAuthUser, getMyProfile, onAuthStateChange } from './lib/auth.js';
 import { ensureFreshSession } from './lib/supabase.js';
 
@@ -171,6 +177,59 @@ const LEGACY_GLOBALS = [
   '__pendingAddPhoto','__pendingEditPhoto',
 ];
 
+// ── Lazy route loading ────────────────────────────────────────────
+/**
+ * Wraps a dynamic import so the router can tell a *page* that threw
+ * from a *chunk* that never arrived.
+ *
+ * The difference matters. A page error can reasonably bounce the user
+ * to login. A failed chunk download — offline, or a stale index.html
+ * pointing at a filename the last deploy replaced — cannot: the login
+ * chunk would fail exactly the same way, and the user would be left
+ * staring at a blank screen with no explanation.
+ */
+function lazyRoute(load, render) {
+  return () => {
+    showRouteLoading();
+    return load().then(render, (err) => {
+      console.error('[Flym router] chunk load failed:', err);
+      const e = new Error('Could not load this page.');
+      e.__chunkLoad = true;
+      throw e;
+    });
+  };
+}
+
+/** Placeholder while a route chunk downloads. Pages overwrite #root. */
+function showRouteLoading() {
+  const root = document.getElementById('root');
+  if (!root || root.dataset.routeLoading === '1') return;
+  // Only paint a spinner into an EMPTY root. Mid-session navigation
+  // keeps the current page visible rather than flashing to a spinner.
+  if (root.childElementCount > 0) return;
+  root.dataset.routeLoading = '1';
+  root.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;">' +
+    '<div style="width:26px;height:26px;border:2px solid rgba(128,128,128,.25);border-top-color:#2A8FFF;' +
+    'border-radius:50%;animation:flymspin .7s linear infinite;"></div>' +
+    '<style>@keyframes flymspin{to{transform:rotate(360deg)}}</style></div>';
+}
+
+function showRouteLoadError() {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.dataset.routeLoading = '';
+  root.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;font-family:Inter,sans-serif;gap:12px;color:#9CA3AF;">
+      <div style="font-size:36px;">📶</div>
+      <div style="font-size:16px;font-weight:600;color:#F4F5F7;">Couldn’t load this page</div>
+      <div style="font-size:13px;line-height:1.6;max-width:320px;">
+        You may be offline, or Flym was just updated. Refreshing should fix it.
+      </div>
+      <button onclick="location.reload()" style="margin-top:8px;padding:10px 20px;border-radius:8px;background:#2A8FFF;color:#fff;border:none;font-size:14px;font-weight:500;cursor:pointer;">Refresh</button>
+    </div>`;
+}
+
 // ── Router ────────────────────────────────────────────────────────
 export const router = {
   current: null,
@@ -205,11 +264,11 @@ export const router = {
     LEGACY_GLOBALS.forEach((k) => { delete window[k]; });
 
     const routes = {
-      landing: () => renderLanding(router),
-      login:   () => renderLogin(router),
-      gym:     () => renderGymDashboard(router),
-      admin:   () => renderAdminDashboard(router),
-      verify:  () => renderVerify(router),
+      landing: lazyRoute(() => import('./pages/landing.js'),          m => m.renderLanding(router)),
+      login:   lazyRoute(() => import('./pages/login.js'),            m => m.renderLogin(router)),
+      gym:     lazyRoute(() => import('./pages/dashboard/index.js'),  m => m.renderGymDashboard(router)),
+      admin:   lazyRoute(() => import('./pages/admin-dashboard.js'),  m => m.renderAdminDashboard(router)),
+      verify:  lazyRoute(() => import('./pages/verify.js'),           m => m.renderVerify(router)),
     };
 
     const render = routes[page];
@@ -229,6 +288,9 @@ export const router = {
         }).catch((err) => {
           console.error(`[Flym router] Async error on "${page}":`, err);
           if (this._navId === thisNavId) this._navigating = false;
+          // A chunk that never downloaded can't be recovered by routing
+          // somewhere else — that chunk would fail too. Say so instead.
+          if (err && err.__chunkLoad) { showRouteLoadError(); return; }
           if (page !== 'login' && page !== 'landing') this.go('login');
         });
         return; // Don't clear _navigating synchronously for async renders

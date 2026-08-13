@@ -13,6 +13,25 @@ export default defineConfig({
       input: {
         main: 'index.html',
       },
+      output: {
+        // Keep third-party code in its own chunks so a routine app
+        // deploy doesn't invalidate them. Previously everything was one
+        // file, so every release made every user re-download the
+        // Supabase client and the PDF engine along with the change.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          // html2pdf pulls in jsPDF, html2canvas and canvg (~1 MB).
+          // Only reached via the dynamic import in lib/invoice-pdf.js.
+          if (id.includes('html2pdf') || id.includes('jspdf') ||
+              id.includes('html2canvas') || id.includes('canvg') ||
+              id.includes('dompurify') || id.includes('raf') ||
+              id.includes('rgbcolor') || id.includes('core-js')) {
+            return 'vendor-pdf';
+          }
+          return 'vendor';
+        },
+      },
     },
   },
   server: {

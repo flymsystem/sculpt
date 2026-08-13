@@ -937,3 +937,84 @@ to Finance. Those two pages get the same treatment in Phase 3.
    including any empty months.
 8. Watch the Network tab: on a gym with lots of payments, Finance should no
    longer download thousands of `payment_history` rows.
+
+---
+
+## PHASE 3a — initial JavaScript download cut from 1,885 kB to 15 kB
+
+**Commit:** `perf(bundle): lazy-load routes and the PDF engine, split vendor chunks`
+
+### Why
+
+`AUDIT.md` finding **C1**, and the single biggest user-visible win available.
+
+Everything was one file. The **landing page** — a marketing page for logged-out
+visitors — downloaded the entire gym dashboard, the whole admin product, and a
+1 MB PDF engine before it could render a pixel. On a ₹8,000 Android on 3G that
+is 20–40 seconds of blank screen, and real money off a prepaid data pack.
+
+`html2pdf.js` (which bundles jsPDF + html2canvas + canvg) was a static import in
+`lib/invoice-pdf.js`, reached from `member-modals.js` → `dashboard/index.js` →
+`app.js`. Roughly **1 MB shipped to every visitor** for something only needed
+when someone taps "Save as PDF" on an invoice.
+
+Worse, `vite.config.js` stamps a fresh service-worker cache version on every
+build, so **every deploy made every user re-download the entire 1.9 MB.**
+
+### Measured result
+
+| | Before | After |
+|---|---|---|
+| Entry JS | **1,885 kB** (gzip 482 kB) | **15 kB** (gzip 5 kB) |
+| Logged-out first load | 1,885 kB | ~314 kB (main + vendor + supabase + landing) |
+| PDF engine | always | only on first PDF export |
+
+Chunks now: `main` 15 kB · `vendor` 6 kB · `vendor-supabase` 198 kB ·
+`login` 11 kB · `verify` 24 kB · `landing` 95 kB · `admin-dashboard` 80 kB ·
+`dashboard` 518 kB · `vendor-pdf` 936 kB (lazy).
+
+I verified `vendor-pdf` is genuinely lazy rather than just split out — no chunk
+contains a static `import` of it, only the dynamic one.
+
+### What changed
+
+**`src/lib/invoice-pdf.js`** — `html2pdf.js` is now `await import(...)`, memoised
+so it's fetched once per session. A failed load throws a plain-English error and
+resets, so a retry works.
+
+**`src/app.js`** — all five page routes are dynamic imports. The router already
+handled render functions that return promises, so nothing else needed changing.
+This also breaks the static import cycle between `app.js` and
+`dashboard/index.js`.
+
+Two things a lazy router needs, both added:
+
+- **A loading state.** A spinner paints into `#root` while a chunk downloads —
+  but only when `#root` is empty, so mid-session navigation keeps the current
+  page on screen instead of flashing to a spinner.
+- **A real failure path.** A chunk that never arrives (offline, or a stale
+  `index.html` pointing at a filename the last deploy replaced) must *not* be
+  handled by routing to login — the login chunk would fail identically and the
+  user would be left on a blank screen. Chunk failures are tagged and shown as
+  *"Couldn't load this page — you may be offline, or Flym was just updated"*
+  with a Refresh button.
+
+**`vite.config.js`** — `manualChunks` splits `@supabase/*` and the PDF stack
+into their own vendor chunks, so an ordinary app deploy no longer invalidates
+them in the user's cache.
+
+### How to verify
+
+1. DevTools → Network → throttle **Slow 3G**, hard-reload the **landing page**.
+   Total JS should be a few hundred KB, not 1.9 MB, and the page should appear
+   in a few seconds rather than 30+.
+2. Log in. The `dashboard` chunk downloads at that point. Click through every
+   section — all must work.
+3. **The PDF test:** open a member → Invoice → **Print / PDF**, and watch the
+   Network tab. `vendor-pdf` should download **at that moment** and never
+   before. The PDF must still render correctly. Do it twice — the second time
+   must not re-download.
+4. **The offline test:** load the app, go offline, then hard-reload. You should
+   get the "Couldn't load this page / Refresh" panel — **not** a blank screen.
+5. Log in as admin — the `admin-dashboard` chunk loads only then.
+6. Confirm the browser back/forward buttons still move between sections.
