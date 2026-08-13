@@ -33,22 +33,20 @@
 // ─────────────────────────────────────────────────────────────────
 import {
   getNotifications, getUnreadCount, markRead, deleteNotification,
-  clearAllNotifications, syncNotifications, subscribeToNotifications,
+  clearAllNotifications, subscribeToNotifications,
 } from '../lib/notifications.js';
 import {
-  enablePush, disablePush, isSubscribed, unavailableReason, sendPushToGym,
+  enablePush, disablePush, isSubscribed, unavailableReason,
 } from '../lib/push.js';
 import { S } from '../pages/dashboard/state.js';
 import { escHtml } from '../pages/dashboard/helpers.js';
 import { showToast } from './toast.js';
 
 const POLL_MS = 60_000;        // refresh unread count every minute
-const SYNC_MS = 15 * 60_000;   // regenerate notifications every 15 min
 const MOBILE_MAX = 640;
 
 let _unsubRealtime = null;
 let _pollTimer = null;
-let _syncTimer = null;
 let _navHandler = null;
 let _items = [];
 let _unread = 0;
@@ -248,36 +246,21 @@ async function refresh({ full = false } = {}) {
   if (full) renderList();
 }
 
-async function runSync() {
-  const gymId = S.gym?.id;
-  if (!gymId) return;
-  const created = await syncNotifications(
-    gymId, S.members || [], S.enquiries || [], S.gym?.reminder_days || 7
-  );
-
-  if (created.length) {
-    await refresh({ full: isPanelOpen() });
-
-    // Fan the new notifications out to the gym's OTHER devices as a push.
-    // One summary push, not N — nobody wants twelve buzzes in a row.
-    // Fire-and-forget: a push failure must never affect the UI.
-    const summary = created.length === 1
-      ? created[0].title
-      : `${created.length} things need your attention`;
-    const body = created.length === 1
-      ? (created[0].body || '')
-      : created.slice(0, 3).map(n => n.title).join(' · ');
-
-    sendPushToGym(gymId, {
-      title: summary,
-      body,
-      section: created.length === 1 ? (created[0].link_section || 'alerts') : 'alerts',
-      tag: 'flym-sync',
-    });
-  } else {
-    await refresh({ full: false });
-  }
-}
+// ── Where notification GENERATION lives now ───────────────────────
+// It used to happen here: every 15 minutes, the browser walked the whole
+// member list, built up to 3 rows per member, and posted them all in one
+// upsert. At 100,000 members with 20% needing attention that is a
+// ~20,000-row write, several megabytes, fired from a phone, every 15
+// minutes, forever — failing on a weak connection, retrying on the next
+// tick, and burning the owner's mobile data in the background.
+//
+// The generate-notifications Edge Function already does exactly this
+// job, server-side, on a nightly cron, for every gym whether anyone has
+// Flym open or not. Two implementations of the same rules is also how
+// dedupe keys drift apart and owners get notified twice.
+//
+// The bell is now read-only: fetch, display, mark read. buildNotificationRows()
+// stays in lib/notifications.js as the tested reference for those rules.
 
 // ── Open / close ──────────────────────────────────────────────────
 function isPanelOpen() {
@@ -475,7 +458,6 @@ export async function mountNotificationBell() {
   buildPanel();
 
   await refresh({ full: true });
-  runSync();
 
   // One document-level listener handles the bell AND outside-click.
   // Bubble phase, not capture — capture fires before the target and made
@@ -501,13 +483,11 @@ export async function mountNotificationBell() {
   });
 
   _pollTimer = setInterval(() => refresh({ full: isPanelOpen() }), POLL_MS);
-  _syncTimer = setInterval(runSync, SYNC_MS);
 }
 
 export function cleanupNotificationBell() {
   if (_unsubRealtime) { try { _unsubRealtime(); } catch (_) {} _unsubRealtime = null; }
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-  if (_syncTimer) { clearInterval(_syncTimer); _syncTimer = null; }
 
   if (_bound) {
     document.removeEventListener('click', _docClick);

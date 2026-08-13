@@ -1176,3 +1176,85 @@ Verified the built output: `dist/sw.js` now contains the handler.
 opened from there (iOS 16.4+). In a normal Safari tab it will not work, and that
 is Apple's restriction, not this bug. `lib/push.js` already explains this to the
 user correctly.
+
+---
+
+## PHASE 4b — staff can see notifications; the 15-minute upsert storm is gone
+
+**Commit:** `fix(notifications): give staff RLS access (migration 036) and retire client-side generation`
+**Migration added:** `supabase/migrations/036_notifications_staff_access.sql` — **not applied, file only**
+
+### Why — part 1: staff were locked out (`AUDIT.md` B5)
+
+Every policy in migration 031 is scoped `gym_id = get_my_gym_id()`. But
+`get_my_gym_id()` only ever matches `role = 'owner'`. For a staff user it
+returns `NULL`, and `gym_id = NULL` is never true. So for **every staff member**:
+
+- the bell is permanently empty — no badge, ever
+- `mark_notifications_read()` returns 0
+- enabling push silently fails the insert
+- the client sync fired on every staff login and had every insert rejected — a
+  wasted request storm from every staff device
+
+Migration 030 carefully added staff policies for members, plans, payments,
+enquiries, expenses and attendance. Migration 031 forgot the pattern.
+
+### Why — part 2: the browser was generating notifications (`AUDIT.md` A8)
+
+Every 15 minutes the bell walked the whole member list, built up to three rows
+per member, and posted them **all in one upsert**. At 100,000 members with 20%
+needing attention that is a ~20,000-row write, several megabytes, fired from a
+phone, on a loop — failing on a weak connection, retrying on the next tick, and
+burning the owner's mobile data in the background.
+
+The `generate-notifications` Edge Function already does exactly this job,
+server-side, nightly, for every gym whether anyone has Flym open or not. Two
+implementations of the same rules is also how dedupe keys drift apart and owners
+get notified twice.
+
+### What changed
+
+**`supabase/migrations/036_notifications_staff_access.sql` (new, not applied)**
+
+- New `is_my_gym_any_role(uuid)` — "does the current user belong to this gym, as
+  owner or staff?" Owners keep multi-branch behaviour; staff get their gym.
+- All eight `notifications` and `push_subscriptions` policies rewritten to use
+  it. `user_id IS NULL` still means "everyone in this gym", and a staff member
+  still only ever sees **their own** push subscriptions, never a colleague's.
+- `mark_notifications_read()` falls back to `get_my_gym_id_as_staff()`.
+
+Deliberately scoped to these two tables. `broadcasts` and `support_messages`
+still use `get_my_gym_id()` because they are owner-only **by design**.
+
+**`src/components/notification-bell.js`** — generation removed. The bell is now
+read-only: fetch, display, mark read. The 15-minute timer and its teardown are
+gone; the 60-second unread poll and the realtime subscription stay.
+
+`buildNotificationRows()` stays in `lib/notifications.js` as the readable
+reference for the notification rules and their IST dedupe-key formats, with a
+comment explaining it is no longer called from the UI.
+
+### Side effect worth naming
+
+Notifications now appear on the **nightly cron** rather than within 15 minutes of
+opening the app. For "this member expired" that is the right cadence. If you want
+a mid-day refresh, the right shape is a button that calls the Edge Function for
+one gym — not the old loop.
+
+This also fixes the dead code path where `S.enquiries` was always `[]`, so
+client-side enquiry notifications never fired anyway.
+
+### How to verify
+
+1. Apply `036_notifications_staff_access.sql`.
+2. **Log in as a staff user.** The bell must now show the gym's notifications and
+   the unread badge must count down as they are read. Before this, always empty.
+3. As that staff user, tap **Enable** for push — it must succeed, and a row must
+   appear in `push_subscriptions` with their `user_id`.
+4. **Tenant isolation:** as staff, `select count(*) from notifications where gym_id = '<another-gym>';` → **0**.
+5. **Colleague isolation:** as staff, `select count(*) from push_subscriptions;` →
+   only their own device rows.
+6. As owner, confirm the bell, mark-all-read, dismiss and clear-all all still work.
+7. **The storm is gone:** open the dashboard, leave it for 20 minutes, and watch
+   the Network tab. There must be **no** large POST to `notifications`. You
+   should only see the small unread-count poll each minute.

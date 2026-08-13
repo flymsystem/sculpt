@@ -249,6 +249,19 @@ export function buildNotificationRows(members = [], enquiries = [], reminderDays
 /**
  * Generate + persist notifications for the current data set.
  * Returns the newly created rows (empty array if nothing new).
+ *
+ * ── NO LONGER CALLED FROM THE UI ─────────────────────────────────
+ * The notification bell used to run this every 15 minutes from the
+ * browser. At scale that is a multi-megabyte upsert fired from a phone
+ * on a loop. Generation now belongs to the generate-notifications Edge
+ * Function, which does the same job server-side on a nightly cron for
+ * every gym, open tab or not.
+ *
+ * Kept because buildNotificationRows() above is the readable reference
+ * for the notification rules and their dedupe-key formats, which must
+ * stay byte-identical to the Edge Function. If you ever need a
+ * client-triggered refresh, prefer calling the Edge Function for one gym
+ * over reintroducing this loop.
  */
 export async function syncNotifications(gymId, members, enquiries, reminderDays) {
   if (!gymId) return [];
