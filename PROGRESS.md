@@ -1431,3 +1431,51 @@ noise. Flagging them here so it's a recorded decision rather than an oversight.
    name or notes. The form fields must be populated correctly rather than
    truncated at the quote.
 4. **Finance → Top Expense Categories** — categories render normally.
+
+---
+
+## PHASE 5c — two numbers on screen that were simply wrong
+
+**Commit:** `fix(ui): correct the Recent Activity count and make Renewal Rate actually work`
+
+### Why
+
+**"N events"** (`AUDIT.md` C10). The Recent Activity header read
+`${Math.min(S.members.length, 8)} events` — it counted **members**, not events.
+A gym with 40 members and 3 recent events was told "8 events".
+
+**Renewal Rate always 0%** (`AUDIT.md` B16). Analytics filtered on
+`p.payment_type === 'Renewal'`. **There is no `payment_type` column** on
+`payment_history` — not in any migration, and nothing in the app ever wrote one.
+The filter was always false.
+
+So a **Pro-tier feature** permanently reported *"0% — 0 renewals / N
+expirations"*, telling paying customers their member retention was catastrophic
+when it might have been excellent. Actively misleading, on a feature they paid
+extra for.
+
+### What changed
+
+**`overview.js`** — the activity list is now built once and the label counts the
+items actually rendered.
+
+**`analytics.js`** — a renewal is now **derived**: any payment from a member who
+had already paid at least once before. The earliest payment per member is
+computed in one pass, then payments in the last three months that aren't a
+member's first are counted.
+
+I chose this over adding a `payment_type` column because it needs **no migration
+and no backfill**, and it works correctly for the payment history that already
+exists. A column would only classify payments made *after* it was added, so the
+figure would stay wrong for months.
+
+### How to verify
+
+1. **Overview → Recent Activity**: the "N events" label must equal the number of
+   rows actually listed beneath it. Test on a gym with only 2–3 recent events —
+   it used to say 8.
+2. **Analytics → Renewal Rate (3mo)** must now show a **real number**. Sanity
+   check it: renew a member who has an existing payment, reload Analytics, and
+   the renewals count must go up by one.
+3. A gym where nobody has ever renewed should still show 0% — that's correct,
+   not the bug.

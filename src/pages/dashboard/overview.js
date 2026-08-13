@@ -39,6 +39,12 @@ function renderOverview(c) {
 
   const trends=computeOverviewTrends();
 
+  // The label used to read `Math.min(S.members.length, 8) events`, which
+  // counted MEMBERS, not events — it said "8 events" above a list of 3.
+  // recentActivity() caps at 8, so count what it actually renders.
+  const activityHtml = recentActivity(showFinancials);
+  const activityCount = (activityHtml.match(/class="activity-item"/g) || []).length;
+
   c.innerHTML = `<div class="content-inner page-enter">
     <div class="overview-hero">
       <div>
@@ -106,9 +112,9 @@ function renderOverview(c) {
       <div>
         <div class="overview-section-header">
           <div class="section-title-sm">Recent Activity</div>
-          <span class="section-meta">${Math.min(S.members.length,8)} events</span>
+          <span class="section-meta">${activityCount} event${activityCount!==1?'s':''}</span>
         </div>
-        <div class="activity-feed">${recentActivity(showFinancials)}</div>
+        <div class="activity-feed">${activityHtml}</div>
       </div>
       <div>
         ${hasFeature(S.tier, 'analytics') ? `<div class="overview-section-header">

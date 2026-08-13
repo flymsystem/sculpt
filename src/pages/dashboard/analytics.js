@@ -70,11 +70,29 @@ export function renderAnalytics(c) {
   const genderO = total - genderM - genderF;
 
   // ── Renewal rate (members who renewed in last 3 months) ───
+  // This used to filter on `p.payment_type === 'Renewal'`. There is no
+  // payment_type column on payment_history — not in any migration, and
+  // nothing in the app ever wrote one — so the filter was always false
+  // and this Pro feature permanently reported "0% — 0 renewals",
+  // implying the gym's retention was catastrophic.
+  //
+  // A renewal is derived instead: any payment from a member who had
+  // already paid at least once before. That needs no schema change and
+  // matches what a gym owner means by the word.
   const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+  const firstPaidAt = new Map();
+  payHistory.forEach(p => {
+    if (!p.paid_at || !p.member_id) return;
+    const t = new Date(p.paid_at).getTime();
+    if (isNaN(t)) return;
+    const prev = firstPaidAt.get(p.member_id);
+    if (prev === undefined || t < prev) firstPaidAt.set(p.member_id, t);
+  });
   const renewals = payHistory.filter(p => {
-    if (!p.paid_at) return false;
-    const d = new Date(p.paid_at);
-    return d >= threeMonthsAgo && p.payment_type === 'Renewal';
+    if (!p.paid_at || !p.member_id) return false;
+    const t = new Date(p.paid_at).getTime();
+    if (isNaN(t) || t < threeMonthsAgo.getTime()) return false;
+    return t > (firstPaidAt.get(p.member_id) ?? t);   // not their first payment
   }).length;
   const expirationsInPeriod = members.filter(m => {
     if (!m.expiry_date) return false;
