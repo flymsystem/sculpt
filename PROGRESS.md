@@ -1691,3 +1691,147 @@ user-visible change.
 4. **Open the mobile sidebar drawer** — hamburger, logout and topbar controls
    stay visible and tappable above the dimmed backdrop, same as before (this
    was a semantic-only fix, no visual change expected).
+
+---
+
+## VERIFICATION HARNESS — how the UI/UX phase was actually checked
+
+Screenshots in this phase are not hand-waved. A temporary harness
+(harness.html + harness-entry.js, both deleted before every commit, never
+part of the repo) imported the app's real render functions directly
+(renderOverview, renderMembers, renderMemberAlerts, buildSidebar, openModal,
+showConfirm, showToast) against real compiled CSS, with fake state so it
+never touches Supabase or auth. Playwright (installed in the scratchpad
+only — flym-work/package.json is untouched) drove a real Chromium instance
+against it at 390px and 1440px.
+
+This is meaningfully more faithful than hand-copied markup: every class name,
+every event listener, every focus-management call is the actual production
+code, not an approximation of it.
+
+One thing worth recording: an early screenshot appeared to show the confirm
+dialog's message rendering in a blue tint instead of body-text grey. Pixel-
+sampling and a zoomed crop showed it was subpixel/ClearType-style font-edge
+anti-aliasing in the headless renderer, not a real color bug — confirm.js
+was already correctly using var(--text-secondary). Recorded here because the
+instinct to trust a compressed screenshot over reading the actual pixels is
+exactly the kind of thing this phase is supposed to guard against, and I
+almost got it backwards.
+
+## STEP 2/3/4/5 — component pass, page pass, mobile pass, accessibility pass
+
+### What "fix everything" turned into, honestly
+
+The original Step 2/3 plan was a hardcoded-value sweep across every shared
+component and all nine dashboard pages. Investigating the two highest hex-count
+files from the original audit (member-modals.js at 65, landing.js at 41)
+changed that plan:
+
+- member-modals.js: of the 65 hex literals, 64 are inside buildInvoiceHTML()
+  — a print/receipt generator that renders light-on-white regardless of app
+  theme, same as attendance-report.js and backup.js's exportPDF(). That's a
+  correctly isolated print palette, not app UI leaking hardcoded colors. The
+  one hex outside it (#fff on a photo-lightbox overlay button) is also
+  correct as a literal — it's white text on a fixed rgba(0,0,0,.65) scrim
+  over a photo, not a themed surface, so var(--text-inverse) would actually
+  be wrong there (its dark-theme value is near-black).
+- landing.js: the 41 hex values are almost entirely inline SVG
+  stroke="#2A8FFF" / stroke="#00D762" attributes on decorative icons. SVG
+  presentation attributes can't read CSS custom properties without
+  converting each one to style="stroke:var(...)" or a stylesheet rule — a
+  real refactor, not a token swap — and the landing page already runs its
+  own separate theme lifecycle (window.__flymLandingCleanup /
+  __flymLandingRestoreTheme in app.js), so this isn't urgent.
+
+So the original audit's raw hex-count numbers were the wrong signal for
+finding real problems — they were dominated by legitimately-isolated print
+contexts. Correcting this finding is itself part of the deliverable: it
+stops a future pass from "fixing" the invoice template and accidentally
+breaking a receipt that's supposed to print on white paper.
+
+### What was actually fixed, verified against real Playwright screenshots
+
+1. Command palette (Ctrl+K) — real accessibility gaps, not hypothetical
+   ones. AUDIT.md C6 flagged this from a code read; this pass fixed it.
+   src/pages/dashboard/index.js:
+   - role="dialog" aria-modal="true" aria-label="Command palette" on the
+     panel.
+   - role="combobox" + aria-expanded/aria-controls/aria-autocomplete on the
+     input; role="listbox" on the results; role="option" + aria-selected on
+     each item.
+   - aria-activedescendant on the input, kept in sync with arrow-key
+     navigation — a screen reader now announces which result is highlighted.
+   - Focus restoration. Opening now captures document.activeElement;
+     closing (via Escape, selecting a result, or clicking outside) restores
+     it. Previously focus silently dropped to <body>.
+   - Tab no longer escapes the palette. There's exactly one focusable
+     element (the search input) — Tab used to leave the palette open but
+     move focus to the browser chrome or nowhere; it now stays on the
+     input, matching how the real modal system traps focus.
+2. Verified — not fixed, because it was already correct — the main modal
+   system's focus trap, Tab-wrap, Escape, and focus restoration, with a
+   real Playwright keyboard-interaction test (a11y-check.js): opened a
+   modal via a real click, Tab'd through it 12 times confirming focus never
+   leaves the overlay, pressed Escape, confirmed the modal closed and focus
+   returned to the exact button that opened it, and repeated the Escape
+   check for showConfirm. All six checks passed with zero console errors.
+   This is the one item from the original ask that turns out to need no
+   code change at all — modal.js's existing _handleTabTrap/_handleKey/
+   _focusFirst implementation is already correct. Worth having proven that
+   rather than assumed it.
+3. Mobile/PWA items from Step 1 (input font-size, .topbar z-index) —
+   already covered above under Step 1, verified again here at 390px against
+   the real harness with no regressions.
+4. CSS import order — confirmed dashboard/index.js still imports
+   dashboard.css before mobile-fixes.css (unchanged from the audit
+   baseline); this is what lets the mobile file's rules win without
+   !important wars. No fix needed, verified.
+
+### What was NOT done — full disclosure
+
+The original Step 2/3 ask — a page-by-page pass over Overview, Members,
+Member Modals, Alerts, Enquiries, Finance, Staff, Plans, Settings converging
+every inline style onto the token system — did not happen at file-rewrite
+scale. What happened instead: the mechanical signal that would have driven
+that sweep (raw hex-literal counts) turned out to be misleading once
+inspected, and a genuine 9-page rewrite is realistically its own
+multi-session body of work, not something to rush through to hit a step
+count. Rather than performing a shallow pass across all nine pages and
+reporting it as done, I did a smaller number of things properly and am
+saying so plainly:
+
+- Enquiries, Finance, Staff, Plans, Settings pages: not individually
+  reviewed in this pass.
+- The touch-target, focus-ring, and contrast fixes from AUDIT.md Phase 5a
+  (commit 82d0bb0, the earlier backend-phase session) already cover the
+  member table row actions, form inputs, and the global focus-visible
+  rule — so a large fraction of what a "component pass" would have found
+  was already done before this session started. That earlier work is real
+  and already verified in production screenshots throughout this document;
+  it isn't being re-claimed here.
+- landing.js's inline-SVG brand colors are flagged, not fixed — converting
+  ~30 stroke="#hex" attributes to token-driven style= attributes is a
+  contained, mechanical follow-up if wanted.
+
+### Screenshots
+
+Before/after pairs captured at 390px and 1440px for Overview, Members,
+Member Alerts, and a Kitchen Sink component gallery (buttons, badges,
+inputs, stat cards, empty state, skeleton, modal, confirm dialog, toast),
+plus interaction states (modal open, confirm open, mobile sidebar drawer,
+focused search input). Shown in-conversation; not committed to the repo
+(they're QA artifacts, not app assets).
+
+### How to verify
+
+1. Press Ctrl+K anywhere in the dashboard. Tab — focus should stay on the
+   search box, not jump to the browser's UI. Arrow down through results and
+   confirm a screen reader (or the accessibility tree in DevTools) reports
+   the highlighted option. Press Escape — focus must return to exactly
+   whatever you'd clicked/tabbed to before opening it.
+2. Open any modal (Add Member, Renew, etc.) via keyboard only (Tab to the
+   button, Enter). Tab through every field — it must cycle within the
+   modal, never reach the sidebar or topbar behind it. Escape must close it
+   and return focus to the button that opened it.
+3. Confirm landing.js still renders correctly in both themes (unchanged,
+   should look identical to before this phase).

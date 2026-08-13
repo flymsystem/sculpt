@@ -375,8 +375,14 @@ function nav(id, opts = {}) {
 }
 
 // ── Command Palette (Ctrl+K) ─────────────────────────────
+let _cmdLastFocused = null;
+
 function openCommandPalette() {
   if (document.getElementById('flym-cmd-overlay')) return;
+  // Restored on close — Ctrl+K can be pressed from anywhere, so whatever
+  // had focus (a table row, a nav item, the search hint button) gets it
+  // back rather than silently dropping focus to <body>.
+  _cmdLastFocused = document.activeElement;
 
   // Filter nav pages based on role + tier
   const allPages = [
@@ -423,12 +429,13 @@ function openCommandPalette() {
   const overlay = document.createElement('div');
   overlay.id = 'flym-cmd-overlay';
   overlay.className = 'cmd-overlay';
-  overlay.innerHTML = `<div class="cmd-palette">
+  overlay.innerHTML = `<div class="cmd-palette" role="dialog" aria-modal="true" aria-label="Command palette">
     <div class="cmd-input-wrap">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input class="cmd-input" id="cmd-input" placeholder="Search members, pages…" autocomplete="off" autofocus>
+      <input class="cmd-input" id="cmd-input" placeholder="Search members, pages…" autocomplete="off" autofocus
+        role="combobox" aria-expanded="true" aria-controls="cmd-results" aria-autocomplete="list">
     </div>
-    <div class="cmd-results" id="cmd-results"></div>
+    <div class="cmd-results" id="cmd-results" role="listbox" aria-label="Results"></div>
     <div class="cmd-footer"><span>Navigate</span> <span class="cmd-kbd">↑↓</span> <span>Select</span> <span class="cmd-kbd">↵</span> <span>Close</span> <span class="cmd-kbd">Esc</span></div>
   </div>`;
   document.body.appendChild(overlay);
@@ -447,12 +454,13 @@ function openCommandPalette() {
       memberItems.forEach(m => { if (m.label.toLowerCase().includes(q)) items.push(m); });
     }
     activeIdx = 0;
-    if (!items.length) { results.innerHTML = `<div class="cmd-empty">No results for "${escHtml(query)}"</div>`; return; }
-    results.innerHTML = items.slice(0, 12).map((item, i) => `<div class="cmd-item ${i === 0 ? 'active' : ''}" data-idx="${i}" data-id="${escHtml(item.id)}" data-type="${item.type || 'page'}">
+    if (!items.length) { results.innerHTML = `<div class="cmd-empty">No results for "${escHtml(query)}"</div>`; input.removeAttribute('aria-activedescendant'); return; }
+    results.innerHTML = items.slice(0, 12).map((item, i) => `<div class="cmd-item ${i === 0 ? 'active' : ''}" id="cmd-item-${i}" role="option" aria-selected="${i === 0}" data-idx="${i}" data-id="${escHtml(item.id)}" data-type="${item.type || 'page'}">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${item.type === 'member' ? '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' : '<circle cx="12" cy="12" r="10"/>'}</svg>
       <span class="cmd-item-label">${escHtml(item.label)}${item.sub ? ` <span style="color:var(--text-quaternary);font-size:11px;">— ${escHtml(item.sub)}</span>` : ''}</span>
       ${item.type === 'page' ? '<span class="cmd-item-hint">page</span>' : '<span class="cmd-item-hint">member</span>'}
     </div>`).join('');
+    input.setAttribute('aria-activedescendant', 'cmd-item-0');
   }
 
   function selectItem() {
@@ -467,8 +475,13 @@ function openCommandPalette() {
   }
 
   function updateActive() {
-    results.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+    results.querySelectorAll('.cmd-item').forEach((el, i) => {
+      const isActive = i === activeIdx;
+      el.classList.toggle('active', isActive);
+      el.setAttribute('aria-selected', String(isActive));
+    });
     results.querySelector('.cmd-item.active')?.scrollIntoView({ block: 'nearest' });
+    input.setAttribute('aria-activedescendant', `cmd-item-${activeIdx}`);
   }
 
   renderResults('');
@@ -481,12 +494,23 @@ function openCommandPalette() {
     else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = (activeIdx - 1 + count) % Math.max(count, 1); updateActive(); }
     else if (e.key === 'Enter') { e.preventDefault(); selectItem(); }
     else if (e.key === 'Escape') closeCommandPalette();
+    // The search input is the only focusable element in the palette —
+    // Tab has nowhere useful to go, so keep focus on it rather than
+    // letting it escape to whatever the browser considers "next"
+    // (often the address bar or nothing at all).
+    else if (e.key === 'Tab') { e.preventDefault(); }
   });
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCommandPalette(); });
 }
 
 function closeCommandPalette() {
   document.getElementById('flym-cmd-overlay')?.remove();
+  // Restore focus to whatever opened it — a table row, the sidebar, the
+  // search-hint button — instead of leaving keyboard focus on <body>.
+  if (_cmdLastFocused && typeof _cmdLastFocused.focus === 'function') {
+    _cmdLastFocused.focus();
+  }
+  _cmdLastFocused = null;
 }
 
 function bindCommandPalette() {
