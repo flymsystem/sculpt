@@ -152,21 +152,21 @@ function renderOverview(c) {
             const genderF=S.members.filter(m=>m.gender==='Female').length;
 
             return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center;overflow:hidden;min-width:0;">
-                  <div style="font-size:20px;font-weight:700;color:${retRate>=70?'var(--green)':retRate>=40?'var(--amber)':'var(--red)'};font-variant-numeric:tabular-nums;">${retRate}%</div>
-                  <div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">Retention Rate</div>
+                <div class="stat-tile">
+                  <div class="stat-tile-value" style="font-size:20px;color:${retRate>=70?'var(--green)':retRate>=40?'var(--amber)':'var(--red)'};">${retRate}%</div>
+                  <div class="stat-tile-label">Retention Rate</div>
                 </div>
-                <div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center;overflow:hidden;min-width:0;">
-                  <div style="font-size:18px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fmtCurrencyShort(avgRev)}</div>
-                  <div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">Avg. per Member</div>
+                <div class="stat-tile">
+                  <div class="stat-tile-value" style="color:var(--brand);">${fmtCurrencyShort(avgRev)}</div>
+                  <div class="stat-tile-label">Avg. per Member</div>
                 </div>
-                <div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center;overflow:hidden;min-width:0;">
-                  <div style="font-size:14px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cashCount} / ${cardCount} / ${onlineCount}</div>
-                  <div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">Cash / Card / Online</div>
+                <div class="stat-tile">
+                  <div class="stat-tile-value" style="font-size:14px;font-weight:600;color:var(--text-primary);">${cashCount} / ${cardCount} / ${onlineCount}</div>
+                  <div class="stat-tile-label">Cash / Card / Online</div>
                 </div>
-                <div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center;overflow:hidden;min-width:0;">
-                  <div style="font-size:16px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;">${expired}</div>
-                  <div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">Need Re-engagement</div>
+                <div class="stat-tile">
+                  <div class="stat-tile-value" style="font-size:16px;font-weight:600;color:var(--text-primary);">${expired}</div>
+                  <div class="stat-tile-label">Need Re-engagement</div>
                 </div>
               </div>
               ${cancelled>0?`<div style="margin-top:12px;padding:12px;background:var(--surface-2);border-radius:var(--radius-md);">

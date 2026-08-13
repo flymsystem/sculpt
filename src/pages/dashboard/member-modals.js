@@ -1586,9 +1586,9 @@ function openMemberDetailModal(memberId) {
 // Small helper for modal detail rows
 function mRow(label, value) {
   if (!value || value === '—') return '';
-  return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border-subtle);">
-    <span style="font-size:12px;color:var(--text-tertiary);flex-shrink:0;min-width:90px;">${label}</span>
-    <span style="font-size:13px;color:var(--text-primary);text-align:right;font-weight:500;word-break:break-word;min-width:0;">${value}</span>
+  return `<div class="detail-row">
+    <span class="detail-label" style="min-width:90px;">${label}</span>
+    <span class="detail-value" style="word-break:break-word;">${value}</span>
   </div>`;
 }
 

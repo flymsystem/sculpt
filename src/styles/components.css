@@ -276,3 +276,73 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
   }
   .members-table .action-btns { gap: var(--space-2) !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHARED COMPONENT PATTERNS  (AUDIT.md C3)
+   ───────────────────────────────────────────────────────────────────
+   These existed as near-identical inline styles hand-copied into
+   several pages, each drifting slightly on re-copy (padding, letter-
+   spacing, one had a border the other didn't). Converging them here
+   fixes the drift as a side effect of removing the duplication — the
+   value that was already used more often (or looked more correct) won.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Data table: the small "breakdown" tables inside a card body ───
+   (Finance revenue/expense/dues, Broadcast recipients, and similar).
+   Was two different inline copies with different padding (8px vs 10px)
+   and letter-spacing (0.04em vs 0.05em); this uses the Broadcast
+   version's border-bottom-on-header since that one clearly separates
+   the header from the first row, which the other was missing. */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead tr { background: var(--surface-2); }
+.data-table th {
+  padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600;
+  color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-default);
+}
+.data-table th.text-center { text-align: center; }
+.data-table th.text-right  { text-align: right; }
+.data-table td {
+  padding: 10px 12px; font-size: 13px; color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle); vertical-align: top;
+}
+.data-table td.text-center { text-align: center; }
+.data-table td.text-right  { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ── Stat tile: small label-over-value card used in grids of 3–6 ───
+   (Overview mini-stats, Enquiries funnel counts, Settings summary
+   cards). Was hand-copied with the padding, radius and text sizes
+   re-typed slightly differently at each site. */
+.stat-tile {
+  background: var(--surface-2); border-radius: var(--radius-md);
+  padding: 12px; text-align: center; overflow: hidden; min-width: 0;
+}
+.stat-tile .stat-tile-value {
+  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.stat-tile .stat-tile-label {
+  font-size: 11px; color: var(--text-tertiary); margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Detail row: label/value pair inside a detail panel ─────────────
+   (Member detail modal contact section, Settings info blocks). */
+.detail-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding: 8px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.detail-row:last-child { border-bottom: 0; }
+.detail-row .detail-label {
+  font-size: 12px; color: var(--text-tertiary); flex-shrink: 0;
+}
+.detail-row .detail-value {
+  font-size: 13px; color: var(--text-primary); font-weight: 500;
+  text-align: right; min-width: 0;
+  /* Wraps by default rather than truncating — an address or email cut
+     off with an ellipsis is a worse outcome than a taller row. Callers
+     that genuinely want single-line truncation can still add
+     white-space:nowrap;overflow:hidden;text-overflow:ellipsis; inline. */
+}

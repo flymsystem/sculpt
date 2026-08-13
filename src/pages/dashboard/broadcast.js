@@ -296,16 +296,16 @@ function renderSelect(el, root) {
 
         <!-- Member list -->
         <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);">
-          <table style="width:100%;border-collapse:collapse;">
+          <table class="data-table">
             <thead>
-              <tr style="background:var(--surface-2);position:sticky;top:0;z-index:1;">
-                <th style="width:40px;padding:10px;text-align:center;border-bottom:1px solid var(--border);">
+              <tr style="position:sticky;top:0;z-index:1;">
+                <th style="width:40px;text-align:center;">
                   <input type="checkbox" id="bc-check-all" ${allSelected ? 'checked' : ''} style="cursor:pointer;">
                 </th>
-                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Member</th>
-                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);" class="hide-mobile">Phone</th>
-                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);" class="hide-mobile">Plan</th>
-                <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Status</th>
+                <th>Member</th>
+                <th class="hide-mobile">Phone</th>
+                <th class="hide-mobile">Plan</th>
+                <th class="text-center">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -317,8 +317,8 @@ function renderSelect(el, root) {
                     const st = memberStatus(m);
                     const stBadge = { Active:'badge-green', Expiring:'badge-amber', Expired:'badge-red', Due:'badge-red', Partial:'badge-amber', Trial:'badge-amber' }[st] || 'badge-muted';
                     const displayName = m.full_name || m.name || '';
-                    return `<tr style="border-bottom:1px solid var(--border);${!hasPhone ? 'opacity:0.45;' : ''}">
-                      <td style="padding:8px 10px;text-align:center;">
+                    return `<tr style="${!hasPhone ? 'opacity:0.45;' : ''}">
+                      <td class="text-center" style="padding:8px 10px;">
                         <input type="checkbox" class="bc-member-chk" data-id="${m.id}"
                           ${checked ? 'checked' : ''} ${!hasPhone ? 'disabled title="No phone number"' : ''}
                           style="cursor:${hasPhone ? 'pointer' : 'not-allowed'};">
@@ -332,9 +332,9 @@ function renderSelect(el, root) {
                           </div>
                         </div>
                       </td>
-                      <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${escHtml(m.phone || '\u2014')}</td>
-                      <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${escHtml(m.plan_name || m.plan || '\u2014')}</td>
-                      <td style="padding:8px 12px;text-align:center;"><span class="badge ${stBadge}" style="font-size:10px;">${st}</span></td>
+                      <td class="hide-mobile" style="padding:8px 12px;font-size:12px;color:var(--text-secondary);">${escHtml(m.phone || '\u2014')}</td>
+                      <td class="hide-mobile" style="padding:8px 12px;font-size:12px;color:var(--text-secondary);">${escHtml(m.plan_name || m.plan || '\u2014')}</td>
+                      <td class="text-center" style="padding:8px 12px;"><span class="badge ${stBadge}" style="font-size:10px;">${st}</span></td>
                     </tr>`;
                   }).join('')}
             </tbody>
@@ -862,13 +862,13 @@ async function openBroadcastDetail(broadcastId, rootC) {
           : ''}
       </div>
       <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);">
-        <table style="width:100%;border-collapse:collapse;">
+        <table class="data-table">
           <thead>
-            <tr style="background:var(--surface-2);position:sticky;top:0;z-index:1;">
-              <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Member</th>
-              <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Phone</th>
-              <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Status</th>
-              <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);" class="hide-mobile">Time</th>
+            <tr style="position:sticky;top:0;z-index:1;">
+              <th>Member</th>
+              <th>Phone</th>
+              <th class="text-center">Status</th>
+              <th class="hide-mobile">Time</th>
             </tr>
           </thead>
           <tbody>
@@ -886,13 +886,13 @@ async function openBroadcastDetail(broadcastId, rootC) {
                   const stBadge = stInfo.badge;
                   const stLabel = stInfo.label;
                   const timeStr = r.sent_at ? new Date(r.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '\u2014';
-                  return `<tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:8px 12px;font-size:13px;color:var(--text-primary);">${escHtml(r.member_name || 'Member')}</td>
-                    <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary);">${escHtml(r.phone)}</td>
-                    <td style="padding:8px 12px;text-align:center;"><span class="badge ${stBadge}" style="font-size:10px;">${stLabel}</span>
+                  return `<tr>
+                    <td style="font-size:13px;color:var(--text-primary);">${escHtml(r.member_name || 'Member')}</td>
+                    <td style="font-size:12px;color:var(--text-secondary);">${escHtml(r.phone)}</td>
+                    <td class="text-center"><span class="badge ${stBadge}" style="font-size:10px;">${stLabel}</span>
                       ${r.error_message ? `<div style="font-size:10px;color:var(--red);margin-top:2px;">${escHtml(r.error_message.slice(0, 60))}</div>` : ''}
                     </td>
-                    <td style="padding:8px 12px;font-size:12px;color:var(--text-tertiary);" class="hide-mobile">${timeStr}</td>
+                    <td class="hide-mobile" style="font-size:12px;color:var(--text-tertiary);">${timeStr}</td>
                   </tr>`;
                 }).join('')}
           </tbody>

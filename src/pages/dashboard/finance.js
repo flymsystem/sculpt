@@ -184,14 +184,14 @@ function renderFinance(c, period, customStart, customEnd) {
         const memberName = p.memberName || '\u2014';
         const modeLabel = p.mode || '\u2014';
         const modeBadge = p.mode === 'Cash' ? 'badge-green' : p.mode === 'Card' ? 'badge-amber' : 'badge-blue';
-        return `<tr style="border-bottom:1px solid var(--border-subtle);">
-          <td style="padding:10px 12px;">
+        return `<tr>
+          <td>
             <div style="font-weight:500;font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(memberName)}</div>
             <div style="font-size:11px;color:var(--text-tertiary);" class="hide-mobile">${escHtml(p.planName || '\u2014')}</div>
           </td>
-          <td style="padding:10px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${fmtDate(p.paidAt)}</td>
-          <td style="padding:10px 12px;text-align:center;"><span class="badge ${modeBadge}" style="font-size:10px;">${escHtml(modeLabel)}</span></td>
-          <td style="padding:10px 12px;text-align:right;font-weight:600;color:var(--green);font-size:13px;font-variant-numeric:tabular-nums;">${fmtCurrency(p.amount)}</td>
+          <td class="hide-mobile" style="font-size:12px;color:var(--text-secondary);">${fmtDate(p.paidAt)}</td>
+          <td class="text-center"><span class="badge ${modeBadge}" style="font-size:10px;">${escHtml(modeLabel)}</span></td>
+          <td class="text-right" style="font-weight:600;color:var(--green);">${fmtCurrency(p.amount)}</td>
         </tr>`;
       }).join('');
     }
@@ -236,8 +236,8 @@ function renderFinance(c, period, customStart, customEnd) {
       const amt = outstandingAmount(m);
       const statusLabel = m.payment_status === 'Partial' ? 'Partial' : 'Due';
       const statusBadge = m.payment_status === 'Partial' ? 'badge-amber' : 'badge-red';
-      return `<tr style="border-bottom:1px solid var(--border-subtle);">
-        <td style="padding:10px 12px;">
+      return `<tr>
+        <td>
           <div style="display:flex;align-items:center;gap:10px;">
             ${m.photo_url
               ? `<div class="member-avatar" style="width:32px;height:32px;font-size:11px;overflow:hidden;padding:0;flex-shrink:0;"><img src="${escHtml(m.photo_url)}" alt="" style="width:100%;height:100%;object-fit:cover;"></div>`
@@ -248,9 +248,9 @@ function renderFinance(c, period, customStart, customEnd) {
             </div>
           </div>
         </td>
-        <td style="padding:10px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${escHtml(m.plan_name || m.plan || '\u2014')}</td>
-        <td style="padding:10px 12px;text-align:center;"><span class="badge ${statusBadge}">${statusLabel}</span></td>
-        <td style="padding:10px 12px;text-align:right;font-weight:600;color:var(--amber);font-size:13px;font-variant-numeric:tabular-nums;">${fmtCurrency(amt)}</td>
+        <td class="hide-mobile" style="font-size:12px;color:var(--text-secondary);">${escHtml(m.plan_name || m.plan || '\u2014')}</td>
+        <td class="text-center"><span class="badge ${statusBadge}">${statusLabel}</span></td>
+        <td class="text-right" style="font-weight:600;color:var(--amber);">${fmtCurrency(amt)}</td>
       </tr>`;
     }).join('');
 
@@ -262,8 +262,8 @@ function renderFinance(c, period, customStart, customEnd) {
     const expSorted = [...periodExpenses].sort((a,b) => new Date(b.expense_date||0) - new Date(a.expense_date||0)).slice(0, 200);
     const expDetailRows = expSorted.map(e => {
       const icon = getCategoryIcon(e.category);
-      return `<tr style="border-bottom:1px solid var(--border-subtle);">
-        <td style="padding:10px 12px;">
+      return `<tr>
+        <td>
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">${icon}</span>
             <div style="min-width:0;">
@@ -272,8 +272,8 @@ function renderFinance(c, period, customStart, customEnd) {
             </div>
           </div>
         </td>
-        <td style="padding:10px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${fmtDate(e.expense_date)}</td>
-        <td style="padding:10px 12px;text-align:right;font-weight:600;color:var(--red);font-size:13px;font-variant-numeric:tabular-nums;">${fmtCurrency(e.amount)}</td>
+        <td class="hide-mobile" style="font-size:12px;color:var(--text-secondary);">${fmtDate(e.expense_date)}</td>
+        <td class="text-right" style="font-weight:600;color:var(--red);">${fmtCurrency(e.amount)}</td>
       </tr>`;
     }).join('');
     const expHasMore = periodExpenses.length > 200;
@@ -310,12 +310,12 @@ function renderFinance(c, period, customStart, customEnd) {
             <div style="font-size:12px;color:var(--green);font-weight:600;">${fmtCurrency(totalRev)} total</div>
           </div>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;">
-              <thead><tr style="background:var(--surface-2);">
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Member</th>
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;" class="hide-mobile">Date</th>
-                <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Mode</th>
-                <th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Amount</th>
+            <table class="data-table">
+              <thead><tr>
+                <th>Member</th>
+                <th class="hide-mobile">Date</th>
+                <th class="text-center">Mode</th>
+                <th class="text-right">Amount</th>
               </tr></thead>
               <tbody>${revDetailRows}</tbody>
             </table>
@@ -331,11 +331,11 @@ function renderFinance(c, period, customStart, customEnd) {
             <div style="font-size:12px;color:var(--red);font-weight:600;">${fmtCurrency(totalExp)} total</div>
           </div>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;">
-              <thead><tr style="background:var(--surface-2);">
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Expense</th>
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;" class="hide-mobile">Date</th>
-                <th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Amount</th>
+            <table class="data-table">
+              <thead><tr>
+                <th>Expense</th>
+                <th class="hide-mobile">Date</th>
+                <th class="text-right">Amount</th>
               </tr></thead>
               <tbody>${expDetailRows}</tbody>
             </table>
@@ -351,12 +351,12 @@ function renderFinance(c, period, customStart, customEnd) {
             <div style="font-size:12px;color:var(--amber);font-weight:600;">${fmtCurrency(totalDue)} total</div>
           </div>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;">
-              <thead><tr style="background:var(--surface-2);">
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Member</th>
-                <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;" class="hide-mobile">Plan</th>
-                <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Status</th>
-                <th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;">Amount</th>
+            <table class="data-table">
+              <thead><tr>
+                <th>Member</th>
+                <th class="hide-mobile">Plan</th>
+                <th class="text-center">Status</th>
+                <th class="text-right">Amount</th>
               </tr></thead>
               <tbody>${dueDetailRows}</tbody>
             </table>
