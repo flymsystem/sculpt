@@ -142,7 +142,12 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
   .modal-footer{padding:var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom,0px));flex-wrap:wrap;gap:var(--space-2);position:sticky;bottom:0;background:var(--surface-1);border-top:1px solid var(--border-subtle);}
   .modal-footer .btn{flex:1;min-width:100px;justify-content:center;}
   .modal .form-row{grid-template-columns:1fr;gap:0;}.modal .form-group{margin-bottom:var(--space-3);}
-  .modal .form-label{font-size:var(--text-sm);margin-bottom:5px;}.modal .form-input{padding:9px 12px;font-size:16px;}
+  .modal .form-label{font-size:var(--text-sm);margin-bottom:5px;}.modal .form-input{padding:9px 12px;}
+  /* iOS Safari auto-zooms the viewport on focusing any input under 16px.
+     This used to be scoped to .modal .form-input only, so every input
+     OUTSIDE a modal on mobile — search, filters, Finance date range —
+     still triggered it. Applies to every .form-input on mobile now. */
+  .form-input{font-size:16px;}
   .modal .mtype-switch{gap:5px;}.modal .mtype-btn{font-size:var(--text-sm);padding:8px 4px;letter-spacing:0;}
 }
 .loading-overlay{position:fixed;inset:0;background:var(--surface-overlay);z-index:900;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:var(--space-4);}

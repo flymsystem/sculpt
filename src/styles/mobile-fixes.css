@@ -32,7 +32,14 @@
   box-sizing: border-box;
   position: sticky;
   top: 0;
-  z-index: 500;
+  /* Needs to sit above .sidebar-overlay (z:99) so the hamburger button
+     stays tappable while the mobile drawer backdrop is up — but this
+     used to be 500, landing exactly on --z-overlay from tokens.css.
+     No two elements currently collide there today, but the next thing
+     built to --z-overlay would silently tie with the topbar and the
+     winner would come down to DOM order. 150 sits cleanly between
+     --z-sidebar (100) and --z-overlay (500) instead. */
+  z-index: 150;
   /* Opaque so status-bar text never overlaps content behind it */
   background: var(--surface-bg);
 }

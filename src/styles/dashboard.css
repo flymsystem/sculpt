@@ -17,7 +17,7 @@ body{width:100%;overflow-x:hidden;position:relative;}
 .sidebar-badge{display:inline-block;font-size:9px;padding:2px 8px;background:var(--brand-fade);color:var(--brand-text);border-radius:var(--radius-pill);letter-spacing:0.06em;font-weight:700;}
 .sidebar-badge-admin{background:var(--amber-fade);color:var(--amber);}
 .sidebar-tier-badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:var(--radius-pill);letter-spacing:0.06em;font-weight:700;border:1px solid;}
-.sidebar-tier-core{background:var(--surface-secondary);color:var(--text-tertiary);border-color:var(--border-subtle);}
+.sidebar-tier-core{background:var(--surface-2);color:var(--text-tertiary);border-color:var(--border-subtle);}
 .sidebar-tier-pro{background:linear-gradient(135deg,rgba(42,143,255,0.15),rgba(139,92,246,0.15));color:var(--blue-light);border-color:rgba(42,143,255,0.3);}
 
 /* Branch switcher */

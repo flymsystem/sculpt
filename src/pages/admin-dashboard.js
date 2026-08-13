@@ -1259,7 +1259,7 @@ function renderGymDetail(c) {
 
     +   '<div class="card">'
     +     '<div class="card-title" style="margin-bottom:18px;">Data & Backup Policy</div>'
-    +     '<div style="font-size:13px;color:var(--text);line-height:1.8;">'
+    +     '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     +       '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">'
     +         '<span style="color:var(--green);flex-shrink:0;">&#10003;</span>'
     +         '<span>Data stored <strong>indefinitely</strong> while subscription is active.</span>'

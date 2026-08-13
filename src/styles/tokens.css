@@ -60,7 +60,33 @@
   --sidebar-w:240px;--sidebar-collapsed-w:68px;--topbar-h:56px;--content-max:1320px;
   --z-base:1;--z-sticky:40;--z-topbar:50;--z-sidebar:100;--z-overlay:500;
   --z-modal:600;--z-command:700;--z-toast:1000;
+
+  /* Font weight — was raw numbers (400/500/600/700/800) hand-typed at
+     every call site. Naming them makes intent legible and gives every
+     later pass a fixed vocabulary instead of "whatever felt right". */
+  --font-regular:400;--font-medium:500;--font-semibold:600;
+  --font-bold:700;--font-extrabold:800;
+
+  /* Line-height — 14 distinct values (1 through 2.1) were in ad hoc use
+     across the app. Five tiers cover the real range. */
+  --leading-tight:1.2;--leading-snug:1.35;--leading-normal:1.5;
+  --leading-relaxed:1.65;--leading-loose:1.8;
+
+  /* Icon size — every icon is an inline SVG with hand-set width/height;
+     11 distinct sizes (10–24px) were in use with no pattern. */
+  --icon-sm:14px;--icon-md:16px;--icon-lg:20px;--icon-xl:24px;
 }
+/* Breakpoints — documented here, not usable as real CSS custom
+   properties (a var() can't be read inside a @media condition without
+   a preprocessor). This is the canonical reference every media query
+   added or edited from here on should converge on, replacing the nine
+   different max-widths (340/360/400/480/560/640/768/900/1100px)
+   currently scattered across the stylesheets.
+     --bp-sm: 480px   small phone
+     --bp-md: 768px   large phone / small tablet — the one most components need
+     --bp-lg: 1024px  tablet landscape / sidebar collapse
+     --bp-xl: 1440px  desktop, matches --content-max
+*/
 :root {
   --bg:var(--surface-bg);--bg2:var(--surface-2);--bg3:var(--surface-3);
   --panel:var(--surface-1);--panel2:var(--surface-1);

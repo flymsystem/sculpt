@@ -1620,3 +1620,74 @@ plus any `*.pages.dev` you use) and I'll make it a one-line change.
    **502**, and the browser must show "Payment gateway error", not a raw internal
    string.
 5. Normal broadcast flow must be unaffected.
+
+---
+
+# UI/UX Phase (AUDIT.md Section C)
+
+## STEP 1 — Design token consolidation
+
+**Commit:** `feat(tokens): consolidate design system — new font-weight/line-height/icon scales, fix 4 real bugs`
+
+### Why
+
+`AUDIT.md` C2. The existing `tokens.css` was already a solid 3-tier semantic
+system — not rebuilt, consolidated. Diffed every `var(--x)` reference across
+the codebase against every token actually defined in `tokens.css` to find real
+gaps rather than guessing.
+
+### What changed
+
+**`src/styles/tokens.css`** — three new token tiers, all additive:
+- `--font-regular/medium/semibold/bold/extrabold` (400–800) — was raw numbers
+  hand-typed at every call site.
+- `--leading-tight/snug/normal/relaxed/loose` (1.2–1.8) — found **14 different
+  line-height values** in ad hoc use (1 through 2.1).
+- `--icon-sm/md/lg/xl` (14/16/20/24px) — found **11 different icon sizes** on
+  inline SVGs with no pattern.
+- A documented breakpoint reference (480/768/1024/1440) as a comment — CSS
+  custom properties can't be read inside a real `@media` condition, so this is
+  the canonical reference for the component/page passes to converge the
+  **nine** different max-widths currently in use onto, not a live token.
+
+**Four real bugs fixed**, found by the same diff:
+1. `.sidebar-tier-core` (`dashboard.css`) referenced `var(--surface-secondary)`
+   — doesn't exist, so the sidebar's "CORE" tier badge had no background.
+   Fixed to `var(--surface-2)`, matching `.badge-muted` right next to it.
+2. Admin → Settings → Data & Backup Policy text (`admin-dashboard.js`)
+   referenced `var(--text)` — doesn't exist. Fixed to `var(--muted)`, matching
+   the sibling line above it.
+3. **`.form-input` was 14px outside modals** (`components.css`). Someone had
+   already special-cased `.modal .form-input` to 16px specifically to stop iOS
+   Safari auto-zooming on focus — but every input *outside* a modal on mobile
+   (member search, status/plan filters, Finance custom date range) was still
+   14px and still triggering it. Moved the 16px rule to apply to every
+   `.form-input` on mobile, not just modal ones.
+4. **`.topbar` z-index collided with `--z-overlay`** (`mobile-fixes.css`). The
+   mobile override bumped it to `500` — needed, so the hamburger button stays
+   tappable above the `.sidebar-overlay` backdrop (z:99) — but 500 is also
+   `--z-overlay`'s value. Nothing collides with it *today*, but the next thing
+   built to `--z-overlay` would silently tie with the topbar. Changed to `150`,
+   comfortably between `--z-sidebar` (100) and `--z-overlay` (500).
+
+**One left alone on purpose:** `verify.js` has its own `--d-*` dark-only token
+set (44 references) that looked orphaned on first scan but is correctly
+self-contained — defined and consumed on the same `#flym-site-dark` wrapper
+element. It's a deliberate, working, always-dark theme for the public
+certificate-verification page (visited by people with no account), just
+duplicating values that already exist in `tokens.css`. Left as-is — fixing the
+duplication would mean touching 700 lines of a file that works, for zero
+user-visible change.
+
+### How to verify
+
+1. **Sidebar → CORE tier badge** (on a `core`-tier gym) now has a visible grey
+   background, not transparent.
+2. **Admin → Settings → Data & Backup Policy** — description text renders in
+   the same muted grey as the toggle hint above it.
+3. **On a phone (or DevTools device mode) at 768px or narrower**, tap the
+   member search box, a status filter, or a Finance custom-date input — the
+   page must **not** zoom in. Before this it only avoided zooming inside modals.
+4. **Open the mobile sidebar drawer** — hamburger, logout and topbar controls
+   stay visible and tappable above the dimmed backdrop, same as before (this
+   was a semantic-only fix, no visual change expected).
