@@ -1,7 +1,7 @@
 import { S } from './state.js';
 import { showSectionLoading, escHtml, av2, fmtDate, fmtCurrency, localISO, outstandingAmount } from './helpers.js';
 import { getExpensesByRange, getAllExpenses, getMonthlyExpenseTotals, getCategoryIcon } from '../../lib/expenses.js';
-import { getPaymentHistory } from '../../lib/members.js';
+import { getPaymentHistory, getRevenueSummary, getRevenueMonthly, getRevenueRows } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 
 let _nav;
@@ -64,8 +64,29 @@ function renderFinance(c, period, customStart, customEnd) {
   function gPct(c2,p2){if(p2===0)return c2>0?100:0;return Math.round(((c2-p2)/p2)*100);}
   function gHTML(pct){if(pct===0)return'<span style="font-size:12px;color:var(--text-tertiary);">\u2014</span>';const col=pct>0?'var(--green)':'var(--red)';return`<span style="font-size:12px;color:${col};font-weight:500;">${pct>0?'\u2191':'\u2193'} ${Math.abs(pct)}%</span>`;}
 
-  // Fixed: end-of-month uses endOfDay to include payments on the last day
-  function computeMonthlyRev(n){const r=[];for(let i=n-1;i>=0;i--){const dd=new Date(now.getFullYear(),now.getMonth()-i,1);const e2=endOfDay(new Date(dd.getFullYear(),dd.getMonth()+1,0));const lb=dd.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});const tot=(S.payHistory||[]).filter(p=>{if(!p.paid_at)return false;const pd=new Date(p.paid_at);return pd>=dd&&pd<=e2;}).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);r.push({label:lb,total:tot});}return r;}
+  // Month buckets for the trend chart. Built locally so the labels and
+  // the boundaries always come from the same calendar the rest of this
+  // page uses; the server is only ever asked to sum between them.
+  function buildMonthBuckets(n){
+    const b=[];
+    for(let i=n-1;i>=0;i--){
+      const dd=new Date(now.getFullYear(),now.getMonth()-i,1);
+      b.push({
+        label: dd.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),
+        start: dd,
+        end:   endOfDay(new Date(dd.getFullYear(),dd.getMonth()+1,0)),
+      });
+    }
+    return b;
+  }
+  // Fallback path only: sum the downloaded array into those buckets.
+  function computeMonthlyRevLocal(buckets){
+    return buckets.map(b=>({
+      label: b.label,
+      total: (S.payHistory||[]).filter(p=>{if(!p.paid_at)return false;const pd=new Date(p.paid_at);return pd>=b.start&&pd<=b.end;})
+                               .reduce((s,p)=>s+(parseFloat(p.amount)||0),0),
+    }));
+  }
 
   async function loadAndRender() {
     // Show loading skeleton immediately so user sees instant feedback
@@ -73,47 +94,96 @@ function renderFinance(c, period, customStart, customEnd) {
       showSectionLoading(c, 'Finance');
     }
 
-    // ── Refresh payment history from DB (excludes deleted members via inner join) ──
+    // ── Revenue ────────────────────
+    // Preferred: Postgres does the summing (migration 035). One row
+    // comes back instead of every payment the gym has ever taken.
+    //
+    // The period boundaries are computed HERE, locally, and passed to
+    // the server — the server never decides what "this month" means. If
+    // it did, its idea of a boundary and this one would disagree around
+    // midnight and revenue would depend on which path ran. See the
+    // header of migration 035.
+    //
+    // Falls back to downloading and summing in JS when 035 has not been
+    // applied. Both paths must produce identical numbers.
+    const monthBuckets = buildMonthBuckets(6);
+    let totalRev, prevRev, cashT, cardT, onlineT, payCount;
+    let revRows = null;           // server-shaped detail rows, or null
+    let monthlyRevTotals = null;  // server-computed chart totals, or null
+    let usedServerRevenue = false;
+
     try {
-      S.payHistory = await getPaymentHistory(gymId);
+      const [summary, prevSummary, monthly] = await Promise.all([
+        getRevenueSummary(gymId, bounds.start, bounds.end),
+        bounds.prev ? getRevenueSummary(gymId, bounds.prev.start, bounds.prev.end) : Promise.resolve(null),
+        getRevenueMonthly(gymId, monthBuckets),
+      ]);
+      if (summary && monthly) {
+        totalRev = summary.total; payCount = summary.count;
+        cashT = summary.cash; cardT = summary.card; onlineT = summary.online;
+        prevRev = prevSummary ? prevSummary.total : 0;
+        monthlyRevTotals = monthly;
+        revRows = await getRevenueRows(gymId, bounds.start, bounds.end, 200, 0);
+        usedServerRevenue = revRows !== null;
+      }
     } catch (err) {
-      console.warn('[Flym] Payment history refresh failed, using cached:', err.message);
+      console.warn('[Flym] Server-side revenue unavailable, falling back:', err.message);
     }
 
-    // ── Revenue from payment_history (fresh data, accurate) ──
-    const paidPH = (S.payHistory||[]).filter(p => phInRange(p, bounds.start, bounds.end));
-    const totalRev = paidPH.reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
-    const prevPH = bounds.prev ? (S.payHistory||[]).filter(p => phInRange(p, bounds.prev.start, bounds.prev.end)) : [];
-    const prevRev = prevPH.reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+    let paidPH = [];
+    if (!usedServerRevenue) {
+      // ── Fallback: pre-035. Download everything and sum in JS. ──
+      try {
+        S.payHistory = await getPaymentHistory(gymId);
+      } catch (err) {
+        console.warn('[Flym] Payment history refresh failed, using cached:', err.message);
+      }
+      paidPH   = (S.payHistory||[]).filter(p => phInRange(p, bounds.start, bounds.end));
+      totalRev = paidPH.reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+      payCount = paidPH.length;
+      const prevPH = bounds.prev ? (S.payHistory||[]).filter(p => phInRange(p, bounds.prev.start, bounds.prev.end)) : [];
+      prevRev  = prevPH.reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+      cashT    = paidPH.filter(p => p.payment_mode==='Cash').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+      cardT    = paidPH.filter(p => p.payment_mode==='Card').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+      onlineT  = paidPH.filter(p => p.payment_mode==='Online').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
+    }
     const revG = gPct(totalRev,prevRev);
 
     // Due amounts — exclude cancelled members (their balance is no longer collectible)
     const dueMbrs = S.members.filter(m => (m.payment_status==='Due' || m.payment_status==='Partial') && !m.cancelled_at);
     const totalDue = dueMbrs.reduce((s,m) => s + outstandingAmount(m), 0);
 
-    // Cash vs Card vs Online breakdown from payment_history
-    const cashT = paidPH.filter(p => p.payment_mode==='Cash').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
-    const cardT = paidPH.filter(p => p.payment_mode==='Card').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
-    const onlineT = paidPH.filter(p => p.payment_mode==='Online').reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
     const cashPct = totalRev > 0 ? Math.round((cashT/totalRev)*100) : 0;
     const cardPct = totalRev > 0 ? Math.round((cardT/totalRev)*100) : 0;
     const newMbrs = S.members.filter(m => inRange(m.join_date, bounds.start, bounds.end)).length;
 
-    // ── Revenue detail rows (built from paidPH + member lookup) ───
+    // ── Revenue detail rows ───────────────────
+    // Normalised to one shape so the markup doesn't care whether the
+    // rows came from the server (035) or from the downloaded array.
+    const detailRows = usedServerRevenue
+      ? revRows
+      : [...paidPH]
+          .sort((a,b) => new Date(b.paid_at||0) - new Date(a.paid_at||0))
+          .slice(0, 200)
+          .map(p => ({
+            memberName: p.members?.full_name || S.members.find(m => m.id === p.member_id)?.full_name || '\u2014',
+            amount: p.amount, mode: p.payment_mode, planName: p.plan_name, paidAt: p.paid_at,
+          }));
+
     function buildRevDetailRows() {
-      const sorted = [...paidPH].sort((a,b) => new Date(b.paid_at||0) - new Date(a.paid_at||0)).slice(0, 200);
+      const sorted = detailRows;
       if (!sorted.length) return '';
       return sorted.map(p => {
-        const memberName = p.members?.full_name || S.members.find(m => m.id === p.member_id)?.full_name || '\u2014';
-        const modeLabel = p.payment_mode || '\u2014';
-        const modeBadge = p.payment_mode === 'Cash' ? 'badge-green' : p.payment_mode === 'Card' ? 'badge-amber' : 'badge-blue';
+        const memberName = p.memberName || '\u2014';
+        const modeLabel = p.mode || '\u2014';
+        const modeBadge = p.mode === 'Cash' ? 'badge-green' : p.mode === 'Card' ? 'badge-amber' : 'badge-blue';
         return `<tr style="border-bottom:1px solid var(--border-subtle);">
           <td style="padding:10px 12px;">
             <div style="font-weight:500;font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(memberName)}</div>
-            <div style="font-size:11px;color:var(--text-tertiary);" class="hide-mobile">${escHtml(p.plan_name || '\u2014')}</div>
+            <div style="font-size:11px;color:var(--text-tertiary);" class="hide-mobile">${escHtml(p.planName || '\u2014')}</div>
           </td>
-          <td style="padding:10px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${fmtDate(p.paid_at)}</td>
-          <td style="padding:10px 12px;text-align:center;"><span class="badge ${modeBadge}" style="font-size:10px;">${modeLabel}</span></td>
+          <td style="padding:10px 12px;font-size:12px;color:var(--text-secondary);" class="hide-mobile">${fmtDate(p.paidAt)}</td>
+          <td style="padding:10px 12px;text-align:center;"><span class="badge ${modeBadge}" style="font-size:10px;">${escHtml(modeLabel)}</span></td>
           <td style="padding:10px 12px;text-align:right;font-weight:600;color:var(--green);font-size:13px;font-variant-numeric:tabular-nums;">${fmtCurrency(p.amount)}</td>
         </tr>`;
       }).join('');
@@ -134,7 +204,9 @@ function renderFinance(c, period, customStart, customEnd) {
     }catch(err){console.warn('[Flym] Expense fetch:',err);}
 
     const netP=totalRev-totalExp;const expG=gPct(totalExp,prevExp2);const profitG=gPct(netP,prevRev-prevExp2);
-    const monthlyRev=computeMonthlyRev(6);
+    const monthlyRev = monthlyRevTotals
+      ? monthBuckets.map((b,i)=>({ label:b.label, total: monthlyRevTotals[i] || 0 }))
+      : computeMonthlyRevLocal(monthBuckets);
     const chartMax=Math.max(...monthlyRev.map(m=>m.total),...monthlyExpT.map(m=>m.total),1);
 
     const sortedCats=Object.entries(catBreakdown).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -177,7 +249,7 @@ function renderFinance(c, period, customStart, customEnd) {
 
     // ── Revenue detail rows ──────────────────────────────────────
     const revDetailRows = buildRevDetailRows();
-    const revHasMore = paidPH.length > 200;
+    const revHasMore = payCount > 200;
 
     // ── Expense detail rows ──────────────────────────────────────
     const expSorted = [...periodExpenses].sort((a,b) => new Date(b.expense_date||0) - new Date(a.expense_date||0)).slice(0, 200);
@@ -214,13 +286,13 @@ function renderFinance(c, period, customStart, customEnd) {
         <button class="btn btn-sm btn-primary" id="fin-custom-apply" style="padding:7px 16px;">Apply</button>
       </div>
       <div class="finance-stats">
-        <div class="finance-stat ${paidPH.length > 0 ? 'stat-card-clickable' : ''}" id="fin-rev-card" style="cursor:${paidPH.length > 0 ? 'pointer' : 'default'};" title="${paidPH.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Revenue</div><div class="finance-stat-val" style="color:var(--green);">\u20B9${totalRev.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(revG)} ${paidPH.length > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${paidPH.length} payment${paidPH.length!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
+        <div class="finance-stat ${payCount > 0 ? 'stat-card-clickable' : ''}" id="fin-rev-card" style="cursor:${payCount > 0 ? 'pointer' : 'default'};" title="${payCount > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Revenue</div><div class="finance-stat-val" style="color:var(--green);">\u20B9${totalRev.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(revG)} ${payCount > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${payCount} payment${payCount!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
         <div class="finance-stat ${periodExpenses.length > 0 ? 'stat-card-clickable' : ''}" id="fin-exp-card" style="cursor:${periodExpenses.length > 0 ? 'pointer' : 'default'};" title="${periodExpenses.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Expenses</div><div class="finance-stat-val" style="color:var(--red);">\u20B9${totalExp.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(expG)} ${periodExpenses.length > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${periodExpenses.length} item${periodExpenses.length!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
         <div class="finance-stat"><div class="finance-stat-label">Net Profit</div><div class="finance-stat-val" style="color:${netP>=0?'var(--brand)':'var(--red)'};">\u20B9${netP.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(profitG)}</div></div>
         <div class="finance-stat ${dueMbrs.length > 0 ? 'stat-card-clickable' : ''}" id="fin-dues-card" style="cursor:${dueMbrs.length > 0 ? 'pointer' : 'default'};" title="${dueMbrs.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Pending Dues</div><div class="finance-stat-val" style="color:var(--amber);">\u20B9${totalDue.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${dueMbrs.length} member${dueMbrs.length!==1?'s':''} ${dueMbrs.length > 0 ? '<span style="font-size:10px;">\u25BC</span>' : ''}</div></div>
       </div>
 
-      ${paidPH.length > 0 ? `<div id="fin-rev-detail" style="display:none;margin-bottom:20px;animation:fadeUp 200ms var(--ease-out) both;">
+      ${payCount > 0 ? `<div id="fin-rev-detail" style="display:none;margin-bottom:20px;animation:fadeUp 200ms var(--ease-out) both;">
         <div class="settings-card" style="padding:0;overflow:hidden;">
           <div style="padding:14px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;">
             <div style="font-size:14px;font-weight:600;color:var(--text-primary);">Revenue Breakdown</div>
@@ -237,7 +309,7 @@ function renderFinance(c, period, customStart, customEnd) {
               <tbody>${revDetailRows}</tbody>
             </table>
           </div>
-          ${revHasMore ? `<div style="padding:10px 16px;text-align:center;font-size:12px;color:var(--text-tertiary);border-top:1px solid var(--border-subtle);">Showing 200 of ${paidPH.length} payments</div>` : ''}
+          ${revHasMore ? `<div style="padding:10px 16px;text-align:center;font-size:12px;color:var(--text-tertiary);border-top:1px solid var(--border-subtle);">Showing 200 of ${payCount} payments</div>` : ''}
         </div>
       </div>` : ''}
 

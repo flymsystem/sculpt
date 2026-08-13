@@ -847,3 +847,93 @@ Best tested near midnight IST, but you can force it:
 3. Add a salary payment dated the **last day** of a month, then open that staff
    member's monthly total for that month. It must include that payment.
 4. Add a staff member with no join date — it must show today's date.
+
+---
+
+## PHASE 2d — revenue is summed by Postgres, not by the phone
+
+**Commit:** `perf(finance): sum revenue in Postgres via migration 035 instead of downloading every payment`
+**Migration added:** `supabase/migrations/035_revenue_aggregation.sql` — **not applied, file only**
+
+### Why
+
+The performance half of `AUDIT.md` **A1**. Hotfix 1 made revenue *correct* by
+paging through every payment instead of capping at 1,000 — which fixed the wrong
+numbers and made a new problem obvious: a gym with 50,000 payments now downloads
+50,000 rows to a phone in order to add them up. Postgres does that in
+single-digit milliseconds and returns one row.
+
+### The design decision that matters here
+
+**The client computes the period boundaries; the server never decides what
+"this month" means.**
+
+Finance already builds its period bounds from the browser's local calendar
+(`getPeriodBounds`), correctly for IST. If the server independently worked out
+"this month", the two definitions would disagree — around midnight, on the 1st —
+and the revenue figure would depend on *which code path produced it*. That is a
+nasty class of bug and an expensive one to be wrong about.
+
+So the RPCs take `start` and `end` timestamps as arguments and just sum between
+them. Drift is structurally impossible, and the fallback path is guaranteed to
+agree with the server path.
+
+### What changed
+
+**`supabase/migrations/035_revenue_aggregation.sql` (new, not applied)**
+
+- `flym_revenue_summary(gym, start, end)` — total, count, and the Cash/Card/Online
+  split in one row. Replaces four full-array reduces per render, run twice (this
+  period and the previous one).
+- `flym_revenue_monthly(gym, starts[], ends[])` — the 6-month chart in one round
+  trip. `LEFT JOIN` so a month with no revenue returns 0 rather than being
+  missing, which would silently mislabel the chart.
+- `flym_revenue_rows(gym, start, end, limit, offset)` — one page of the
+  drill-down table. It was slicing 200 rows out of an array of every payment the
+  gym had ever taken.
+
+Filter parity with the old JS is exact: same gym scope, same
+`members.is_active` inner-join semantics (soft-deleted members' payments stay
+out of revenue), same inclusive-both-ends range. Not `SECURITY DEFINER`, so RLS
+applies — same reasoning as migration 033.
+
+**`src/lib/members.js`** — `getRevenueSummary` / `getRevenueMonthly` /
+`getRevenueRows`. Each returns **`null`** when 035 isn't applied, which means
+"ask the old way". An empty result means "genuinely no revenue". Conflating
+those two would show a gym **₹0** instead of falling back — precisely the kind
+of silent wrong number this whole exercise is about.
+
+**`src/pages/dashboard/finance.js`** — tries the server path first and falls back
+to the existing download-and-sum. Detail rows are normalised to one shape so the
+markup doesn't care which path produced them. Also escaped the payment-mode
+label on the way past (`AUDIT.md` B12).
+
+### Behaviour change to be aware of
+
+When 035 is applied, Finance no longer refreshes `S.payHistory`. Overview and
+Analytics still read the copy loaded at dashboard boot, so their revenue figures
+are now as fresh as your last page load rather than as fresh as your last visit
+to Finance. Those two pages get the same treatment in Phase 3.
+
+### How to verify — do this one carefully, it is money
+
+1. **Before applying 035**, note down Finance → **All Time**, **This Year** and
+   **This Month** revenue, the payment count, and the Cash/Card/Online split.
+2. Apply `035_revenue_aggregation.sql`. Reload Finance.
+3. **Every one of those numbers must be identical.** If any moved, stop and tell
+   me — that means the two paths disagree and I need to fix the parity.
+4. Cross-check the total against the database directly:
+   ```sql
+   select coalesce(sum(ph.amount),0), count(*)
+     from payment_history ph
+     join members m on m.id = ph.member_id and m.is_active
+    where ph.gym_id = '<gym-id>';
+   ```
+5. Click each period button (Today / Week / Month / Last Month / Year / All) and
+   a **custom range**. Check the ↑/↓ growth percentages still render.
+6. Expand the **Revenue breakdown** panel — 200 rows max, names and dates
+   correct, "Showing 200 of N" accurate.
+7. The **Revenue vs Expenses** 6-month chart must have the same bars as before,
+   including any empty months.
+8. Watch the Network tab: on a gym with lots of payments, Finance should no
+   longer download thousands of `payment_history` rows.

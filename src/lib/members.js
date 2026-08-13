@@ -712,6 +712,73 @@ export async function getPaymentsByMonth(gymId, month) {
     .lte('paid_at', endDate + 'T23:59:59'));
 }
 
+// ── Server-side revenue aggregation (migration 035) ───────────────
+// Each of these returns `null` — not an empty result — when migration
+// 035 has not been applied. `null` means "ask the old way"; an empty
+// result means "genuinely no revenue". Conflating the two would show a
+// gym ₹0 instead of falling back, which is exactly the kind of silent
+// wrong number this whole exercise is about.
+//
+// Period boundaries are always computed by the caller and passed in, so
+// the server never has to decide what "this month" means and the two
+// code paths cannot drift apart. See the header of migration 035.
+
+const iso = (d) => (d instanceof Date && !isNaN(d) ? d.toISOString() : null);
+
+/** Totals + payment-mode split for one period. */
+export async function getRevenueSummary(gymId, start, end) {
+  const { data, error } = await supabase.rpc('flym_revenue_summary', {
+    p_gym_id: gymId, p_start: iso(start), p_end: iso(end),
+  });
+  if (error) {
+    if (isMissingFunction(error)) return null;
+    throw new Error(error.message || 'Could not load revenue.');
+  }
+  const r = Array.isArray(data) ? data[0] : data;
+  return {
+    total:  parseFloat(r?.total_amount)  || 0,
+    count:  parseInt(r?.payment_count, 10) || 0,
+    cash:   parseFloat(r?.cash_amount)   || 0,
+    card:   parseFloat(r?.card_amount)   || 0,
+    online: parseFloat(r?.online_amount) || 0,
+  };
+}
+
+/** Totals for a list of date buckets (the 6-month chart), in one call. */
+export async function getRevenueMonthly(gymId, buckets) {
+  const { data, error } = await supabase.rpc('flym_revenue_monthly', {
+    p_gym_id: gymId,
+    p_starts: buckets.map(b => iso(b.start)),
+    p_ends:   buckets.map(b => iso(b.end)),
+  });
+  if (error) {
+    if (isMissingFunction(error)) return null;
+    throw new Error(error.message || 'Could not load revenue trend.');
+  }
+  const byIndex = new Map((data || []).map(r => [Number(r.bucket_index), parseFloat(r.total_amount) || 0]));
+  // generate_subscripts is 1-based.
+  return buckets.map((_, i) => byIndex.get(i + 1) || 0);
+}
+
+/** One page of the revenue drill-down table. */
+export async function getRevenueRows(gymId, start, end, limit = 200, offset = 0) {
+  const { data, error } = await supabase.rpc('flym_revenue_rows', {
+    p_gym_id: gymId, p_start: iso(start), p_end: iso(end),
+    p_limit: limit, p_offset: offset,
+  });
+  if (error) {
+    if (isMissingFunction(error)) return null;
+    throw new Error(error.message || 'Could not load payments.');
+  }
+  return (data || []).map(r => ({
+    memberName: r.member_name || '—',
+    amount:     r.amount,
+    mode:       r.payment_mode,
+    planName:   r.plan_name,
+    paidAt:     r.paid_at,
+  }));
+}
+
 // ── Private helpers ───────────────────────────────────────────────
 
 function safeLog(gymId, action, description) {
