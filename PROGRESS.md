@@ -1070,3 +1070,47 @@ of this file, which needs your sign-off.
 5. Change the sort dropdown — same.
 6. Renew / Invoice / Remind / Call buttons must still work on a card from
    **page 2**, not just page 1.
+
+---
+
+## PHASE 3f — bound the remaining unbounded queries
+
+**Commit:** `perf: bound attendance, salary and broadcast-recipient queries`
+
+### Why
+
+`AUDIT.md` finding **A10**. Three queries had no `.limit()` and grow forever:
+
+- `getAttendanceRange()` — 50 staff × 365 days ≈ 18,000 rows for a year report.
+- `getSalaryPayments()` — every salary payment ever made, on every load.
+- `getBroadcastRecipients()` — up to 5,000 rows, all rendered into one table.
+
+None of these are wrong today. They just get slower every month until one day a
+report stops loading on a phone.
+
+### What changed
+
+| Query | Cap | Why that number |
+|---|---|---|
+| `getAttendanceRange` | 5,000 | more than a year for a large gym, newest first |
+| `getSalaryPayments` | 2,000 | newest first, so the cap drops ancient history, not what's on screen |
+| `getBroadcastRecipients` | 500 | the detail view renders every row into one table |
+
+Each cap is an exported constant, not a magic number.
+
+**The count label is now honest.** The broadcast detail view showed
+`Recipients (N)` from the array length — with a cap that would have read
+"Recipients (500)" for a 5,000-recipient broadcast. It now shows the true total
+from `broadcast.total_recipients` and appends *"— showing first 500"* when the
+list is capped. A capped list that doesn't say it's capped is exactly the bug
+class this whole audit is about.
+
+### How to verify
+
+1. **Staff → Attendance report** over a wide date range — loads and shows data.
+2. **Staff → salary payments** for a staff member with history — loads and the
+   monthly totals are unchanged.
+3. Open a past broadcast from **Broadcast → history**. The header must show the
+   **true** recipient count. If it had more than 500 recipients, it must also say
+   "— showing first 500". Sent/failed counts must still match the campaign
+   totals, since those come from the `broadcasts` row rather than the list.

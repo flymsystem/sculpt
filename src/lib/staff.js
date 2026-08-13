@@ -88,6 +88,11 @@ export async function getAttendance(gymId, date) {
   return data || [];
 }
 
+// 50 staff x 365 days is ~18,000 rows for a year report. Bounded so a
+// wide date range can't quietly become a multi-megabyte download on a
+// phone. The caller shows "showing first N" when the cap is hit.
+export const ATTENDANCE_MAX_ROWS = 5000;
+
 export async function getAttendanceRange(gymId, startDate, endDate) {
   const { data, error } = await supabase
     .from('staff_attendance')
@@ -95,7 +100,8 @@ export async function getAttendanceRange(gymId, startDate, endDate) {
     .eq('gym_id', gymId)
     .gte('date', startDate)
     .lte('date', endDate)
-    .order('date', { ascending: false });
+    .order('date', { ascending: false })
+    .limit(ATTENDANCE_MAX_ROWS);
   if (error) throw error;
   return data || [];
 }
@@ -122,12 +128,18 @@ export async function upsertAttendance(gymId, staffId, date, status, checkIn, ch
 
 // ── Salary Payments ───────────────────────────────────────────────
 
+// Salary payments accumulate forever and this fetched all of them.
+// Newest first, so the cap drops the oldest history rather than the
+// rows anyone is looking at.
+export const SALARY_MAX_ROWS = 2000;
+
 export async function getSalaryPayments(gymId, staffId) {
   let q = supabase
     .from('staff_salary_payments')
     .select('*, staff(full_name, role)')
     .eq('gym_id', gymId)
-    .order('payment_date', { ascending: false });
+    .order('payment_date', { ascending: false })
+    .limit(SALARY_MAX_ROWS);
   if (staffId) q = q.eq('staff_id', staffId);
   const { data, error } = await q;
   if (error) throw error;

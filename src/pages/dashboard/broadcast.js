@@ -846,7 +846,12 @@ async function openBroadcastDetail(broadcastId, rootC) {
 
     <!-- Recipients list -->
     <div class="card" style="padding:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:14px;">Recipients (${recipients.length.toLocaleString()})</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:14px;">
+        Recipients (${(broadcast.total_recipients || recipients.length).toLocaleString()})
+        ${recipients.length < (broadcast.total_recipients || 0)
+          ? `<span style="font-weight:400;font-size:12px;color:var(--text-tertiary);">— showing first ${recipients.length.toLocaleString()}</span>`
+          : ''}
+      </div>
       <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);">
         <table style="width:100%;border-collapse:collapse;">
           <thead>

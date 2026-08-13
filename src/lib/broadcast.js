@@ -135,12 +135,19 @@ export async function getBroadcasts(gymId, limit = 50) {
 /**
  * Fetch recipients for a specific broadcast.
  */
-export async function getBroadcastRecipients(broadcastId) {
+// A broadcast can have up to 5,000 recipients and the detail view
+// renders every one into a single table. Bounded to keep that view from
+// freezing the tab; the summary counts on the same screen come from the
+// broadcasts row, so they stay accurate regardless.
+export const BROADCAST_RECIPIENTS_MAX = 500;
+
+export async function getBroadcastRecipients(broadcastId, limit = BROADCAST_RECIPIENTS_MAX) {
   const { data, error } = await supabase
     .from('broadcast_recipients')
     .select('*')
     .eq('broadcast_id', broadcastId)
-    .order('sent_at', { ascending: true });
+    .order('sent_at', { ascending: true })
+    .limit(limit);
   if (error) throw error;
   return data || [];
 }
