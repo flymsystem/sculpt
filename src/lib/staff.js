@@ -4,6 +4,15 @@ import { supabase } from './supabase.js';
 const txt = v => { const s = (v ?? '').toString().trim(); return s || null; };
 const num = v => { const raw = (v ?? '').toString().replace(/,/g, ''); const n = parseFloat(raw); return isNaN(n) ? null : n; };
 
+// Local (not UTC) YYYY-MM-DD. `new Date().toISOString().split('T')[0]`
+// reads UTC, which is the PREVIOUS day for the first 5.5 hours of every
+// IST day — so a salary paid at 1am on the 1st was dated the 30th, into
+// the wrong month, in the wrong expense report.
+const localISODate = (d) => d.getFullYear() + '-' +
+  String(d.getMonth() + 1).padStart(2, '0') + '-' +
+  String(d.getDate()).padStart(2, '0');
+const todayLocalISO = () => localISODate(new Date());
+
 // ── Staff CRUD ────────────────────────────────────────────────────
 
 export async function getStaff(gymId) {
@@ -28,7 +37,7 @@ export async function addStaff(gymId, d) {
     role: txt(d.role),
     aadhaar: txt(d.aadhaar),
     salary_amount: num(d.salaryAmount) || 0,
-    join_date: txt(d.joinDate) || new Date().toISOString().split('T')[0],
+    join_date: txt(d.joinDate) || todayLocalISO(),
     notes: txt(d.notes),
   };
 
@@ -134,7 +143,7 @@ export async function addSalaryPayment(gymId, d) {
     gym_id: gymId,
     staff_id: txt(d.staffId),
     amount,
-    payment_date: txt(d.paymentDate) || new Date().toISOString().split('T')[0],
+    payment_date: txt(d.paymentDate) || todayLocalISO(),
     payment_mode: txt(d.paymentMode) || 'Cash',
     is_advance: !!d.isAdvance,
     notes: txt(d.notes),
@@ -191,7 +200,7 @@ export async function deleteSalaryPayment(paymentId, gymId) {
 export async function getStaffMonthlyPaid(gymId, staffId, month) {
   const startDate = month + '-01';
   const [y, mo] = month.split('-').map(Number);
-  const endDate = new Date(y, mo, 0).toISOString().split('T')[0];
+  const endDate = localISODate(new Date(y, mo, 0));   // last day of month, local
   const { data, error } = await supabase
     .from('staff_salary_payments')
     .select('amount, is_advance')

@@ -802,3 +802,48 @@ the next step if it becomes a problem in practice.
    changed to `async`: Members PDF, Payments report, Year-End Summary, P&L, GST
    Summary, Full PDF Backup, Expenses CSV.
 5. Open the console during a large export — no `hit the ... ceiling` warning.
+
+---
+
+## PHASE 2c — remaining UTC date bugs in staff salary handling
+
+**Commit:** `fix(staff): use local dates, not UTC, for join date, salary date and month-end`
+
+### Why
+
+`AUDIT.md` finding **B17**, the rest of it. Hotfix 1 fixed the
+`getPaymentsByMonth` case; three more sites remained in `src/lib/staff.js`.
+
+`new Date().toISOString().split('T')[0]` reads **UTC**. For IST (UTC+5:30) that
+is the *previous day* for the first five and a half hours of every day. The
+codebase already knows this — `helpers.js` has `todayLocalISO()` written
+specifically to avoid it, with a comment explaining why — but `lib/staff.js`
+never got the fix.
+
+**What that looks like in the gym:** a trainer's salary recorded at 1am on the
+1st of the month gets dated the 30th of the previous month. It lands in the
+wrong month's expenses, the wrong P&L row, and the wrong monthly salary total.
+
+### What changed
+
+`src/lib/staff.js`
+
+- Added local `localISODate()` / `todayLocalISO()` helpers, matching the pattern
+  already used in `lib/expenses.js`.
+- `addStaff()` — default `join_date` is now local today.
+- `addSalaryPayment()` — default `payment_date` is now local today. This one
+  also feeds `expense_month`, so it was mis-filing the linked expense too.
+- `getStaffMonthlyPaid()` — month-end date computed locally, so the **last day
+  of the month** is no longer excluded from a staff member's monthly total.
+
+### How to verify
+
+Best tested near midnight IST, but you can force it:
+
+1. Add a salary payment **without** picking a date, between 00:00 and 05:30 IST.
+   `payment_date` must be **today**, not yesterday. Before this it was yesterday.
+2. Check the auto-created expense in **Expenses** — it must appear in the
+   current month.
+3. Add a salary payment dated the **last day** of a month, then open that staff
+   member's monthly total for that month. It must include that payment.
+4. Add a staff member with no join date — it must show today's date.
