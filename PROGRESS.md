@@ -1258,3 +1258,52 @@ client-side enquiry notifications never fired anyway.
 7. **The storm is gone:** open the dashboard, leave it for 20 minutes, and watch
    the Network tab. There must be **no** large POST to `notifications`. You
    should only see the small unread-count poll each minute.
+
+---
+
+## PHASE 4c — whatsapp-webhook can now be deployed at all
+
+**Commit:** `fix(webhook): rename whatsapp-webhook entry point to index.ts so it can deploy`
+
+### Why
+
+`AUDIT.md` finding **D2**. Supabase requires an Edge Function's entry point to be
+`index.ts`. That directory contained only `whatsapp-webhook-index.ts`, so
+`supabase functions deploy whatsapp-webhook` deploys nothing.
+
+**Consequence:** WhatsApp delivery receipts and inbound replies are not being
+processed at all. The broadcast detail view checks for `'delivered'` and
+`'read'` recipient statuses (`broadcast.js`) that nothing ever sets, so those
+counts are permanently 0.
+
+### What changed
+
+Renamed `whatsapp-webhook-index.ts` → `index.ts`. Nothing else; the file's
+contents are untouched.
+
+I checked its auth handling before renaming: it does implement the Meta
+`hub.verify_token` / `hub.challenge` handshake against
+`WA_WEBHOOK_VERIFY_TOKEN`, so the verification step is correct.
+
+### Two things to check before you deploy this
+
+1. **`WA_WEBHOOK_VERIFY_TOKEN` must be set** as a Supabase secret, and the same
+   value entered in the Meta dashboard, or Meta's verification call fails.
+2. **It does not verify the `x-hub-signature-256` header.** The verify token
+   protects the initial handshake, but once the URL is known, anyone who finds it
+   can POST fake delivery receipts. That is low impact — worst case, wrong
+   delivery statuses on a broadcast — but it is the standard hardening for a Meta
+   webhook and I have deliberately not added it in this commit, because that
+   changes behaviour on a function that has never run. Say the word and I'll add
+   it as its own change.
+
+### How to verify
+
+1. `npx supabase functions deploy whatsapp-webhook --no-verify-jwt`
+   (Meta calls it with no user JWT.)
+2. In the Meta dashboard, set the callback URL and verify token, then hit
+   **Verify and Save** — it must succeed. Previously there was nothing deployed
+   to respond.
+3. Send a broadcast to a number you control. Open the broadcast from
+   **Broadcast → History** — recipients should move to **delivered**, then
+   **read**, instead of sitting at "sent".
