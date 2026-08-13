@@ -680,16 +680,12 @@ function safeLog(gymId, action, description) {
     .insert({ gym_id: gymId, action, description })
     .then(() => {})
     .catch(err => console.warn('[Flym] activity_log insert failed:', err.message));
-  // Prune rows older than 90 days (fire-and-forget, ~1% of calls)
-  if (Math.random() < 0.01) {
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-    supabase.from('activity_log')
-      .delete()
-      .eq('gym_id', gymId)
-      .lt('created_at', cutoff)
-      .then(() => {})
-      .catch(() => {});
-  }
+  // Pruning used to happen here: a DELETE of everything older than 90
+  // days, fired from the browser on a random ~1% of member writes. That
+  // is an unpredictable full-table delete triggered by whichever gym
+  // owner happens to be using the app, and it gets slower as the table
+  // grows. cleanup_old_logs() has existed since migration 001 for
+  // exactly this; migration 034 finally schedules it on pg_cron.
 }
 
 function safeInsert(table, row) {

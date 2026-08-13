@@ -410,3 +410,95 @@ To do it safely: confirm `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and
 
 Nothing user-facing changed. `npm run build` still succeeds. Confirm
 `supabase/migrations/` now lists `018_enquiries.sql` in numeric order.
+
+---
+
+## PHASE 1a — indexes that match the queries
+
+**Commit:** `perf(db): add composite indexes matching real query shapes (migration 034)`
+**Migration added:** `supabase/migrations/034_scale_indexes.sql` — **not applied, file only**
+
+### Why
+
+`AUDIT.md` finding **A9**. The indexes from migration 001 are almost all
+single-column; every query in the app is multi-column with an `ORDER BY`.
+Postgres cannot use `members(gym_id)` for
+`WHERE gym_id = $1 AND is_active ORDER BY join_date DESC` without reading every
+row for that gym and sorting them.
+
+Worse: **the `expenses` table has no indexes at all.** It isn't created by any
+migration in this repo, so it was never reviewed. Every expense query is a full
+table scan across *all tenants* — one gym opening Finance scans every other
+gym's expenses. That's why Finance gets slower as unrelated gyms add data, which
+is a baffling failure mode to debug from the outside.
+
+### What changed
+
+**`supabase/migrations/034_scale_indexes.sql` (new, not applied)**
+
+| Index | Serves |
+|---|---|
+| `members (gym_id, join_date DESC) where is_active` | the members list |
+| `members (gym_id, expiry_date) where is_active and not cancelled` | Alerts, notification generation, reminder queue |
+| `members (gym_id, payment_status) where is_active and not cancelled` | pending dues |
+| `members (gym_id, phone) where is_active and phone not null` | duplicate-phone check (the old index had no `gym_id`, so it scanned matching phones across every tenant) |
+| `payment_history (gym_id, paid_at DESC, id DESC)` | the revenue path — the trailing `id` matches the paging tiebreaker from hotfix 1, so the whole `ORDER BY` comes from the index with no sort step |
+| `expenses (gym_id, expense_date DESC)` and `(gym_id, expense_month)` | everything expenses, which had nothing |
+| `activity_log (gym_id, created_at DESC)` | activity feed |
+| `enquiries (gym_id, created_at DESC) where is_active` | enquiries list |
+
+Also in 034:
+
+- `broadcasts.cost_per_msg_paise` default **90 → 150** (`AUDIT.md` B8). The Edge
+  Function always writes 150 explicitly so live billing is correct today, but
+  the mismatched default is a landmine.
+- `get_due_reminders()` now excludes `cancelled_at is not null` (`AUDIT.md` B6).
+  Migration 007 predates `cancelled_at`, so members who cancelled were still
+  being queued for "please renew" WhatsApps.
+- Schedules `cleanup_old_logs()` on pg_cron.
+
+**`src/lib/members.js`** — removed the client-side log prune (`AUDIT.md` A13).
+`safeLog()` was firing a `DELETE … WHERE created_at < 90 days` from the browser
+on a random ~1% of member writes: an unpredictable full-table delete triggered
+by whichever gym owner happened to be using the app. The scheduled job replaces it.
+
+### Two things to know before applying
+
+1. **There is no `begin;`/`commit;` in this file, on purpose.**
+   `CREATE INDEX CONCURRENTLY` cannot run inside a transaction. `CONCURRENTLY`
+   is used because these tables are live — a plain `CREATE INDEX` takes an
+   `ACCESS EXCLUSIVE` lock and would freeze every gym's dashboard while it builds.
+   Every statement is idempotent, so if it stops partway, just run it again.
+
+2. **If a concurrent build fails it leaves an invalid index behind**, which is
+   never used but still costs write time. Check afterwards:
+   ```sql
+   select indexrelid::regclass from pg_index where not indisvalid;
+   ```
+   Expect zero rows. If not, `drop index concurrently <name>;`
+
+### How to verify
+
+1. Apply `034_scale_indexes.sql`, then run the invalid-index check above.
+2. **The measurement that matters** — in the SQL editor, before/after:
+   ```sql
+   explain analyze
+   select * from members
+    where gym_id = '<gym-id>' and is_active = true
+    order by join_date desc limit 50;
+   ```
+   Expect `Index Scan using idx_members_gym_join_active`, and **no** `Seq Scan`
+   and **no** separate `Sort` node. Execution time should drop sharply.
+3. Same for revenue:
+   ```sql
+   explain analyze select * from payment_history
+    where gym_id = '<gym-id>' order by paid_at desc, id desc limit 1000;
+   ```
+   Expect `Index Scan using idx_payment_history_gym_paid_id`.
+4. Open **Finance** and **Expenses** in the app — should feel noticeably quicker.
+5. `select column_default from information_schema.columns where table_name='broadcasts' and column_name='cost_per_msg_paise';` → **150**.
+6. Cancel a member whose expiry is exactly 7 days out, then
+   `select * from get_due_reminders();` — they must **not** appear.
+7. `select jobname, schedule from cron.job;` — `flym-cleanup-old-logs` present.
+8. In the app, add or edit a member and confirm it still saves normally (the
+   activity-log prune removal touched that path).
