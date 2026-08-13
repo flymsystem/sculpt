@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { escHtml, escAttr, showSectionLoading, todayLocalISO } from './helpers.js';
+import { escHtml, escAttr, showSectionLoading, todayLocalISO, setFieldError, clearFieldError } from './helpers.js';
 import { getExpenses, addExpense, updateExpense, deleteExpense, carryForwardExpenses, EXPENSE_CATEGORIES, getCategoryIcon } from '../../lib/expenses.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, bindModalCancel } from '../../components/modal.js';
@@ -117,15 +117,30 @@ function renderExpenses(c) {
       footer: `<button class="btn btn-ghost" data-modal-cancel>Cancel</button><button class="btn btn-primary" id="exp-save-btn">${isEdit?'Save':'Add Expense'}</button>`,
       onOpen() {
         bindModalCancel();
+        // Clear a field's error the moment the user starts fixing it,
+        // rather than leaving it up until the next save attempt.
+        ['exp-cat', 'exp-amt', 'exp-date'].forEach((id) => {
+          const el = document.getElementById(id);
+          el?.addEventListener('input', () => clearFieldError(el));
+          el?.addEventListener('change', () => clearFieldError(el));
+        });
         document.getElementById('exp-save-btn')?.addEventListener('click', async () => {
           const btn = document.getElementById('exp-save-btn');
-          const catVal = document.getElementById('exp-cat')?.value;
-          const amtVal = document.getElementById('exp-amt')?.value;
-          const dateVal = document.getElementById('exp-date')?.value;
-          if (!catVal) { showToast('Please select a category','red'); document.getElementById('exp-cat')?.focus(); return; }
+          const catEl = document.getElementById('exp-cat');
+          const amtEl = document.getElementById('exp-amt');
+          const dateEl = document.getElementById('exp-date');
+          const catVal = catEl?.value;
+          const amtVal = amtEl?.value;
+          const dateVal = dateEl?.value;
+          [catEl, amtEl, dateEl].forEach(clearFieldError);
+          // A toast alone appears away from the field and auto-dismisses in
+          // a few seconds — easy to miss if you're looking at the form, and
+          // invisible to a screen reader once it's gone. setFieldError()
+          // persists at the field until the user fixes it (AUDIT.md C8).
+          if (!catVal) { setFieldError(catEl, 'Please select a category.'); catEl?.focus(); return; }
           const parsedAmt = parseFloat((amtVal||'').replace(/,/g,''));
-          if (!amtVal || isNaN(parsedAmt) || parsedAmt < 0) { showToast('Please enter a valid amount','red'); document.getElementById('exp-amt')?.focus(); return; }
-          if (!dateVal) { showToast('Please select a date','red'); document.getElementById('exp-date')?.focus(); return; }
+          if (!amtVal || isNaN(parsedAmt) || parsedAmt < 0) { setFieldError(amtEl, 'Enter a valid amount.'); amtEl?.focus(); return; }
+          if (!dateVal) { setFieldError(dateEl, 'Please select a date.'); dateEl?.focus(); return; }
 
           if (btn) { btn.disabled=true; btn.textContent='Saving\u2026'; }
           try {

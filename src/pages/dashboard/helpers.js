@@ -75,9 +75,15 @@ function bindDateInput(el) {
   });
   el.addEventListener('blur', function() {
     const iso = parseDateInput(this.value);
-    if (this.value && !iso) { this.style.borderColor = 'var(--red)'; this.title = 'Enter date as DD/MM/YYYY'; }
-    else { this.style.borderColor = ''; this.title = ''; if (iso) this.value = fmtDateInput(iso); }
+    // Used to set only a red border + a `title` tooltip — title isn't an
+    // accessible error mechanism (no screen-reader announcement, doesn't
+    // appear at all on touch) and nothing told the user WHY until they
+    // happened to hover. setFieldError() gives it a real, visible,
+    // programmatically-associated message instead (AUDIT.md C8).
+    if (this.value && !iso) { setFieldError(this, 'Enter date as DD/MM/YYYY.'); }
+    else { clearFieldError(this); if (iso) this.value = fmtDateInput(iso); }
   });
+  el.addEventListener('input', function() { clearFieldError(this); });
 }
 function fmtDateInput(iso) {
   if (!iso) return '';
@@ -315,6 +321,47 @@ function renderError(c, { message = 'Please check your internet connection and t
   </div>`;
   if (onRetry) c.querySelector('#section-error-retry')?.addEventListener('click', onRetry);
 }
+
+/**
+ * Standard form-field error (AUDIT.md C8). Three inconsistent patterns
+ * existed before this: a border that flashed red for 1200ms then
+ * vanished, a toast that appeared away from the field and auto-dismissed,
+ * and nothing at all. None set aria-invalid or tied the message to the
+ * field, so a screen-reader user got no error at all in every case.
+ *
+ * The message persists until clearFieldError() is called — normally
+ * wired to the field's own 'input' event, so it clears the moment the
+ * user starts correcting it.
+ *
+ * @param {HTMLElement} inputEl
+ * @param {string} message
+ */
+function setFieldError(inputEl, message) {
+  if (!inputEl) return;
+  clearFieldError(inputEl);
+  inputEl.style.borderColor = 'var(--red)';
+  inputEl.setAttribute('aria-invalid', 'true');
+  const id = (inputEl.id || 'field') + '-error';
+  const err = document.createElement('div');
+  err.className = 'form-error';
+  err.id = id;
+  err.setAttribute('role', 'alert');
+  err.textContent = message;
+  inputEl.setAttribute('aria-describedby', id);
+  inputEl.insertAdjacentElement('afterend', err);
+}
+
+/** Removes whatever setFieldError() added. Safe to call unconditionally. */
+function clearFieldError(inputEl) {
+  if (!inputEl) return;
+  inputEl.style.borderColor = '';
+  inputEl.removeAttribute('aria-invalid');
+  const describedBy = inputEl.getAttribute('aria-describedby');
+  inputEl.removeAttribute('aria-describedby');
+  const err = describedBy ? document.getElementById(describedBy) : inputEl.nextElementSibling;
+  if (err && err.classList.contains('form-error')) err.remove();
+}
+
 function pctChange(current, previous) {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -327,5 +374,6 @@ export {
   genInvoiceNo, escHtml, escAttr, fmtDate, fmtDateShort, fmtCurrency, fmtCurrencyShort,
   av2, timeAgo, ico,
   demoPlans, demoMembers, showSectionLoading, renderEmpty, renderError,
+  setFieldError, clearFieldError,
   pctChange
 };
