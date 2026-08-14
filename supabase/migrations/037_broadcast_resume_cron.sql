@@ -23,7 +23,7 @@
 --   1. Deploy the function:  supabase functions deploy process-broadcast
 --   2. CRON_SECRET must be set (generate-notifications already needs
 --      it):                  supabase secrets set CRON_SECRET=<value>
---   3. Replace <PROJECT_REF> below with your Supabase project ref.
+--   3. Project ref already filled in below — nothing to replace.
 --
 -- The secret is read from Vault, the same way migration 032 does it, so
 -- it isn't sitting in cron.job in plaintext.
@@ -62,7 +62,7 @@ begin
   end if;
 
   perform net.http_post(
-    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/process-broadcast',
+    url     := 'https://ogxqspnqtjphprqzwuye.supabase.co/functions/v1/process-broadcast',
     headers := jsonb_build_object(
                  'Content-Type',  'application/json',
                  'x-cron-secret', v_secret

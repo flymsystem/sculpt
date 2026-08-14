@@ -1,8 +1,18 @@
-// supabase/functions/create-gym-user/index.js
+// supabase/functions/create-gym-user/index.ts
 // ─────────────────────────────────────────────────────────────────
 // Supabase Edge Function — Create a new gym owner account
 // Uses the service role key (never exposed to browser)
 // Deploy: supabase functions deploy create-gym-user
+//
+// ── RENAMED FROM index.js (2026-08) ──────────────────────────────
+// The Supabase CLI resolves a function's entrypoint as index.ts and
+// nothing else. While this file was index.js, `functions deploy
+// create-gym-user` failed with
+//   "Entrypoint path does not exist - .../create-gym-user/index.ts"
+// so this function could never be deployed — the same defect
+// AUDIT.md D2 found in whatsapp-webhook, which was renamed but this
+// one was missed. Logic is unchanged from the .js version; only the
+// extension and the type annotations below differ.
 // ─────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -13,13 +23,13 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const json = (payload, status = 200) =>
+const json = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -31,15 +41,15 @@ Deno.serve(async (req) => {
 
     // Admin client (uses service role — only safe server-side)
     const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL'),
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { persistSession: false } }
     );
 
     // Verify the requester is a Flym admin
     const userClient = createClient(
-      Deno.env.get('SUPABASE_URL'),
-      Deno.env.get('SUPABASE_ANON_KEY'),
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
@@ -95,7 +105,7 @@ Deno.serve(async (req) => {
 
     return json({ success: true, userId: newUser.user.id }, 200);
 
-  } catch (err) {
+  } catch (err: any) {
     // An unexpected throw is a server fault, not a client mistake.
     // Returning 400 for everything made "our database is down"
     // indistinguishable from "you sent bad input", and leaked the raw
