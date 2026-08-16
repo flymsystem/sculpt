@@ -106,8 +106,28 @@ function parsePlanData(p) {
   try { const parsed = JSON.parse(p.features || '{}'); if (parsed && parsed.featuresList !== undefined) return { featuresList: parsed.featuresList || '' }; } catch(e) {}
   return { featuresList: p.features || '' };
 }
+/**
+ * member_addons can arrive in two shapes depending on the DB column type
+ * (AUDIT.md D3 / open item #7):
+ *   - jsonb column → supabase-js already hands back a real JS array
+ *   - legacy text column → supabase-js hands back a JSON-encoded string
+ *
+ * The old version always called JSON.parse(raw). JSON.parse requires a
+ * string; called on an array it coerces via String() first ("[object
+ * Object]" for an array of objects), fails to parse, and the catch block
+ * silently returned []. Once migration 011 (member_addons TEXT → JSONB)
+ * is live — confirmed applied in production — every member's add-ons
+ * were being dropped everywhere this function is used: the Edit Member
+ * modal, invoices/receipts, and the WhatsApp reminder message.
+ *
+ * Handle the array shape directly instead of forcing it through JSON.parse.
+ */
 function parseMemberAddons(m) {
-  try { const raw = m.member_addons; if (!raw) return []; const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch(e) { return []; }
+  const raw = m.member_addons;
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;              // jsonb column
+  if (typeof raw === 'object') return [];           // unexpected shape — fail safe, don't throw
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch(e) { return []; }
 }
 function memberTotalPrice(m) { return parseFloat(m.plan_price) || 0; }
 function planTotalPrice(p) { return parseFloat(p.price) || 0; }
@@ -199,31 +219,31 @@ function escAttr(s) {
 
 // DD/MM/YYYY consistently
 function fmtDate(d) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [y, mo, dy] = d.split('-').map(Number);
     const date = new Date(y, mo - 1, dy);
     return String(date.getDate()).padStart(2,'0') + '/' + String(date.getMonth()+1).padStart(2,'0') + '/' + date.getFullYear();
   }
   const date = new Date(d);
-  if (isNaN(date)) return '\u2014';
+  if (isNaN(date)) return '—';
   return String(date.getDate()).padStart(2,'0') + '/' + String(date.getMonth()+1).padStart(2,'0') + '/' + date.getFullYear();
 }
 function fmtDateShort(d) {
-  if (!d) return '\u2014';
+  if (!d) return '—';
   if (/^\d{4}-\d{2}-\d{2}$/.test(d)) { const [y,mo,dy]=d.split('-').map(Number); return new Date(y,mo-1,dy).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
   return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
 }
-function fmtCurrency(n) { return '\u20B9' + (parseFloat(n)||0).toLocaleString('en-IN'); }
+function fmtCurrency(n) { return '₹' + (parseFloat(n)||0).toLocaleString('en-IN'); }
 function fmtCurrencyShort(n) {
   const num = parseFloat(n)||0;
-  if (num >= 100000) return '\u20B9' + (num/100000).toFixed(1) + 'L';
-  if (num >= 1000) return '\u20B9' + (num/1000).toFixed(1) + 'K';
-  return '\u20B9' + num.toLocaleString('en-IN');
+  if (num >= 100000) return '₹' + (num/100000).toFixed(1) + 'L';
+  if (num >= 1000) return '₹' + (num/1000).toFixed(1) + 'K';
+  return '₹' + num.toLocaleString('en-IN');
 }
 function av2(name) { return (name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase(); }
 function timeAgo(ds) {
-  if (!ds) return '\u2014';
+  if (!ds) return '—';
   const diff = Date.now() - new Date(ds);
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
@@ -274,25 +294,25 @@ function demoMembers() {
 function showSectionLoading(c, title) {
   c.innerHTML = `<div class="content-inner page-enter">
     <div class="page-header"><div class="page-header-left"><div class="page-title">${escHtml(title)}</div>
-      <div class="page-sub" style="color:var(--text-tertiary);">Loading\u2026</div></div></div>
+      <div class="page-sub" style="color:var(--text-tertiary);">Loading…</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px;">
       ${[1,2,3,4].map(()=>`<div class="skeleton-card"><div class="skeleton skeleton-text" style="width:60%;"></div><div class="skeleton" style="height:28px;width:40%;border-radius:4px;margin-bottom:8px;"></div><div class="skeleton skeleton-text" style="width:80%;"></div></div>`).join('')}
     </div>
     <div class="skeleton-card" style="padding:40px;display:flex;align-items:center;justify-content:center;">
-      <div style="display:flex;align-items:center;gap:10px;color:var(--text-tertiary);font-size:var(--text-sm);"><div class="spinner"></div>Fetching data\u2026</div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text-tertiary);font-size:var(--text-sm);"><div class="spinner"></div>Fetching data…</div>
     </div>
   </div>`;
 }
 
 /**
  * Standard "nothing here yet" state. Was hand-copied into 9 different
- * pages with slightly different markup each time (AUDIT.md C4) \u2014 this is
+ * pages with slightly different markup each time (AUDIT.md C4) — this is
  * the one version everything should converge on.
  *
  * @param {HTMLElement} c
  * @param {{icon?:string, title:string, hint?:string, actionLabel?:string, onAction?:Function}} opts
  */
-function renderEmpty(c, { icon = '\ud83d\udcc2', title, hint = '', actionLabel = '', onAction } = {}) {
+function renderEmpty(c, { icon = '📂', title, hint = '', actionLabel = '', onAction } = {}) {
   c.innerHTML = `<div class="empty-state" style="padding:60px;">
     <span class="empty-icon">${icon}</span>
     <div class="empty-title">${escHtml(title)}</div>
@@ -306,7 +326,7 @@ function renderEmpty(c, { icon = '\ud83d\udcc2', title, hint = '', actionLabel =
 
 /**
  * Standard section-load-failed state, with a working Retry button.
- * Never render stale data silently \u2014 if a fetch failed, say so instead
+ * Never render stale data silently — if a fetch failed, say so instead
  * of showing whatever the array happened to hold before.
  *
  * @param {HTMLElement} c
@@ -314,10 +334,10 @@ function renderEmpty(c, { icon = '\ud83d\udcc2', title, hint = '', actionLabel =
  */
 function renderError(c, { message = 'Please check your internet connection and try again.', onRetry } = {}) {
   c.innerHTML = `<div class="empty-state" style="padding:60px;">
-    <span class="empty-icon">\u26a0\ufe0f</span>
+    <span class="empty-icon">⚠️</span>
     <div class="empty-title">Could not load this section</div>
     <p>${escHtml(message)}</p>
-    ${onRetry ? `<button class="btn btn-primary btn-sm" id="section-error-retry">\ud83d\udd04 Retry</button>` : ''}
+    ${onRetry ? `<button class="btn btn-primary btn-sm" id="section-error-retry">🔄 Retry</button>` : ''}
   </div>`;
   if (onRetry) c.querySelector('#section-error-retry')?.addEventListener('click', onRetry);
 }

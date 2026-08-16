@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($f = git ls-files; \"TOTAL FILES: $\\($f.Count\\)\"; $f | ForEach-Object { $p=$_; $s=\\(Get-Item $p -ErrorAction SilentlyContinue\\); if\\($s\\){ \"{0,9}  {1}\" -f $s.Length, $p } } | Sort-Object {[int]\\($_ -split '\\\\s+'\\)[1]} -Descending | Select-Object -First 60)",
+      "PowerShell(claude mcp *)",
+      "Bash(awk -F: '$2>0{s+=$2} END{print s\" matches\"}')",
+      "Bash(sed 's/=.*/=<redacted>/' .env.local)",
+      "Bash(npx supabase *)"
+    ]
+  }
+}

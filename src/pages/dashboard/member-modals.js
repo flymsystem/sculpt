@@ -1271,6 +1271,14 @@ function openMemberDetailModal(memberId) {
   const stBadge = {Active:'badge-green',Expiring:'badge-amber',Expired:'badge-red',Due:'badge-red',Partial:'badge-amber',Trial:'badge-amber'}[st]||'badge-muted';
   const mType   = m.member_type||m.memberType||'Paid';
   const typeBadge = {Paid:'badge-blue',Unpaid:'badge-red',Trial:'badge-amber'}[mType]||'badge-blue';
+
+  // Actual amount paid so far, net of discount — mirrors the invoice calc
+  // (basePlan + addons − discount − balanceDue) so the two stay in sync.
+  const addonTotal    = memberAddons.reduce((s,a) => s + (parseFloat(a.price)||0), 0);
+  const discountAmt   = parseFloat(m.discount_amount) || 0;
+  const balanceDueAmt = parseFloat(m.balance_due) || 0;
+  const netPayable    = Math.max(0, total + addonTotal - discountAmt);
+  const amountPaid    = mType === 'Trial' ? 0 : Math.max(0, netPayable - balanceDueAmt);
   const av      = av2(m.full_name||m.name);
 
   const cancelledBadge = m.cancelled_at ? `<span class="badge badge-red" style="gap:3px;">Cancelled</span>` : '';
@@ -1368,12 +1376,29 @@ function openMemberDetailModal(memberId) {
       <!-- Payment -->
       <div style="margin-bottom:16px;">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Payment</div>
+
+        ${mType !== 'Trial' ? `
+        <!-- Amount Paid hero — the actual settled amount, net of discount, is the figure staff scan for first -->
+        <div style="background:var(--surface-2);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;border-left:3px solid var(--green);">
+          <div>
+            <div style="font-size:11px;color:var(--text-tertiary);font-weight:500;margin-bottom:2px;">Amount Paid</div>
+            <div style="font-size:20px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums;">₹${amountPaid.toLocaleString('en-IN')}</div>
+          </div>
+          ${balanceDueAmt > 0 ? `<div style="text-align:right;">
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:2px;">Balance Due</div>
+            <div style="font-size:15px;font-weight:700;color:var(--red);font-variant-numeric:tabular-nums;">₹${balanceDueAmt.toLocaleString('en-IN')}</div>
+          </div>` : `<div style="text-align:right;">
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:2px;">of Net Total</div>
+            <div style="font-size:13px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;">₹${netPayable.toLocaleString('en-IN')}</div>
+          </div>`}
+        </div>` : ''}
+
         ${mRow('Plan Price', total>0 ? `<span style="font-weight:700;color:var(--text-primary);">₹${Number(total).toLocaleString('en-IN')}</span>` : '—')}
+        ${memberAddons.length ? mRow('Add-ons', memberAddons.map(a=>escHtml(a.name)+' <span style="color:var(--text-tertiary);">+₹'+Number(a.price).toLocaleString('en-IN')+'</span>').join(' · ')) : ''}
+        ${discountAmt>0 ? mRow('Discount', `<span style="color:var(--green);font-weight:500;">−₹${discountAmt.toLocaleString('en-IN')}</span>`) : ''}
+        ${(discountAmt>0 || addonTotal>0) ? mRow('Net Total', `<span style="font-weight:700;color:var(--text-primary);">₹${netPayable.toLocaleString('en-IN')}</span>`) : ''}
         ${mRow('Mode',       escHtml(m.payment_mode||m.payMode||'—'))}
         ${mRow('Status',     payStatusBadge || escHtml(m.payment_status||m.status||'—'))}
-        ${parseFloat(m.discount_amount)>0 ? mRow('Discount', `<span style="color:var(--green);font-weight:500;">−₹${Number(m.discount_amount).toLocaleString('en-IN')}</span>`) : ''}
-        ${parseFloat(m.balance_due)>0 ? mRow('Balance Due', `<span style="color:var(--red);font-weight:700;">₹${Number(m.balance_due).toLocaleString('en-IN')}</span>`) : ''}
-        ${memberAddons.length ? mRow('Add-ons', memberAddons.map(a=>escHtml(a.name)+' <span style="color:var(--text-tertiary);">+₹'+Number(a.price).toLocaleString('en-IN')+'</span>').join(' · ')) : ''}
       </div>
 
       <!-- Payment History (loaded async after modal opens) -->

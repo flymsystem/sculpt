@@ -5,7 +5,25 @@ import { resolve } from 'path';
 export default defineConfig({
   root: '.',
   publicDir: 'public',
-  base: './',
+  // MUST be '/' — absolute, not './'.
+  //
+  // Flym is served from the root of flym.in and uses history-based
+  // routing (/dashboard/finance, /dashboard/members, ...) with a
+  // catch-all rewrite in _redirects:  /*  ->  /index.html  200
+  //
+  // With base './' the built index.html referenced ./assets/main-xxx.js.
+  // Loading / worked, because './assets' resolves to '/assets'. But a
+  // hard refresh on /dashboard/finance resolved './assets' relative to
+  // '/dashboard/', requesting /dashboard/assets/main-xxx.js — which does
+  // not exist, so the catch-all rewrite returned index.html WITH A 200.
+  // The browser then tried to parse HTML as JavaScript and the page went
+  // blank. Every deep-link refresh was broken and there was no 404 in the
+  // Network tab to point at it.
+  //
+  // '/' makes asset URLs absolute, so they resolve identically at any
+  // route depth. Only change this if Flym is ever served from a
+  // subdirectory rather than a domain root.
+  base: '/',
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 1000,
