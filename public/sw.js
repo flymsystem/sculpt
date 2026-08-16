@@ -1,4 +1,4 @@
-// Flym Service Worker — v4
+// D Sculpt Fitness Service Worker — v4
 // ─────────────────────────────────────────────────────────────────
 // Fixes for v3 root causes:
 //  1. Activate no longer deletes the CURRENT cache — only older ones.
@@ -15,7 +15,7 @@
 // CACHE_VERSION is stamped at build time by vite_config.js.
 // ─────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'flym-1781415943375';
+const CACHE_VERSION = 'sculpt-1781415943375';
 const CACHE_NAME    = CACHE_VERSION;
 
 // ── Install ──────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ self.addEventListener('message', (e) => {
 // ───────────────────────────────────────────────────────────────────
 // These handlers used to live in a separate public/sw-push-append.js
 // with a comment telling a human to paste them in here. Nothing ever
-// did, and nothing in the build appended them either — so Flym had a
+// did, and nothing in the build appended them either — so the app had a
 // complete push pipeline (VAPID keys, subscription rows, the send-push
 // and generate-notifications Edge Functions, a nightly cron) in which
 // the last step silently discarded every message.
@@ -134,7 +134,7 @@ self.addEventListener('message', (e) => {
 
 // ── Web Push: a notification arrived ──────────────────────────────
 self.addEventListener('push', function (event) {
-  var payload = { title: 'Flym', body: '', section: '', tag: 'flym-notification' };
+  var payload = { title: 'D Sculpt Fitness', body: '', section: '', tag: 'sculpt-notification' };
 
   if (event.data) {
     try {
@@ -147,9 +147,9 @@ self.addEventListener('push', function (event) {
   var options = {
     body: payload.body || '',
     // Reuse the PWA icons already in public/ — no new assets needed.
-    icon: '/favicon-192.png',
-    badge: '/favicon-48.png',
-    tag: payload.tag || 'flym-notification',
+    icon: '/icon-192.png',
+    badge: '/icon-48.png',
+    tag: payload.tag || 'sculpt-notification',
     // false = each new notification pops fresh (and plays the OS sound)
     // instead of silently replacing the previous one with the same tag.
     renotify: true,
@@ -167,7 +167,7 @@ self.addEventListener('push', function (event) {
   };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title || 'Flym', options)
+    self.registration.showNotification(payload.title || 'D Sculpt Fitness', options)
   );
 });
 
@@ -186,7 +186,7 @@ self.addEventListener('notificationclick', function (event) {
           if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
             // Tell the running app which section to open, then focus it.
             try {
-              client.postMessage({ type: 'FLYM_NOTIFICATION_CLICK', url: target });
+              client.postMessage({ type: 'SCULPT_NOTIFICATION_CLICK', url: target });
             } catch (e) { /* ignore */ }
             return client.focus();
           }
@@ -198,7 +198,7 @@ self.addEventListener('notificationclick', function (event) {
 
 // ── Optional: log dismissals (useful when debugging delivery) ──────
 self.addEventListener('notificationclose', function (event) {
-  // console.log('[Flym SW] notification dismissed', event.notification.tag);
+  // console.log('[Sculpt SW] notification dismissed', event.notification.tag);
 });
 
 // ── Push subscription rotated by the browser ──────────────────────
@@ -211,7 +211,7 @@ self.addEventListener('pushsubscriptionchange', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(function (clientList) {
         clientList.forEach(function (client) {
-          try { client.postMessage({ type: 'FLYM_PUSH_RESUBSCRIBE' }); } catch (e) {}
+          try { client.postMessage({ type: 'SCULPT_PUSH_RESUBSCRIBE' }); } catch (e) {}
         });
       })
   );

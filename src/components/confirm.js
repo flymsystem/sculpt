@@ -91,7 +91,7 @@ export function showConfirm({
         // already removes the DOM node; we listen for that removal via
         // a MutationObserver to resolve false.
         const obs = new MutationObserver(() => {
-          if (!document.getElementById('flym-modal-overlay')) {
+          if (!document.getElementById('sculpt-modal-overlay')) {
             obs.disconnect();
             settle(false);
           }

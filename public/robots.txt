@@ -1,6 +1,3 @@
 User-agent: *
 Allow: /
 Disallow: /dashboard
-Disallow: /admin
-
-Sitemap: https://flym.in/sitemap.xml

@@ -14,12 +14,12 @@ function bindThemeToggle() {
   const moon = document.getElementById('theme-icon-moon');
   if (!btn || !sun || !moon) return;
   const updateIcon = () => {
-    const t = window.__flymThemeController?.get() || 'dark';
+    const t = window.__sculptThemeController?.get() || 'dark';
     sun.style.display = t === 'dark' ? 'block' : 'none';
     moon.style.display = t === 'light' ? 'block' : 'none';
   };
   updateIcon();
-  btn.addEventListener('click', () => { window.__flymThemeController?.toggle(); updateIcon(); if (S.section) setTimeout(() => _nav(S.section), 30); });
+  btn.addEventListener('click', () => { window.__sculptThemeController?.toggle(); updateIcon(); if (S.section) setTimeout(() => _nav(S.section), 30); });
   window.addEventListener('flym:themechange', updateIcon);
 }
 
@@ -260,7 +260,7 @@ function bindSidebar(router) {
   if (window.__flymTouchStart) document.removeEventListener('touchstart', window.__flymTouchStart);
   if (window.__flymTouchEnd) document.removeEventListener('touchend', window.__flymTouchEnd);
   let _tsX = 0, _tsY = 0, _blocked = false;
-  const isModalOpen = () => !!document.getElementById('flym-modal-overlay');
+  const isModalOpen = () => !!document.getElementById('sculpt-modal-overlay');
   const startedInHScroller = (target) => { let el = target; while (el && el !== document.body) { const style = getComputedStyle(el); if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true; el = el.parentElement; } return false; };
   window.__flymTouchStart = (e) => { if (!e.touches?.[0]) return; _tsX = e.touches[0].clientX; _tsY = e.touches[0].clientY; _blocked = isModalOpen() || startedInHScroller(e.target); };
   window.__flymTouchEnd = (e) => { if (_blocked || isModalOpen() || !e.changedTouches?.[0]) return; const dx = e.changedTouches[0].clientX - _tsX; const dy = Math.abs(e.changedTouches[0].clientY - _tsY); const isSidebarOpen = sidebar?.classList.contains('sidebar-open'); if (Math.abs(dx) < 40 || dy > Math.abs(dx)) return; if (dx > 60 && _tsX < 30 && !isSidebarOpen) { sidebar?.classList.add('sidebar-open'); overlay?.classList.add('active'); hamburger?.classList.add('open'); } else if (dx < -60 && isSidebarOpen) closeMobileSidebar(); };

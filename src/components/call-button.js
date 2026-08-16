@@ -174,9 +174,9 @@ export function observeModals() {
     for (const mut of mutations) {
       for (const node of mut.addedNodes) {
         if (node.nodeType !== 1) continue;
-        const isModal = node.id === 'flym-modal-overlay'
+        const isModal = node.id === 'sculpt-modal-overlay'
           || node.classList?.contains('modal-overlay')
-          || node.querySelector?.('#flym-modal-overlay, .modal-overlay');
+          || node.querySelector?.('#sculpt-modal-overlay, .modal-overlay');
         if (isModal) {
           // Let the modal finish its own onOpen wiring first.
           setTimeout(() => linkifyPhones(node), 0);

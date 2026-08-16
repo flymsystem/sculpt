@@ -39,7 +39,7 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
   if (isMobile && mobileCompact) {
     _injectMobileStyles();
     const panel = document.createElement('div');
-    panel.id        = 'flym-modal-overlay';
+    panel.id        = 'sculpt-modal-overlay';
     panel.className = 'flym-mobile-fullscreen';
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'true');
@@ -70,7 +70,7 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
   const widths = { sm: '400px', md: '520px', lg: '700px' };
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
-  overlay.id        = 'flym-modal-overlay';
+  overlay.id        = 'sculpt-modal-overlay';
   overlay.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}"
          style="width:${widths[size] || widths.md}; max-width:calc(100vw - 32px);">
@@ -93,7 +93,7 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
 }
 
 export function closeModal() {
-  const el = document.getElementById('flym-modal-overlay');
+  const el = document.getElementById('sculpt-modal-overlay');
   if (!el) return;
   el.removeEventListener('keydown', _handleTabTrap);
   el.remove();
@@ -113,7 +113,7 @@ function _handleKey(e) {
 
 function _handleTabTrap(e) {
   if (e.key !== 'Tab') return;
-  const root = document.getElementById('flym-modal-overlay');
+  const root = document.getElementById('sculpt-modal-overlay');
   if (!root) return;
   const focusables = _focusableEls(root);
   if (!focusables.length) return;

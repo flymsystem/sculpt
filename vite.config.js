@@ -7,7 +7,7 @@ export default defineConfig({
   publicDir: 'public',
   // MUST be '/' — absolute, not './'.
   //
-  // Flym is served from the root of flym.in and uses history-based
+  // The app is served from the site root and uses history-based
   // routing (/dashboard/finance, /dashboard/members, ...) with a
   // catch-all rewrite in _redirects:  /*  ->  /index.html  200
   //
@@ -21,7 +21,7 @@ export default defineConfig({
   // Network tab to point at it.
   //
   // '/' makes asset URLs absolute, so they resolve identically at any
-  // route depth. Only change this if Flym is ever served from a
+  // route depth. Only change this if the app is ever served from a
   // subdirectory rather than a domain root.
   base: '/',
   build: {
@@ -58,18 +58,18 @@ export default defineConfig({
   },
   plugins: [
     {
-      name: 'flym-sw-version',
+      name: 'sculpt-sw-version',
       // Runs after build completes — stamps a fresh timestamp into sw.js in dist/
       closeBundle() {
         try {
           const swPath = resolve('dist', 'sw.js');
           let sw = readFileSync(swPath, 'utf8');
           const ts = Date.now();
-          sw = sw.replace(/'flym-\d+'/, `'flym-${ts}'`);
+          sw = sw.replace(/'sculpt-\d+'/, `'sculpt-${ts}'`);
           writeFileSync(swPath, sw);
-          console.log(`✓ Service worker stamped with version flym-${ts}`);
+          console.log(`✓ Service worker stamped with version sculpt-${ts}`);
         } catch (e) {
-          console.warn('[flym-sw-version] Could not stamp sw.js:', e.message);
+          console.warn('[sculpt-sw-version] Could not stamp sw.js:', e.message);
         }
       }
     }

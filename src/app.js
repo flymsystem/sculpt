@@ -75,14 +75,14 @@ window.addEventListener('pageshow', async (e) => {
 });
 
 // ── Theme controller ──────────────────────────────────────────────
-window.__flymThemeController = {
+window.__sculptThemeController = {
   get() { return document.documentElement.getAttribute('data-theme') || 'dark'; },
   set(theme) {
     if (theme !== 'dark' && theme !== 'light') return;
     document.documentElement.classList.add('theme-switching');
     document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('flym-theme', theme); } catch (_) {}
-    window.__flymTheme = theme;
+    try { localStorage.setItem('sculpt-theme', theme); } catch (_) {}
+    window.__sculptTheme = theme;
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.documentElement.classList.remove('theme-switching');
     }));
@@ -91,7 +91,7 @@ window.__flymThemeController = {
   toggle() { this.set(this.get() === 'dark' ? 'light' : 'dark'); },
 };
 window.addEventListener('storage', (e) => {
-  if (e.key === 'flym-theme' && e.newValue) window.__flymThemeController.set(e.newValue);
+  if (e.key === 'sculpt-theme' && e.newValue) window.__sculptThemeController.set(e.newValue);
 });
 
 // ── URL helpers ───────────────────────────────────────────────────
@@ -378,7 +378,7 @@ async function boot() {
             </div>
             <div style="display:flex;gap:10px;margin-top:8px;">
               <button onclick="location.reload()" style="padding:10px 18px;border-radius:8px;background:#2A8FFF;color:#fff;border:none;font-size:14px;font-weight:500;cursor:pointer;">Retry</button>
-              <button onclick="localStorage.removeItem('flym-session');location.href='${appPath('/login')}'" style="padding:10px 18px;border-radius:8px;background:transparent;color:#9CA3AF;border:1px solid rgba(255,255,255,0.14);font-size:14px;font-weight:500;cursor:pointer;">Sign out</button>
+              <button onclick="localStorage.removeItem('sculpt-session');location.href='${appPath('/login')}'" style="padding:10px 18px;border-radius:8px;background:transparent;color:#9CA3AF;border:1px solid rgba(255,255,255,0.14);font-size:14px;font-weight:500;cursor:pointer;">Sign out</button>
             </div>
           </div>`;
       }

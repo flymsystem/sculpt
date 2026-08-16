@@ -1,7 +1,7 @@
 {
-  "name": "flym",
+  "name": "d-sculpt-fitness",
   "version": "1.0.0",
-  "description": "Flym — Smart Gym Management System",
+  "description": "D Sculpt Fitness — gym management",
   "type": "module",
   "scripts": {
     "dev": "vite",

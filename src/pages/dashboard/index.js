@@ -146,7 +146,7 @@ export async function renderGymDashboard(router) {
   if ('serviceWorker' in navigator && !window.__flymSwMsgBound) {
     window.__flymSwMsgBound = true;
     navigator.serviceWorker.addEventListener('message', (ev) => {
-      if (ev.data?.type === 'FLYM_NOTIFICATION_CLICK' && ev.data.url) {
+      if (ev.data?.type === 'SCULPT_NOTIFICATION_CLICK' && ev.data.url) {
         const m = String(ev.data.url).match(/\/dashboard\/([a-z][\w-]*)/);
         if (m) nav(m[1]);
       }

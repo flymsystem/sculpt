@@ -72,7 +72,7 @@
 }
 
 /* Modals: never let the header slide under the notch */
-.modal, .modal-panel, #flym-modal-overlay .modal-content {
+.modal, .modal-panel, #sculpt-modal-overlay .modal-content {
   padding-top: var(--safe-top);
 }
 

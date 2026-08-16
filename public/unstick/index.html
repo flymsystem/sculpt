@@ -283,7 +283,7 @@
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
         // Remove flym-specific keys EXCEPT login session
-        if (k && k.indexOf('flym-') === 0 && k !== 'flym-session' && k !== 'flym-theme') {
+        if (k && k.indexOf('sculpt-') === 0 && k !== 'sculpt-session' && k !== 'sculpt-theme') {
           keysToRemove.push(k);
         }
       }
