@@ -22,7 +22,6 @@ export function renderLogin(router) {
 
   document.getElementById('root').innerHTML = `
     <div id="page-login">
-      <div class="login-grid" aria-hidden="true"></div>
       <div class="login-glow" aria-hidden="true"></div>
 
       <form class="login-card" id="login-form" novalidate autocomplete="on">
@@ -235,17 +234,10 @@ function injectLoginStyles() {
       padding-top: max(20px, env(safe-area-inset-top, 0px));
       padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
     }
-    .login-grid {
-      position: fixed; inset: 0; pointer-events: none;
-      background-image:
-        linear-gradient(rgba(42,143,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(42,143,255,0.03) 1px, transparent 1px);
-      background-size: 44px 44px;
-    }
     .login-glow {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
       width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(42,143,255,0.07) 0%, transparent 65%);
+      background: radial-gradient(circle, rgba(10,132,255,0.10) 0%, transparent 65%);
       pointer-events: none;
     }
     .login-card {

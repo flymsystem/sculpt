@@ -99,9 +99,10 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
 .section-sub{font-size:var(--text-md);color:var(--text-secondary);margin-top:4px;}
 
 /* ALERT CARDS */
-.alert-card{background:var(--surface-1);border:1px solid var(--border-subtle);border-left:3px solid var(--amber);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);transition:border-color var(--duration-fast) var(--ease-out),background var(--duration-fast) var(--ease-out);}
-.alert-card:hover{border-color:var(--border-default);border-left-color:var(--amber);background:var(--surface-2);}
-.alert-card.critical{border-left-color:var(--red);}.alert-card.ok{border-left-color:var(--green);}
+.alert-card{background:var(--surface-1);border:1px solid var(--amber-strong);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-3);display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);transition:border-color var(--duration-fast) var(--ease-out),background var(--duration-fast) var(--ease-out);}
+.alert-card:hover{border-color:var(--amber);background:var(--surface-2);}
+.alert-card.critical{border-color:var(--red-strong);}.alert-card.critical:hover{border-color:var(--red);}
+.alert-card.ok{border-color:var(--green-strong);}.alert-card.ok:hover{border-color:var(--green);}
 .alert-info strong{font-weight:600;color:var(--text-primary);}.alert-info p{font-size:var(--text-sm);color:var(--text-tertiary);margin-top:2px;}
 
 /* ACTIVITY FEED */

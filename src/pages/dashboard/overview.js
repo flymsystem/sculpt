@@ -228,12 +228,11 @@ function miniStat(label, value, color, navKey = '', emphasize = false) {
   const clickable = navKey
     ? `class="mini-stat-clickable" data-mini-nav="${escHtml(navKey)}" role="button" tabindex="0" title="Open ${escHtml(label)}"`
     : '';
-  // Solid border-left accent, not color-mix() — not used anywhere else in
-  // this codebase, and this app deliberately targets older/cheap Android
-  // browsers. No reason to introduce an unvetted CSS feature for a
-  // cosmetic accent when a plain border does the same job.
-  const leftBorder = emphasize ? `border-left:3px solid ${color};` : '';
-  return `<div ${clickable} style="background:var(--surface-1);border:1px solid var(--border-subtle);${leftBorder}border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-width:0;">
+  // Emphasis is carried by the tinted border and the value colour below.
+  // A thick single-edge accent bar was the previous treatment; it read as
+  // decoration rather than meaning, and the value is already in `color`.
+  const emphasisBorder = emphasize ? `border-color:${color};` : '';
+  return `<div ${clickable} style="background:var(--surface-1);border:1px solid var(--border-subtle);${emphasisBorder}border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:4px;overflow:hidden;min-width:0;">
     <div style="font-size:11px;color:var(--text-tertiary);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;">
       <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${label}</span>
       ${navKey ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;opacity:.45;"><polyline points="9 18 15 12 9 6"/></svg>` : ''}

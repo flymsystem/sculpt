@@ -1,4 +1,4 @@
-// playwright.config.js  →  goes in the project root: C:\steven\flymm\flym-work\
+// playwright.config.js  —  project root
 //
 // Runs the tests against the BUILT output (npm run preview), not the dev server.
 // That is deliberate: the whole class of bug this catches — the vite base-path /
