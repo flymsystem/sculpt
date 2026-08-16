@@ -26,7 +26,6 @@ import { renderExpenses } from './expenses-page.js';
 import { renderEnquiries } from './enquiries.js';
 import { renderContact } from './contact.js';
 import { renderStaff, setStaffNav } from './staff.js';
-import { renderBroadcast, cleanupBroadcast } from './broadcast.js';
 import { renderAnalytics } from './analytics.js';
 import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload } from './sidebar.js';
 import { saveMemberPhoto } from './photo.js';
@@ -82,7 +81,6 @@ export async function renderGymDashboard(router) {
   S.expenses = [];
   S.enquiries = [];
   S.staff = [];
-  S.broadcasts = [];
   S.branches = sessionData.branches || [];
   S.subscription = null;
   S.section = 'overview';
@@ -182,7 +180,7 @@ async function loadData() {
   const gymId = S.gym?.id;
   try {
     if (gymId) {
-      // Staff loads less data — skip expenses/broadcasts if no access
+      // Staff loads less data — skip expenses if no access
       const isStaff = S.role === 'staff';
 
       const fetches = [
@@ -281,7 +279,7 @@ function renderUpgradePrompt(c, featureName) {
 
 // Valid dashboard sections (for URL validation)
 const VALID_SECTIONS = new Set([
-  'overview','members','enquiries','alerts','broadcast','staff',
+  'overview','members','enquiries','alerts','staff',
   'finance','expenses','plans','plans-showcase','gymconfig',
   'backup','contact','analytics'
 ]);
@@ -294,10 +292,6 @@ function nav(id, opts = {}) {
   const c = document.getElementById('gym-content');
   if (!c) return;
 
-  // Cleanup broadcast polling when navigating away
-  if (S.section === 'broadcast' && id !== 'broadcast') {
-    cleanupBroadcast();
-  }
 
   S.section = id;
 
@@ -310,7 +304,7 @@ function nav(id, opts = {}) {
   const titles = { overview:'Dashboard', members:'All Members', enquiries:'Enquiries', alerts:'Member Alerts',
     staff:'Staff', finance:'Finance', expenses:'Expenses', plans:'Plan Settings',
     'plans-showcase':'Plans Showcase', gymconfig:'Gym Settings',
-    backup:'Data & Backup', contact:'Contact Us', broadcast:'Broadcast', analytics:'Analytics' };
+    backup:'Data & Backup', contact:'Contact Us', analytics:'Analytics' };
   const tb = document.getElementById('topbar-title');
   if (tb) tb.textContent = titles[id] || 'Dashboard';
 
@@ -327,14 +321,12 @@ function nav(id, opts = {}) {
     staff:       'staff_management',
     gymconfig:   'settings',
     backup:      'backup',
-    broadcast:   'broadcast',
     plans:       'plans',
     analytics:   'analytics',
   };
 
   // Tier map: section -> tier feature key
   const tierMap = {
-    broadcast:  'broadcast',
     staff:      'staff_login',
     analytics:  'analytics',
   };
@@ -361,7 +353,7 @@ function nav(id, opts = {}) {
   ({ overview:renderOverview, members:renderMembers, enquiries:renderEnquiries, alerts:renderMemberAlerts,
      staff:renderStaff, finance:renderFinance, expenses:renderExpenses, plans:renderPlans,
      'plans-showcase':renderPlansShowcase, gymconfig:renderGymConfig,
-     backup:renderBackup, contact:renderContact, broadcast:renderBroadcast,
+     backup:renderBackup, contact:renderContact,
      analytics:renderAnalytics }[id] || renderOverview)(c);
 
   // Update FAB context
@@ -390,7 +382,6 @@ function openCommandPalette() {
     { id:'members', label:'All Members', icon:'users' },
     { id:'enquiries', label:'Enquiries', icon:'clipboard' },
     { id:'alerts', label:'Member Alerts', icon:'bell' },
-    { id:'broadcast', label:'Broadcast', icon:'broadcast' },
     { id:'staff', label:'Staff', icon:'users' },
     { id:'finance', label:'Finance', icon:'finance' },
     { id:'expenses', label:'Expenses', icon:'card' },
@@ -407,9 +398,9 @@ function openCommandPalette() {
   const tier = S.tier || 'core';
   const permMap = {
     finance:'finance', staff:'staff_management', gymconfig:'settings',
-    backup:'backup', broadcast:'broadcast', plans:'plans', analytics:'analytics',
+    backup:'backup', plans:'plans', analytics:'analytics',
   };
-  const tierMap = { broadcast:'broadcast', analytics:'analytics' };
+  const tierMap = { analytics:'analytics' };
 
   const navPages = allPages.filter(p => {
     const pk = permMap[p.id];

@@ -146,7 +146,7 @@ function typeAccent(type) {
   return ({
     expired: 'var(--red)', payment_due: 'var(--purple)', expiring: 'var(--amber)',
     enquiry: 'var(--blue-light)', payment: 'var(--green)', birthday: 'var(--brand)',
-    broadcast: 'var(--brand)', staff: 'var(--brand)',
+    staff: 'var(--brand)',
   })[type] || 'var(--text-tertiary)';
 }
 

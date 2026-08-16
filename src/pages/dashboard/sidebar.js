@@ -87,7 +87,6 @@ function isNavVisible(sectionId) {
     members:         'members',
     enquiries:       'leads',
     alerts:          'members',
-    broadcast:       'broadcast',
     staff:           'staff_management',
     finance:         'finance',
     expenses:        'expenses',
@@ -110,7 +109,6 @@ function isNavVisible(sectionId) {
 
   // Tier check (feature gating)
   const tierMap = {
-    broadcast:  'broadcast',
     staff:      'staff_login',
     analytics:  'analytics',
   };
@@ -146,7 +144,6 @@ function buildSidebar(gymName, gymCode, logoUrl) {
       clipboard:`<svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
       staff:`<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`,
       expense:`<svg viewBox="0 0 24 24"><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/><path d="M12 2L2 7l10 5 10-5L12 2z"/></svg>`,
-      broadcast:`<svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>`,
       logout:`<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
       chart:`<svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>`,
     };
@@ -180,10 +177,9 @@ function buildSidebar(gymName, gymCode, logoUrl) {
   }
 
   // Operations section
-  const opsVisible = ['broadcast','staff','finance','expenses'].filter(isNavVisible);
+  const opsVisible = ['staff','finance','expenses'].filter(isNavVisible);
   if (opsVisible.length > 0) {
     navItems.push(`<div class="nav-section-label">Operations</div>`);
-    if (isNavVisible('broadcast')) navItems.push(`<div class="nav-item" data-id="broadcast" role="button" tabindex="0">${navIco('broadcast')}Broadcast</div>`);
     if (isNavVisible('staff'))     navItems.push(`<div class="nav-item" data-id="staff" role="button" tabindex="0">${navIco('staff')}Staff</div>`);
     if (isNavVisible('finance'))   navItems.push(`<div class="nav-item" data-id="finance" role="button" tabindex="0">${navIco('finance')}Finance</div>`);
     if (isNavVisible('expenses'))  navItems.push(`<div class="nav-item" data-id="expenses" role="button" tabindex="0">${navIco('expense')}Expenses</div>`);

@@ -8,7 +8,7 @@
 //    a `dedupe_key` unique per gym, so re-running the sync is idempotent
 //    (migration 031 enforces this with a partial unique index).
 //  * Cancelled members (`cancelled_at` set) NEVER generate notifications
-//    — same rule as Finance / Broadcast.
+//    — same rule as Finance.
 //  * Every query filters by gym_id at the app layer even though RLS also
 //    enforces it (defence in depth).
 // ─────────────────────────────────────────────────────────────────
@@ -21,7 +21,6 @@ export const NOTIF_TYPES = {
   birthday:    { icon: 'gift',   color: 'var(--brand)',  section: 'members' },
   enquiry:     { icon: 'user',   color: 'var(--blue-light)', section: 'enquiries' },
   payment:     { icon: 'rupee',  color: 'var(--green)',  section: 'finance' },
-  broadcast:   { icon: 'send',   color: 'var(--brand)',  section: 'broadcast' },
   staff:       { icon: 'users',  color: 'var(--brand)',  section: 'staff' },
   system:      { icon: 'info',   color: 'var(--text-tertiary)', section: '' },
   general:     { icon: 'info',   color: 'var(--text-tertiary)', section: '' },

@@ -36,7 +36,6 @@ const MATRIX = {
     settings:         'full',
     wa_settings:      'full',
     branding:         'full',
-    broadcast:        'full',
     backup:           'full',
     contact:          true,
     analytics:        'full',
@@ -62,7 +61,6 @@ const MATRIX = {
     settings:         false,
     wa_settings:      false,
     branding:         false,
-    broadcast:        false,
     backup:           false,
     contact:          true,
     analytics:        false,
@@ -104,7 +102,6 @@ export function getVisibleSections(role) {
     { id: 'members',         perm: 'members' },
     { id: 'enquiries',       perm: 'leads' },
     { id: 'alerts',          perm: 'members' },       // alerts need member access
-    { id: 'broadcast',       perm: 'broadcast' },
     { id: 'staff',           perm: 'staff_management' },
     { id: 'finance',         perm: 'finance' },
     { id: 'expenses',        perm: 'expenses' },
