@@ -1,7 +1,6 @@
 import { S } from './state.js';
 import { daysLeft, memberStatus, outstandingAmount, isNewThisMonth, escHtml, fmtCurrency, fmtCurrencyShort, timeAgo, pctChange, isSameLocalDay } from './helpers.js';
 import { hasAccess, can } from '../../lib/permissions.js';
-import { hasFeature } from '../../lib/tiers.js';
 
 let _nav, _filterTable;
 export function setOverviewHandlers(h) { _nav = h.nav; _filterTable = h.filterTable; }
@@ -117,7 +116,7 @@ function renderOverview(c) {
         <div class="activity-feed">${activityHtml}</div>
       </div>
       <div>
-        ${hasFeature(S.tier, 'analytics') ? `<div class="overview-section-header">
+        <div class="overview-section-header">
           <div class="section-title-sm">Monthly Trends</div>
           <div class="chart-tabs" id="chart-mode-tabs">
             <button class="chart-tab active" data-mode="joins">Admissions</button>
@@ -128,7 +127,7 @@ function renderOverview(c) {
         </div>
         <div class="card card-sm" style="margin-bottom:var(--space-5);">
           <div id="overview-chart-container">${miniBarChart('joins')}</div>
-        </div>` : ''}
+        </div>
         <div class="overview-section-header">
           <div class="section-title-sm">Plan Distribution</div>
           <span class="section-meta">${S.plans.length} plan${S.plans.length!==1?'s':''}</span>
@@ -200,16 +199,14 @@ function renderOverview(c) {
 
   bindScardClicks();
   bindMiniStatClicks();
-  if (hasFeature(S.tier, 'analytics')) {
-    document.querySelectorAll('#chart-mode-tabs .chart-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('#chart-mode-tabs .chart-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        const container = document.getElementById('overview-chart-container');
-        if (container) container.innerHTML = miniBarChart(tab.dataset.mode);
-      });
+  document.querySelectorAll('#chart-mode-tabs .chart-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#chart-mode-tabs .chart-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const container = document.getElementById('overview-chart-container');
+      if (container) container.innerHTML = miniBarChart(tab.dataset.mode);
     });
-  }
+  });
 }
 
 /**

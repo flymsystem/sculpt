@@ -8,7 +8,6 @@ import { getStaff } from '../../lib/staff.js';
 import { supabase } from '../../lib/supabase.js';
 import { demoPlans, demoMembers, escHtml, ico } from './helpers.js';
 import { hasAccess } from '../../lib/permissions.js';
-import { hasFeature } from '../../lib/tiers.js';
 import { pushDashboardSection, replaceDashboardSection } from '../../app.js';
 import '../../styles/dashboard.css';
 import '../../styles/mobile-fixes.css';   // MUST stay after dashboard.css — it overrides it
@@ -71,7 +70,6 @@ export async function renderGymDashboard(router) {
   // Reset state
   S.gym = sessionData.gym;
   S.role = sessionData.role;
-  S.tier = sessionData.gym?.subscription_tier || 'core';
   S.staffRecord = sessionData.staffRecord || null;
   S.members = [];
   S.plans = [];
@@ -261,21 +259,6 @@ function renderAccessDenied(c, sectionName) {
   </div>`;
 }
 
-// ── Upgrade prompt for tier-locked features ─────────
-function renderUpgradePrompt(c, featureName) {
-  c.innerHTML = `<div class="content-inner page-enter" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:50vh;gap:16px;text-align:center;">
-    <div style="font-size:40px;">⭐</div>
-    <div style="font-size:17px;font-weight:600;color:var(--text-primary);">Flym Pro Feature</div>
-    <div style="font-size:13px;color:var(--text-tertiary);max-width:360px;line-height:1.6;">
-      ${escHtml(featureName || 'This feature')} is available with Flym Pro. Upgrade your subscription to unlock it.
-    </div>
-    <div style="display:flex;gap:10px;margin-top:4px;">
-      <button class="btn btn-primary btn-sm" onclick="window._navTo&&window._navTo('gymconfig')">View Subscription</button>
-      <button class="btn btn-ghost btn-sm" onclick="window._navTo&&window._navTo('overview')">Back</button>
-    </div>
-  </div>`;
-}
-
 // Valid dashboard sections (for URL validation)
 const VALID_SECTIONS = new Set([
   'overview','members','enquiries','alerts','staff',
@@ -312,7 +295,6 @@ function nav(id, opts = {}) {
 
   // ── Role-based access guard ──
   const role = S.role || 'owner';
-  const tier = S.tier || 'core';
 
   // Permission map: section -> permission key
   const permMap = {
@@ -324,11 +306,6 @@ function nav(id, opts = {}) {
     analytics:   'analytics',
   };
 
-  // Tier map: section -> tier feature key
-  const tierMap = {
-    staff:      'staff_login',
-    analytics:  'analytics',
-  };
 
   // Check permission
   const permKey = permMap[id];
@@ -339,14 +316,6 @@ function nav(id, opts = {}) {
     if (id === 'plans' && role === 'staff') { renderPlansShowcase(c); updateFAB(id); return; }
   }
 
-  // Check tier
-  const tierKey = tierMap[id];
-  if (tierKey && !hasFeature(tier, tierKey)) {
-    // Staff management is accessible in core, just not the login feature
-    if (id !== 'staff') {
-      renderUpgradePrompt(c, titles[id]); updateFAB(id); return;
-    }
-  }
 
   // Render the section
   ({ overview:renderOverview, members:renderMembers, enquiries:renderEnquiries, alerts:renderMemberAlerts,
@@ -391,20 +360,16 @@ function openCommandPalette() {
     { id:'analytics', label:'Analytics', icon:'chart' },
   ];
 
-  // Filter based on role + tier
+  // Filter based on role
   const role = S.role || 'owner';
-  const tier = S.tier || 'core';
   const permMap = {
     finance:'finance', staff:'staff_management', gymconfig:'settings',
     backup:'backup', plans:'plans', analytics:'analytics',
   };
-  const tierMap = { analytics:'analytics' };
 
   const navPages = allPages.filter(p => {
     const pk = permMap[p.id];
     if (pk && !hasAccess(role, pk)) return false;
-    const tk = tierMap[p.id];
-    if (tk && !hasFeature(tier, tk)) return false;
     return true;
   });
 

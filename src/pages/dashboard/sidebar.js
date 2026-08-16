@@ -3,7 +3,6 @@ import { signOut, switchGym, getAuthUser, getMyProfile } from '../../lib/auth.js
 import { showToast } from '../../components/toast.js';
 import { escHtml, memberStatus } from './helpers.js';
 import { hasAccess } from '../../lib/permissions.js';
-import { hasFeature } from '../../lib/tiers.js';
 
 let _nav, _reloadDashboard;
 export function setSidebarNav(fn) { _nav = fn; }
@@ -79,7 +78,6 @@ function getAlertCount() {
  */
 function isNavVisible(sectionId) {
   const role = S.role || 'owner';
-  const tier = S.tier || 'core';
 
   // Permission check (role-based)
   const permMap = {
@@ -106,13 +104,6 @@ function isNavVisible(sectionId) {
     if (can(role, 'plans') !== 'full' && can(role, 'plans') !== true) return false;
   }
 
-  // Tier check (feature gating)
-  const tierMap = {
-    staff:      'staff_login',
-    analytics:  'analytics',
-  };
-  const tierFeature = tierMap[sectionId];
-  if (tierFeature && !hasFeature(tier, tierFeature)) return false;
 
   return true;
 }
@@ -155,12 +146,8 @@ function buildSidebar(gymName, gymCode, logoUrl) {
     ? `<span class="sidebar-badge" style="background:var(--blue-glow2);color:var(--blue-light);border-color:rgba(42,143,255,0.25);">STAFF</span>`
     : `<span class="sidebar-badge">GYM OWNER</span>`;
 
-  const tierLabel = (S.tier || 'core') === 'pro' ? 'FLYM PRO' : 'FLYM CORE';
-  const tierBadge = (S.tier || 'core') === 'pro'
-    ? `<span class="sidebar-tier-badge sidebar-tier-pro">${tierLabel}</span>`
-    : `<span class="sidebar-tier-badge sidebar-tier-core">${tierLabel}</span>`;
 
-  // Build nav items conditionally based on role + tier
+  // Build nav items conditionally based on role
   const navItems = [];
 
   // Overview — always visible
@@ -220,7 +207,7 @@ function buildSidebar(gymName, gymCode, logoUrl) {
       <div class="sidebar-identity-label">Active Gym</div>
       <div class="sidebar-identity-name">${escHtml(gymName)}</div>
       ${gymCode ? `<div class="sidebar-identity-code">${escHtml(gymCode)}</div>` : ''}
-      <div class="sidebar-badges">${roleBadge}${tierBadge}</div>
+      <div class="sidebar-badges">${roleBadge}</div>
     </div>
     ${buildBranchSwitcher()}
     ${buildSubscriptionBadge()}

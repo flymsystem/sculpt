@@ -16,7 +16,6 @@ export let S = {
   section: 'overview',
   // ── v3: Role & tier ──
   role: 'owner',          // 'owner' or 'staff'
-  tier: 'core',           // 'core' or 'pro' — from gym.subscription_tier
   staffRecord: null,      // linked staff row (only when role='staff')
 };
 export let _memberPage = 1;
