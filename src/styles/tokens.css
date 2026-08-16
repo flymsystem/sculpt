@@ -1,51 +1,74 @@
 /* src/styles/tokens.css — D Sculpt Fitness Design Tokens */
 :root,
 [data-theme="dark"] {
-  --surface-bg:#0A0B0F;--surface-1:#101218;--surface-2:#161922;--surface-3:#1C2030;
-  --surface-overlay:rgba(8,9,13,0.78);--surface-glass:rgba(255,255,255,0.02);
-  --border-subtle:rgba(255,255,255,0.06);--border-default:rgba(255,255,255,0.09);
-  --border-strong:rgba(255,255,255,0.14);--border-focus:rgba(42,143,255,0.5);
-  --text-primary:#F4F5F7;--text-secondary:#9CA3AF;--text-tertiary:#6B7280;
-  --text-quaternary:#757C88;--text-inverse:#0A0B0F;
-  --brand:#2A8FFF;--brand-hover:#4DA1FF;--brand-fade:rgba(42,143,255,0.12);
-  --brand-fade-strong:rgba(42,143,255,0.20);--brand-text:#5BA8FF;
-  --green:#00D762;--green-fade:rgba(0,215,98,0.12);--green-strong:rgba(0,215,98,0.22);
-  --red:#FF5555;--red-fade:rgba(255,85,85,0.10);--red-strong:rgba(255,85,85,0.22);
+  /* Ground: near-black, matching the field the logo badge sits on.
+     Surfaces step up in near-neutral greys with a faint blue cast so they
+     read as chrome rather than warm grey. */
+  --surface-bg:#050507;--surface-1:#0E0F13;--surface-2:#15171D;--surface-3:#1C1F27;
+  --surface-overlay:rgba(3,3,5,0.80);--surface-glass:rgba(255,255,255,0.02);
+  /* Borders carry a slight chrome tint rather than pure white alpha. */
+  --border-subtle:rgba(200,205,214,0.07);--border-default:rgba(200,205,214,0.11);
+  --border-strong:rgba(200,205,214,0.18);--border-focus:rgba(10,132,255,0.55);
+  /* Chrome/silver for secondary text, taken off the logo's metal rings. */
+  --text-primary:#F2F4F8;--text-secondary:#C8CDD6;--text-tertiary:#8A929F;
+  --text-quaternary:#767E8B;--text-inverse:#050507;
+  /* Electric blue. #0A84FF on --surface-1 is ~5.3:1 (AA for normal text);
+     --brand-text is the lighter tone for blue-on-dark labels at ~8.6:1. */
+  --brand:#0A84FF;--brand-hover:#1E90FF;--brand-fade:rgba(10,132,255,0.13);
+  --brand-fade-strong:rgba(10,132,255,0.22);--brand-text:#66B2FF;
+  --green:#22D07A;--green-fade:rgba(34,208,122,0.12);--green-strong:rgba(34,208,122,0.22);
+  --red:#FF5A5A;--red-fade:rgba(255,90,90,0.10);--red-strong:rgba(255,90,90,0.22);
   --amber:#FFB020;--amber-fade:rgba(255,176,32,0.10);--amber-strong:rgba(255,176,32,0.22);
   --purple:#9B7AFF;--purple-fade:rgba(155,122,255,0.12);
-  --shadow-sm:0 1px 2px rgba(0,0,0,0.4);
-  --shadow-md:0 4px 12px rgba(0,0,0,0.32),0 1px 3px rgba(0,0,0,0.18);
-  --shadow-lg:0 16px 40px rgba(0,0,0,0.45),0 4px 12px rgba(0,0,0,0.25);
-  --shadow-focus:0 0 0 3px rgba(42,143,255,0.28);
-  --shadow-inner:inset 0 1px 0 rgba(255,255,255,0.03);
-  --gradient-hero:linear-gradient(180deg,rgba(42,143,255,0.04) 0%,transparent 100%);
-  --gradient-card:linear-gradient(180deg,rgba(255,255,255,0.012) 0%,transparent 60%);
+  /* Deeper shadows — the ground is near-black, so lifts need more contrast. */
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.55);
+  --shadow-md:0 4px 14px rgba(0,0,0,0.45),0 1px 3px rgba(0,0,0,0.28);
+  --shadow-lg:0 18px 44px rgba(0,0,0,0.60),0 4px 12px rgba(0,0,0,0.35);
+  --shadow-focus:0 0 0 3px rgba(10,132,255,0.32);
+  --shadow-inner:inset 0 1px 0 rgba(255,255,255,0.04);
+  --gradient-hero:linear-gradient(180deg,rgba(10,132,255,0.05) 0%,transparent 100%);
+  --gradient-card:linear-gradient(180deg,rgba(255,255,255,0.014) 0%,transparent 60%);
   --skeleton-base:rgba(255,255,255,0.04);--skeleton-shine:rgba(255,255,255,0.08);
 }
 [data-theme="light"] {
-  --surface-bg:#FAFAFB;--surface-1:#FFFFFF;--surface-2:#F4F5F7;--surface-3:#ECEDF1;
-  --surface-overlay:rgba(15,17,25,0.42);--surface-glass:rgba(0,0,0,0.015);
-  --border-subtle:rgba(15,17,25,0.06);--border-default:rgba(15,17,25,0.10);
-  --border-strong:rgba(15,17,25,0.16);--border-focus:rgba(42,143,255,0.5);
-  --text-primary:#0A0B0F;--text-secondary:#525866;--text-tertiary:#777E8C;
-  --text-quaternary:#6E7480;--text-inverse:#FFFFFF;
-  --brand:#1F7AE0;--brand-hover:#1864BC;--brand-fade:rgba(31,122,224,0.10);
-  --brand-fade-strong:rgba(31,122,224,0.18);--brand-text:#1F7AE0;
-  --green:#088757;--green-fade:rgba(8,135,87,0.10);--green-strong:rgba(8,135,87,0.18);
-  --red:#C92F2F;--red-fade:rgba(201,47,47,0.08);--red-strong:rgba(201,47,47,0.18);
-  --amber:#B07000;--amber-fade:rgba(176,112,0,0.10);--amber-strong:rgba(176,112,0,0.18);
+  /* Light theme is the same brand family, not an inversion. The dark
+     theme's #0A84FF is only ~3.1:1 on white, so the accent darkens to
+     #0A63C4 (~5.8:1) for text and controls while staying recognisably
+     the same blue. */
+  --surface-bg:#F7F8FA;--surface-1:#FFFFFF;--surface-2:#F1F3F6;--surface-3:#E7EAEF;
+  --surface-overlay:rgba(5,5,7,0.45);--surface-glass:rgba(0,0,0,0.015);
+  --border-subtle:rgba(5,5,7,0.07);--border-default:rgba(5,5,7,0.11);
+  --border-strong:rgba(5,5,7,0.17);--border-focus:rgba(10,99,196,0.55);
+  --text-primary:#050507;--text-secondary:#4B535F;--text-tertiary:#6E7684;
+  --text-quaternary:#828A97;--text-inverse:#FFFFFF;
+  --brand:#0A63C4;--brand-hover:#084F9E;--brand-fade:rgba(10,99,196,0.10);
+  --brand-fade-strong:rgba(10,99,196,0.18);--brand-text:#0A63C4;
+  --green:#0B7D4E;--green-fade:rgba(11,125,78,0.10);--green-strong:rgba(11,125,78,0.18);
+  --red:#C42B2B;--red-fade:rgba(196,43,43,0.08);--red-strong:rgba(196,43,43,0.18);
+  --amber:#A76A00;--amber-fade:rgba(167,106,0,0.10);--amber-strong:rgba(167,106,0,0.18);
   --purple:#6B5BD2;--purple-fade:rgba(107,91,210,0.10);
-  --shadow-sm:0 1px 2px rgba(15,17,25,0.04);
-  --shadow-md:0 1px 2px rgba(15,17,25,0.04),0 8px 24px rgba(15,17,25,0.06);
-  --shadow-lg:0 1px 2px rgba(15,17,25,0.06),0 20px 48px rgba(15,17,25,0.10);
-  --shadow-focus:0 0 0 3px rgba(42,143,255,0.22);
+  --shadow-sm:0 1px 2px rgba(5,5,7,0.05);
+  --shadow-md:0 1px 2px rgba(5,5,7,0.05),0 8px 24px rgba(5,5,7,0.07);
+  --shadow-lg:0 1px 2px rgba(5,5,7,0.06),0 20px 48px rgba(5,5,7,0.11);
+  --shadow-focus:0 0 0 3px rgba(10,99,196,0.24);
   --shadow-inner:inset 0 1px 0 rgba(255,255,255,0.6);
-  --gradient-hero:linear-gradient(180deg,rgba(31,122,224,0.04) 0%,transparent 100%);
+  --gradient-hero:linear-gradient(180deg,rgba(10,99,196,0.04) 0%,transparent 100%);
   --gradient-card:linear-gradient(180deg,rgba(255,255,255,0.5) 0%,transparent 60%);
   --skeleton-base:rgba(0,0,0,0.04);--skeleton-shine:rgba(0,0,0,0.08);
 }
 :root {
-  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  /* Two registers, one brand.
+       --font-sans     Manrope        every UI surface and all body copy.
+                                      Chosen for long dashboard sessions:
+                                      open apertures, and tabular figures
+                                      so money columns don't shift width.
+       --font-display  Barlow Cond.   large marketing headlines only. The
+                                      compressed caps echo the arced
+                                      SCULPT lettering in the logo.
+     The dashboard deliberately does NOT use --font-display: staff read it
+     for hours, and condensed type is for impact, not for endurance. */
+  --font-sans:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-display:'Barlow Condensed','Manrope',-apple-system,'Segoe UI',sans-serif;
   --font-mono:ui-monospace,'SF Mono',Menlo,Monaco,Consolas,monospace;
   --text-xs:11px;--text-sm:12px;--text-base:13px;--text-md:14px;--text-lg:16px;
   --text-xl:18px;--text-2xl:22px;--text-3xl:28px;--text-4xl:36px;--text-5xl:44px;

@@ -1820,7 +1820,7 @@ function buildInvoiceHTML(m, gymName, invoiceNo) {
   <title>Invoice ${invoiceNo} — ${escHtml(m.full_name||m.name)}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#222;background:#fff;}
+    body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#222;background:#fff;}
     .page{max-width:620px;margin:0 auto;padding:36px 40px;}
     @media print{body{padding:0;}.page{padding:22px 26px;max-width:100%;}}
   </style>

@@ -888,7 +888,7 @@ function showSalaryInvoice(paymentId, payments) {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Salary Receipt</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Inter','Segoe UI',sans-serif;color:#1a1a2e;padding:24px;max-width:500px;margin:0 auto;}
+  body{font-family:'Manrope','Segoe UI',sans-serif;color:#1a1a2e;padding:24px;max-width:500px;margin:0 auto;}
   .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #2A8FFF;}
   .title{font-size:18px;font-weight:700;margin-bottom:16px;text-align:center;text-transform:uppercase;letter-spacing:0.05em;}
   .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:13px;}

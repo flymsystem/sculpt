@@ -214,7 +214,7 @@ function showRouteLoadError() {
   if (!root) return;
   root.dataset.routeLoading = '';
   root.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;font-family:Inter,sans-serif;gap:12px;color:#9CA3AF;">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;font-family:Manrope,-apple-system,sans-serif;gap:12px;color:#9CA3AF;">
       <div style="font-size:36px;">📶</div>
       <div style="font-size:16px;font-weight:600;color:#F4F5F7;">Couldn’t load this page</div>
       <div style="font-size:13px;line-height:1.6;max-width:320px;">
@@ -360,7 +360,7 @@ async function boot() {
       const root = document.getElementById('root');
       if (root) {
         root.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;font-family:Inter,sans-serif;gap:14px;">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;font-family:Manrope,-apple-system,sans-serif;gap:14px;">
             <div style="font-size:40px;">⚠️</div>
             <div style="font-size:17px;font-weight:600;color:#F4F5F7;">Could not load your profile</div>
             <div style="font-size:13px;color:#9CA3AF;line-height:1.65;max-width:340px;">

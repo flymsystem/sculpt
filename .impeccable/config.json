@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/pages/dashboard/backup.js"
+        ],
+        "createdAt": "2026-08-16T09:07:32.547Z",
+        "reason": "Claude: both hits (L266, L777) are inside exportPDF's A4 print HTML (@page size:A4, background:#fff). A border-left callout on a summary block is standard printed-report design, not a screen-UI tell; project rules state print-context hardcoded styling is correct. grep confirms backup.js has no screen-context border-left accents."
+      }
+    ]
+  }
+}
