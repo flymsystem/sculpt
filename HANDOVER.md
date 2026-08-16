@@ -192,9 +192,10 @@ Stated plainly rather than hidden:
   means creating a new project and moving the data.
 - **13 ESLint warnings** about unused variables. All pre-existing, all
   cosmetic, none affect behaviour.
-- **Four animation warnings** about animating `width`/`height` (the
-  sidebar collapse and the chart bars). Fixing them would either break the
-  sidebar layout or distort the rounded bar ends. Left on purpose.
+- **Two animation warnings** about animating `width` on the sidebar
+  collapse. The sidebar animates its width while the content area animates
+  its left margin in lockstep; converting to `transform` would break the
+  layout that pairing exists to maintain. Left on purpose.
 - **Web Push is not enabled.** The code exists but the functions are not
   deployed and no keys are set. In-app notifications work fine.
 - **Old migration files still mention the previous product's name** in SQL

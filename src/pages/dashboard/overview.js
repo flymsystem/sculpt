@@ -337,7 +337,7 @@ function miniBarChart(mode='joins'){
       return `<div style="flex:1 1 0;min-width:38px;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;" title="${mode==='revenue'||mode==='expenses'?fmtCurrencyShort(v):v+' '+mode}">
         <div style="font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;min-height:14px;font-weight:500;white-space:nowrap;">${v>0?formatVal(v):''}</div>
         <div style="flex:1;width:100%;display:flex;align-items:flex-end;">
-          <div style="width:100%;height:${heightPct}%;background:${isLast?'var(--brand)':'var(--brand-fade-strong)'};border-radius:4px 4px 2px 2px;transition:height 0.5s var(--ease-out);"></div>
+          <div style="width:100%;height:${heightPct}%;background:${isLast?'var(--brand)':'var(--brand-fade-strong)'};border-radius:4px 4px 2px 2px;"></div>
         </div>
         <div style="font-size:10px;color:var(--text-tertiary);font-weight:500;white-space:nowrap;">${months[i].label}</div>
       </div>`;
@@ -357,7 +357,7 @@ function planDist(){
       <span style="color:var(--text-primary);font-weight:500;">${escHtml(plan)}</span>
       <span style="color:var(--text-tertiary);font-variant-numeric:tabular-nums;"><span style="color:var(--text-primary);font-weight:500;">${cnt}</span> <span style="margin-left:6px;">${pct}%</span></span>
     </div><div style="height:6px;background:var(--surface-2);border-radius:var(--radius-pill);overflow:hidden;">
-      <div style="height:100%;width:${pct}%;background:${cols[i%cols.length]};border-radius:var(--radius-pill);transition:width 0.5s var(--ease-out);"></div>
+      <div style="height:100%;width:${pct}%;background:${cols[i%cols.length]};border-radius:var(--radius-pill);"></div>
     </div></div>`;
   }).join('');
 }
