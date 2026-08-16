@@ -1,6 +1,6 @@
 /* src/styles/global.css — D Sculpt Fitness Global Styles */
 @import url('./tokens.css');
-@import url();
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;font-size:16px;}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
