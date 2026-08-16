@@ -37,7 +37,6 @@ const MATRIX = {
     wa_settings:      'full',
     branding:         'full',
     backup:           'full',
-    contact:          true,
     analytics:        'full',
   },
   staff: {
@@ -62,7 +61,6 @@ const MATRIX = {
     wa_settings:      false,
     branding:         false,
     backup:           false,
-    contact:          true,
     analytics:        false,
   },
 };
@@ -110,7 +108,6 @@ export function getVisibleSections(role) {
     { id: 'gymconfig',       perm: 'settings' },
     { id: 'backup',          perm: 'backup' },
     { id: 'analytics',       perm: 'analytics' },
-    { id: 'contact',         perm: 'contact' },
   ];
 
   for (const { id, perm, requireFull } of navMap) {

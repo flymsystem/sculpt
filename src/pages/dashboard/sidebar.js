@@ -95,7 +95,6 @@ function isNavVisible(sectionId) {
     gymconfig:       'settings',
     backup:          'backup',
     analytics:       'analytics',
-    contact:         'contact',
   };
 
   const perm = permMap[sectionId];
@@ -208,7 +207,6 @@ function buildSidebar(gymName, gymCode, logoUrl) {
 
   // Support — always visible
   navItems.push(`<div class="nav-section-label">Support</div>`);
-  navItems.push(`<div class="nav-item" data-id="contact" role="button" tabindex="0">${navIco('bell')}Contact Us</div>`);
 
   return `<div class="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-logo">

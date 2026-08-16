@@ -24,7 +24,6 @@ import { renderBackup } from './backup.js';
 import { renderMemberAlerts } from './alerts.js';
 import { renderExpenses } from './expenses-page.js';
 import { renderEnquiries } from './enquiries.js';
-import { renderContact } from './contact.js';
 import { renderStaff, setStaffNav } from './staff.js';
 import { renderAnalytics } from './analytics.js';
 import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload } from './sidebar.js';
@@ -281,7 +280,7 @@ function renderUpgradePrompt(c, featureName) {
 const VALID_SECTIONS = new Set([
   'overview','members','enquiries','alerts','staff',
   'finance','expenses','plans','plans-showcase','gymconfig',
-  'backup','contact','analytics'
+  'backup','analytics'
 ]);
 
 // ── Navigation ───────────────────────────────────────
@@ -304,7 +303,7 @@ function nav(id, opts = {}) {
   const titles = { overview:'Dashboard', members:'All Members', enquiries:'Enquiries', alerts:'Member Alerts',
     staff:'Staff', finance:'Finance', expenses:'Expenses', plans:'Plan Settings',
     'plans-showcase':'Plans Showcase', gymconfig:'Gym Settings',
-    backup:'Data & Backup', contact:'Contact Us', analytics:'Analytics' };
+    backup:'Data & Backup', analytics:'Analytics' };
   const tb = document.getElementById('topbar-title');
   if (tb) tb.textContent = titles[id] || 'Dashboard';
 
@@ -353,7 +352,7 @@ function nav(id, opts = {}) {
   ({ overview:renderOverview, members:renderMembers, enquiries:renderEnquiries, alerts:renderMemberAlerts,
      staff:renderStaff, finance:renderFinance, expenses:renderExpenses, plans:renderPlans,
      'plans-showcase':renderPlansShowcase, gymconfig:renderGymConfig,
-     backup:renderBackup, contact:renderContact,
+     backup:renderBackup,
      analytics:renderAnalytics }[id] || renderOverview)(c);
 
   // Update FAB context
@@ -390,7 +389,6 @@ function openCommandPalette() {
     { id:'gymconfig', label:'Gym Settings', icon:'cog' },
     { id:'backup', label:'Data & Backup', icon:'lock' },
     { id:'analytics', label:'Analytics', icon:'chart' },
-    { id:'contact', label:'Contact Us', icon:'bell' },
   ];
 
   // Filter based on role + tier
