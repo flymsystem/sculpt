@@ -99,21 +99,18 @@ const PAGE_TO_PATH = {
   landing: '/',
   login:   '/login',
   gym:     '/dashboard',
-  admin:   '/admin',
   verify:  '/verify',
 };
 const PATH_TO_PAGE = {
   '/':          'landing',
   '/login':     'login',
   '/dashboard': 'gym',
-  '/admin':     'admin',
   '/verify':    'verify',
 };
 
 function pageFromPath(path) {
   const clean = path.replace(/\/$/, '') || '/';
   if (clean.startsWith('/dashboard')) return 'gym';
-  if (clean.startsWith('/admin'))     return 'admin';
   if (clean.startsWith('/verify'))    return 'verify';
   return PATH_TO_PAGE[clean] || null;
 }
@@ -267,7 +264,6 @@ export const router = {
       landing: lazyRoute(() => import('./pages/landing.js'),          m => m.renderLanding(router)),
       login:   lazyRoute(() => import('./pages/login.js'),            m => m.renderLogin(router)),
       gym:     lazyRoute(() => import('./pages/dashboard/index.js'),  m => m.renderGymDashboard(router)),
-      admin:   lazyRoute(() => import('./pages/admin-dashboard.js'),  m => m.renderAdminDashboard(router)),
       verify:  lazyRoute(() => import('./pages/verify.js'),           m => m.renderVerify(router)),
     };
 
@@ -320,7 +316,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
 
-  if ((page === 'gym' || page === 'admin') && !window.__flymSession) {
+  if (page === 'gym' && !window.__flymSession) {
     router.go('login', { _fromPopState: true });
     return;
   }
@@ -365,7 +361,7 @@ async function boot() {
         value: { role, gym, branches: branches || [] },
         writable: true, enumerable: false, configurable: true,
       });
-      router.go(role === 'admin' ? 'admin' : 'gym');
+      router.go('gym');
       return;
     } catch (err) {
       // Profile fetch failure with a valid session — show soft error, do NOT
@@ -392,7 +388,7 @@ async function boot() {
 
   // Not authenticated
   window.__flymSession = null;
-  if (startPage === 'gym' || startPage === 'admin' || startPage === 'login') {
+  if (startPage === 'gym' || startPage === 'login') {
     router.go('login');
   } else {
     router.go('landing');

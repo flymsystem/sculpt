@@ -175,7 +175,7 @@ async function doLogin(router) {
       value: { role, gym, branches: branches || [] },
       writable: true, enumerable: false, configurable: true,
     });
-    setTimeout(() => router.go(role === 'admin' ? 'admin' : 'gym'), 150);
+    setTimeout(() => router.go('gym'), 150);
 
   } catch (err) {
     let msg = err.message || 'Login failed. Please try again.';

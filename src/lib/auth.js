@@ -62,7 +62,6 @@ export async function getAuthUser() {
  * Returns { gymUser, gym, role, branches, staffRecord? } or throws.
  *
  * Roles:
- *   - admin: Flym superadmin
  *   - owner: gym owner (multi-branch supported)
  *   - staff: gym staff (single gym, limited access)
  */
@@ -110,16 +109,6 @@ export async function getMyProfile(userId) {
       'Account not configured. Your login exists but is not linked to a gym. ' +
       'Contact your Flym administrator.'
     );
-  }
-
-  // ── Admin users — take the first row ──
-  if (gymUsers[0].role === 'admin') {
-    return {
-      gymUser: gymUsers[0],
-      gym:  gymUsers[0].gyms || null,
-      role: 'admin',
-      branches: [],
-    };
   }
 
   // ── Staff users — single gym, no branches ──
