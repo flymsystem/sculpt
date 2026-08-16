@@ -25,18 +25,18 @@ function appPath(path) {
 // ── Auth state listener ───────────────────────────────────────────
 onAuthStateChange((event) => {
   if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-    window.__flymSession = null;
+    window.__sculptSession = null;
     router.go('landing');
   }
 });
 
 // ── Global error boundary ─────────────────────────────────────────
 window.addEventListener('unhandledrejection', (e) => {
-  console.error('[Flym] Unhandled promise rejection:', e.reason);
+  console.error('[Sculpt] Unhandled promise rejection:', e.reason);
   e.preventDefault();
 });
 window.addEventListener('error', (e) => {
-  console.error('[Flym] Uncaught error:', e.error);
+  console.error('[Sculpt] Uncaught error:', e.error);
 });
 
 // ── PWA lifecycle: refresh auth when tab becomes visible ──────────
@@ -51,12 +51,12 @@ document.addEventListener('visibilitychange', async () => {
   _lastVisibilityCheck = now;
 
   // If we think we're logged in, verify the session is still fresh
-  if (window.__flymSession) {
+  if (window.__sculptSession) {
     const ok = await ensureFreshSession();
     if (!ok) {
       // Session expired while backgrounded — go to login cleanly
-      window.__flymSession = null;
-      if (router.current !== 'landing' && router.current !== 'login' && router.current !== 'verify') {
+      window.__sculptSession = null;
+      if (router.current !== 'landing' && router.current !== 'login') {
         router.go('login');
       }
     }
@@ -65,10 +65,10 @@ document.addEventListener('visibilitychange', async () => {
 
 // Also handle bfcache restore (Safari back/forward)
 window.addEventListener('pageshow', async (e) => {
-  if (e.persisted && window.__flymSession) {
+  if (e.persisted && window.__sculptSession) {
     const ok = await ensureFreshSession();
     if (!ok) {
-      window.__flymSession = null;
+      window.__sculptSession = null;
       router.go('login');
     }
   }
@@ -86,7 +86,7 @@ window.__sculptThemeController = {
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.documentElement.classList.remove('theme-switching');
     }));
-    window.dispatchEvent(new CustomEvent('flym:themechange', { detail: { theme } }));
+    window.dispatchEvent(new CustomEvent('sculpt:themechange', { detail: { theme } }));
   },
   toggle() { this.set(this.get() === 'dark' ? 'light' : 'dark'); },
 };
@@ -99,19 +99,16 @@ const PAGE_TO_PATH = {
   landing: '/',
   login:   '/login',
   gym:     '/dashboard',
-  verify:  '/verify',
 };
 const PATH_TO_PAGE = {
   '/':          'landing',
   '/login':     'login',
   '/dashboard': 'gym',
-  '/verify':    'verify',
 };
 
 function pageFromPath(path) {
   const clean = path.replace(/\/$/, '') || '/';
   if (clean.startsWith('/dashboard')) return 'gym';
-  if (clean.startsWith('/verify'))    return 'verify';
   return PATH_TO_PAGE[clean] || null;
 }
 
@@ -155,12 +152,12 @@ export function replaceDashboardSection(section) {
 // ── Cleanup registry ──────────────────────────────────────────────
 // Any module that installs a window global or a document listener that
 // needs to be torn down on page navigation should register it here.
-// Router calls window.__flymCleanup() before rendering the next page.
+// Router calls window.__sculptCleanup() before rendering the next page.
 const _cleanupTasks = new Set();
-window.__flymRegisterCleanup = (fn) => {
+window.__sculptRegisterCleanup = (fn) => {
   if (typeof fn === 'function') _cleanupTasks.add(fn);
 };
-window.__flymRunCleanup = () => {
+window.__sculptRunCleanup = () => {
   _cleanupTasks.forEach((fn) => { try { fn(); } catch (_) {} });
   _cleanupTasks.clear();
 };
@@ -189,7 +186,7 @@ function lazyRoute(load, render) {
   return () => {
     showRouteLoading();
     return load().then(render, (err) => {
-      console.error('[Flym router] chunk load failed:', err);
+      console.error('[Sculpt router] chunk load failed:', err);
       const e = new Error('Could not load this page.');
       e.__chunkLoad = true;
       throw e;
@@ -208,8 +205,8 @@ function showRouteLoading() {
   root.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;">' +
     '<div style="width:26px;height:26px;border:2px solid rgba(128,128,128,.25);border-top-color:#2A8FFF;' +
-    'border-radius:50%;animation:flymspin .7s linear infinite;"></div>' +
-    '<style>@keyframes flymspin{to{transform:rotate(360deg)}}</style></div>';
+    'border-radius:50%;animation:sculptspin .7s linear infinite;"></div>' +
+    '<style>@keyframes sculptspin{to{transform:rotate(360deg)}}</style></div>';
 }
 
 function showRouteLoadError() {
@@ -221,7 +218,7 @@ function showRouteLoadError() {
       <div style="font-size:36px;">📶</div>
       <div style="font-size:16px;font-weight:600;color:#F4F5F7;">Couldn’t load this page</div>
       <div style="font-size:13px;line-height:1.6;max-width:320px;">
-        You may be offline, or Flym was just updated. Refreshing should fix it.
+        You may be offline, or the app was just updated. Refreshing should fix it.
       </div>
       <button onclick="location.reload()" style="margin-top:8px;padding:10px 20px;border-radius:8px;background:#2A8FFF;color:#fff;border:none;font-size:14px;font-weight:500;cursor:pointer;">Refresh</button>
     </div>`;
@@ -246,16 +243,16 @@ export const router = {
     // Landing theme cleanup — null the ref BEFORE calling to prevent
     // re-entrant double-cleanup on recursive router.go errors
     if (page !== 'landing') {
-      const cleanup = window.__flymLandingCleanup;
-      const restore = window.__flymLandingRestoreTheme;
-      window.__flymLandingCleanup = null;
-      window.__flymLandingRestoreTheme = null;
+      const cleanup = window.__sculptLandingCleanup;
+      const restore = window.__sculptLandingRestoreTheme;
+      window.__sculptLandingCleanup = null;
+      window.__sculptLandingRestoreTheme = null;
       if (cleanup) { try { cleanup(); } catch (_) {} }
       if (restore) { try { restore(); } catch (_) {} }
     }
 
     // Run registered cleanup tasks
-    window.__flymRunCleanup();
+    window.__sculptRunCleanup();
 
     // Clear legacy window globals from previous page
     LEGACY_GLOBALS.forEach((k) => { delete window[k]; });
@@ -264,7 +261,6 @@ export const router = {
       landing: lazyRoute(() => import('./pages/landing.js'),          m => m.renderLanding(router)),
       login:   lazyRoute(() => import('./pages/login.js'),            m => m.renderLogin(router)),
       gym:     lazyRoute(() => import('./pages/dashboard/index.js'),  m => m.renderGymDashboard(router)),
-      verify:  lazyRoute(() => import('./pages/verify.js'),           m => m.renderVerify(router)),
     };
 
     const render = routes[page];
@@ -282,7 +278,7 @@ export const router = {
           // Only clear navigating if this is still the current nav
           if (this._navId === thisNavId) this._navigating = false;
         }).catch((err) => {
-          console.error(`[Flym router] Async error on "${page}":`, err);
+          console.error(`[Sculpt router] Async error on "${page}":`, err);
           if (this._navId === thisNavId) this._navigating = false;
           // A chunk that never downloaded can't be recovered by routing
           // somewhere else — that chunk would fail too. Say so instead.
@@ -292,12 +288,12 @@ export const router = {
         return; // Don't clear _navigating synchronously for async renders
       }
     } catch (err) {
-      console.error(`[Flym router] Render error on "${page}":`, err);
+      console.error(`[Sculpt router] Render error on "${page}":`, err);
       this._navigating = false;
       if (page !== 'landing' && previous !== 'landing') { this.go('landing'); return; }
       const root = document.getElementById('root');
       if (root) {
-        root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;color:var(--text-secondary,#9CA3AF);font-family:sans-serif;gap:12px;"><div style="font-size:16px;font-weight:600;color:var(--text-primary,#F4F5F7);">Something went wrong</div><div style="font-size:13px;line-height:1.6;max-width:320px;">Please refresh the page. If this keeps happening, contact support at flym.system@gmail.com.</div><button onclick="location.reload()" style="margin-top:12px;padding:10px 20px;border-radius:8px;background:#2A8FFF;color:#fff;border:none;font-size:14px;font-weight:500;cursor:pointer;">Refresh</button></div>';
+        root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;color:var(--text-secondary,#9CA3AF);font-family:sans-serif;gap:12px;"><div style="font-size:16px;font-weight:600;color:var(--text-primary,#F4F5F7);">Something went wrong</div><div style="font-size:13px;line-height:1.6;max-width:320px;">Please refresh the page. If this keeps happening, please let the gym know.</div><button onclick="location.reload()" style="margin-top:12px;padding:10px 20px;border-radius:8px;background:#2A8FFF;color:#fff;border:none;font-size:14px;font-weight:500;cursor:pointer;">Refresh</button></div>';
       }
     }
 
@@ -316,7 +312,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
 
-  if (page === 'gym' && !window.__flymSession) {
+  if (page === 'gym' && !window.__sculptSession) {
     router.go('login', { _fromPopState: true });
     return;
   }
@@ -339,25 +335,19 @@ window.addEventListener('popstate', (e) => {
 async function boot() {
   const startPage = pageFromPath(window.location.pathname);
 
-  // Public verify page — bypass auth entirely
-  if (startPage === 'verify') {
-    router.go('verify');
-    return;
-  }
-
   let user = null;
   try {
     user = await getAuthUser();
   } catch (err) {
     // Network / getUser failure — treat as unauthenticated
-    console.warn('[Flym boot] getAuthUser failed:', err?.message);
+    console.warn('[Sculpt boot] getAuthUser failed:', err?.message);
     user = null;
   }
 
   if (user) {
     try {
       const { role, gym, branches } = await getMyProfile(user.id);
-      Object.defineProperty(window, '__flymSession', {
+      Object.defineProperty(window, '__sculptSession', {
         value: { role, gym, branches: branches || [] },
         writable: true, enumerable: false, configurable: true,
       });
@@ -366,7 +356,7 @@ async function boot() {
     } catch (err) {
       // Profile fetch failure with a valid session — show soft error, do NOT
       // silently sign the user out. Landing page is a bad fallback here.
-      console.error('[Flym boot] getMyProfile failed:', err?.message);
+      console.error('[Sculpt boot] getMyProfile failed:', err?.message);
       const root = document.getElementById('root');
       if (root) {
         root.innerHTML = `
@@ -387,7 +377,7 @@ async function boot() {
   }
 
   // Not authenticated
-  window.__flymSession = null;
+  window.__sculptSession = null;
   if (startPage === 'gym' || startPage === 'login') {
     router.go('login');
   } else {

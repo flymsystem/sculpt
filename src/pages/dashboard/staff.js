@@ -35,7 +35,7 @@ export async function renderStaff(c) {
     try {
       S.staff = await getStaff(gymId);
     } catch (e) {
-      console.warn('[Flym] Staff fetch:', e.message);
+      console.warn('[Sculpt] Staff fetch:', e.message);
       renderError(c, { onRetry: () => renderStaff(c) });
       return;
     }
@@ -604,7 +604,7 @@ function openAddStaffModal() {
             try {
               await saveStaffPhoto(pendingPhotoDataUrl, S.gym.id, saved.id);
             } catch(photoErr) {
-              console.warn('[Flym] Staff photo upload failed:', photoErr.message);
+              console.warn('[Sculpt] Staff photo upload failed:', photoErr.message);
               showToast('Staff saved but photo upload failed \u2014 try re-uploading from the roster', 'amber');
             }
           }
@@ -744,7 +744,7 @@ function openEditStaffModal(id) {
             try {
               await saveStaffPhoto(pendingPhotoDataUrl, S.gym.id, id);
             } catch(photoErr) {
-              console.warn('[Flym] Staff photo upload failed:', photoErr.message);
+              console.warn('[Sculpt] Staff photo upload failed:', photoErr.message);
               showToast('Staff saved but photo upload failed \u2014 try re-uploading', 'amber');
             }
           } else if (removePhoto && S.gym?.id) {
@@ -752,7 +752,7 @@ function openEditStaffModal(id) {
             try {
               await removeStaffPhoto(S.gym.id, id);
             } catch(rmErr) {
-              console.warn('[Flym] Staff photo remove failed:', rmErr.message);
+              console.warn('[Sculpt] Staff photo remove failed:', rmErr.message);
             }
           }
 
@@ -810,7 +810,7 @@ function openPaySalaryModal() {
           <input class="form-input date-input" id="pay-date" placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off" data-today="true"></div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:var(--surface-2);border-radius:var(--radius-md);">
-        <label class="flym-switch" style="margin:0;"><input type="checkbox" id="pay-advance"><span class="flym-switch-slider"></span></label>
+        <label class="sculpt-switch" style="margin:0;"><input type="checkbox" id="pay-advance"><span class="sculpt-switch-slider"></span></label>
         <div><span style="font-size:13px;color:var(--text-secondary);">This is an advance payment</span></div>
       </div>
       <div class="form-group"><label class="form-label">Remarks</label>
@@ -897,7 +897,7 @@ function showSalaryInvoice(paymentId, payments) {
   .footer{margin-top:20px;font-size:11px;color:#999;text-align:center;padding-top:14px;border-top:1px solid #eee;}
 </style></head><body>
   <div class="header">
-    <div style="font-size:22px;font-weight:200;letter-spacing:-2px;color:#2A8FFF;font-family:'Helvetica Neue',sans-serif;">flym</div>
+    <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;color:#0A84FF;font-family:Helvetica,Arial,sans-serif;text-transform:uppercase;">D Sculpt Fitness</div>
     <div style="text-align:right;font-size:12px;color:#555;">
       <div style="font-weight:600;">${escHtml(gymName)}</div>
       ${S.gym?.city ? `<div>${escHtml(S.gym.city)}</div>` : ''}
@@ -913,7 +913,7 @@ function showSalaryInvoice(paymentId, payments) {
   <div class="total">\u20B9${Number(p.amount).toLocaleString('en-IN')}</div>
   <div class="footer">
     <div>This is a computer-generated receipt.</div>
-    <div style="margin-top:4px;">${escHtml(gymName)} \u00B7 Powered by Flym</div>
+    <div style="margin-top:4px;">${escHtml(gymName)}</div>
   </div>
 </body></html>`;
 
@@ -955,7 +955,7 @@ function openCreateLoginModal(staffId) {
     size: 'sm',
     body: `<div class="modal-form">
       <div style="background:var(--brand-fade);border:1px solid var(--brand-fade-strong);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--brand-text);line-height:1.6;">
-        This will create a login account for <strong>${escHtml(staff.full_name)}</strong>. They will be able to log in to Flym with limited staff access.
+        This will create a login account for <strong>${escHtml(staff.full_name)}</strong>. They will be able to log in with limited staff access.
       </div>
       <div class="form-group">
         <label class="form-label">Login Email *</label>
@@ -1018,9 +1018,9 @@ function openCreateLoginModal(staffId) {
 
 // ── Styles ────────────────────────────────────────────────────────
 function _injectStaffStyles() {
-  if (document.getElementById('flym-staff-styles')) return;
+  if (document.getElementById('sculpt-staff-styles')) return;
   const s = document.createElement('style');
-  s.id = 'flym-staff-styles';
+  s.id = 'sculpt-staff-styles';
   s.textContent = `
     .staff-tab-btn {
       flex:1; padding:8px 12px; border:none; background:transparent;

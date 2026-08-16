@@ -34,9 +34,9 @@ function _debouncedFilter() {
 }
 
 function _injectMembersStyles() {
-  if (document.getElementById('flym-members-styles')) return;
+  if (document.getElementById('sculpt-members-styles')) return;
   const s = document.createElement('style');
-  s.id = 'flym-members-styles';
+  s.id = 'sculpt-members-styles';
   s.textContent = `
     .show-mobile-only { display: none !important; }
     .member-row:focus { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 2px; }

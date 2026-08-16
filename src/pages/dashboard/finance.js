@@ -127,7 +127,7 @@ function renderFinance(c, period, customStart, customEnd) {
         usedServerRevenue = revRows !== null;
       }
     } catch (err) {
-      console.warn('[Flym] Server-side revenue unavailable, falling back:', err.message);
+      console.warn('[Sculpt] Server-side revenue unavailable, falling back:', err.message);
     }
 
     let paidPH = [];
@@ -137,7 +137,7 @@ function renderFinance(c, period, customStart, customEnd) {
       try {
         S.payHistory = await getPaymentHistory(gymId);
       } catch (err) {
-        console.warn('[Flym] Payment history refresh failed, using cached:', err.message);
+        console.warn('[Sculpt] Payment history refresh failed, using cached:', err.message);
         // This used to fail silently: the numbers below still render, built
         // from whatever S.payHistory held from the last successful load —
         // possibly hours old — with nothing on screen to say so. An owner
@@ -208,7 +208,7 @@ function renderFinance(c, period, customStart, customEnd) {
       prevExp2=prevExps.reduce((s,e)=>s+parseFloat(e.amount),0);
       pExps.forEach(e=>{catBreakdown[e.category]=(catBreakdown[e.category]||0)+parseFloat(e.amount);});
       monthlyExpT=monthlyData;
-    }catch(err){console.warn('[Flym] Expense fetch:',err);}
+    }catch(err){console.warn('[Sculpt] Expense fetch:',err);}
 
     const netP=totalRev-totalExp;const expG=gPct(totalExp,prevExp2);const profitG=gPct(netP,prevRev-prevExp2);
     const monthlyRev = monthlyRevTotals

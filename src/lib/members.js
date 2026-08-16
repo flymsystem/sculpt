@@ -139,7 +139,7 @@ export async function getAllMembers(gymId) {
     if (page.length < PAGE) return out;
   }
 
-  console.warn(`[Flym] getAllMembers hit the ${MAX}-row ceiling — export is incomplete.`);
+  console.warn(`[Sculpt] getAllMembers hit the ${MAX}-row ceiling — export is incomplete.`);
   out._truncated = true;
   return out;
 }
@@ -304,11 +304,11 @@ export async function addMember(gymId, d) {
         notes: paymentNotes,
       });
       if (phErr) {
-        console.error('[Flym] CRITICAL: payment_history insert failed for', payload.full_name, ':', phErr.message);
+        console.error('[Sculpt] CRITICAL: payment_history insert failed for', payload.full_name, ':', phErr.message);
         saved._paymentRecorded = false;
       }
     } catch (err) {
-      console.error('[Flym] CRITICAL: payment_history insert threw for', payload.full_name, ':', err.message);
+      console.error('[Sculpt] CRITICAL: payment_history insert threw for', payload.full_name, ':', err.message);
       saved._paymentRecorded = false;
     }
   }
@@ -382,7 +382,7 @@ export async function updateMember(memberId, gymId, u, opts = {}) {
         .gte('paid_at', oldJoinDate + 'T00:00:00')
         .lte('paid_at', oldJoinDate + 'T23:59:59');
     } catch(e) {
-      console.warn('[Flym] paid_at sync failed:', e.message);
+      console.warn('[Sculpt] paid_at sync failed:', e.message);
     }
   }
 
@@ -467,11 +467,11 @@ export async function renewMember(memberId, gymId, r) {
         notes,
       });
       if (phErr) {
-        console.error('[Flym] CRITICAL: renewal payment_history failed:', phErr.message);
+        console.error('[Sculpt] CRITICAL: renewal payment_history failed:', phErr.message);
         _paymentRecorded = false;
       }
     } catch (err) {
-      console.error('[Flym] CRITICAL: renewal payment_history threw:', err.message);
+      console.error('[Sculpt] CRITICAL: renewal payment_history threw:', err.message);
       _paymentRecorded = false;
     }
   }
@@ -590,7 +590,7 @@ async function clearBalanceLegacy(memberId, gymId, amountPaid, paymentMode) {
     notes: 'Balance payment',
   });
   if (phErr) {
-    console.error('[Flym] CRITICAL: balance payment_history insert failed:', phErr.message);
+    console.error('[Sculpt] CRITICAL: balance payment_history insert failed:', phErr.message);
     _paymentRecorded = false;
   }
   safeLog(gymId, 'balance_cleared', `₹${paid.toLocaleString('en-IN')} balance payment recorded`);
@@ -676,7 +676,7 @@ async function fetchAllPayments(buildQuery) {
   }
 
   if (truncated) {
-    console.warn(`[Flym] payment history hit the ${PAY_MAX_ROWS}-row ceiling — totals are incomplete.`);
+    console.warn(`[Sculpt] payment history hit the ${PAY_MAX_ROWS}-row ceiling — totals are incomplete.`);
     out._truncated = true;
   }
   return out;
@@ -785,7 +785,7 @@ function safeLog(gymId, action, description) {
   supabase.from('activity_log')
     .insert({ gym_id: gymId, action, description })
     .then(() => {})
-    .catch(err => console.warn('[Flym] activity_log insert failed:', err.message));
+    .catch(err => console.warn('[Sculpt] activity_log insert failed:', err.message));
   // Pruning used to happen here: a DELETE of everything older than 90
   // days, fired from the browser on a random ~1% of member writes. That
   // is an unpredictable full-table delete triggered by whichever gym
@@ -798,7 +798,7 @@ function safeInsert(table, row) {
   supabase.from(table)
     .insert(row)
     .then(() => {})
-    .catch(err => console.warn(`[Flym] ${table} insert failed:`, err.message));
+    .catch(err => console.warn(`[Sculpt] ${table} insert failed:`, err.message));
 }
 
 export async function getGymActivity(gymId, limit = 20) {

@@ -5,7 +5,6 @@ import { getPlans } from '../../lib/plans.js';
 import { getAddonTemplates } from '../../lib/addon-templates.js';
 import { getAllExpenses } from '../../lib/expenses.js';
 import { getStaff } from '../../lib/staff.js';
-import { supabase } from '../../lib/supabase.js';
 import { demoPlans, demoMembers, escHtml, ico } from './helpers.js';
 import { hasAccess } from '../../lib/permissions.js';
 import { pushDashboardSection, replaceDashboardSection } from '../../app.js';
@@ -52,7 +51,7 @@ if (typeof window !== 'undefined') window._navTo = nav;
 // ── Main entry point ─────────────────────────────────
 export async function renderGymDashboard(router) {
   const root = document.getElementById('root');
-  const sessionData = window.__flymSession;
+  const sessionData = window.__sculptSession;
 
   // Allow both owner and staff roles
   if (!sessionData || !['owner', 'staff'].includes(sessionData.role) || !sessionData.gym) {
@@ -79,7 +78,6 @@ export async function renderGymDashboard(router) {
   S.enquiries = [];
   S.staff = [];
   S.branches = sessionData.branches || [];
-  S.subscription = null;
   S.section = 'overview';
 
   const gymName = S.gym?.name || 'Your Gym';
@@ -140,11 +138,11 @@ export async function renderGymDashboard(router) {
   // ── Notifications ───────────────────────────────────────────────
   // Deliberately not awaited — a slow notifications query must never
   // hold up the dashboard render.
-  mountNotificationBell().catch(err => console.warn('[Flym] bell:', err.message));
+  mountNotificationBell().catch(err => console.warn('[Sculpt] bell:', err.message));
 
   // Service worker tells us which section a tapped push wants
-  if ('serviceWorker' in navigator && !window.__flymSwMsgBound) {
-    window.__flymSwMsgBound = true;
+  if ('serviceWorker' in navigator && !window.__sculptSwMsgBound) {
+    window.__sculptSwMsgBound = true;
     navigator.serviceWorker.addEventListener('message', (ev) => {
       if (ev.data?.type === 'SCULPT_NOTIFICATION_CLICK' && ev.data.url) {
         const m = String(ev.data.url).match(/\/dashboard\/([a-z][\w-]*)/);
@@ -154,8 +152,8 @@ export async function renderGymDashboard(router) {
   }
 
   // Tear the bell down on unload so the realtime channel + timers die cleanly
-  if (!window.__flymBellUnloadBound) {
-    window.__flymBellUnloadBound = true;
+  if (!window.__sculptBellUnloadBound) {
+    window.__sculptBellUnloadBound = true;
     window.addEventListener('beforeunload', cleanupNotificationBell);
   }
 
@@ -197,34 +195,12 @@ async function loadData() {
       S.expenses       = expenses       || [];
       S.staff          = staff          || [];
 
-      // Load subscription (best-effort, non-blocking for pre-migration envs)
-      // Only load for owners
-      if (!isStaff) {
-        try {
-          const { data: subs } = await supabase
-            .from('gym_subscriptions')
-            .select('*, gym_subscription_items(*)')
-            .eq('gym_id', gymId)
-            .order('end_date', { ascending: false })
-            .limit(1);
-          if (subs && subs.length > 0) {
-            const sub = subs[0];
-            S.subscription = {
-              ...sub,
-              items: sub.gym_subscription_items || [],
-            };
-            delete S.subscription.gym_subscription_items;
-          }
-        } catch (e) {
-          console.warn('[Flym] Subscription load skipped:', e.message);
-        }
-      }
     } else {
       S.plans   = demoPlans();
       S.members = demoMembers();
     }
   } catch (e) {
-    console.error('[Flym] loadData error:', e.message);
+    console.error('[Sculpt] loadData error:', e.message);
     if (gymId) {
       const c = document.getElementById('gym-content');
       if (c) c.innerHTML = `
@@ -338,7 +314,7 @@ function nav(id, opts = {}) {
 let _cmdLastFocused = null;
 
 function openCommandPalette() {
-  if (document.getElementById('flym-cmd-overlay')) return;
+  if (document.getElementById('sculpt-cmd-overlay')) return;
   // Restored on close — Ctrl+K can be pressed from anywhere, so whatever
   // had focus (a table row, a nav item, the search hint button) gets it
   // back rather than silently dropping focus to <body>.
@@ -381,7 +357,7 @@ function openCommandPalette() {
   }));
 
   const overlay = document.createElement('div');
-  overlay.id = 'flym-cmd-overlay';
+  overlay.id = 'sculpt-cmd-overlay';
   overlay.className = 'cmd-overlay';
   overlay.innerHTML = `<div class="cmd-palette" role="dialog" aria-modal="true" aria-label="Command palette">
     <div class="cmd-input-wrap">
@@ -458,7 +434,7 @@ function openCommandPalette() {
 }
 
 function closeCommandPalette() {
-  document.getElementById('flym-cmd-overlay')?.remove();
+  document.getElementById('sculpt-cmd-overlay')?.remove();
   // Restore focus to whatever opened it — a table row, the sidebar, the
   // search-hint button — instead of leaving keyboard focus on <body>.
   if (_cmdLastFocused && typeof _cmdLastFocused.focus === 'function') {
@@ -471,7 +447,7 @@ function bindCommandPalette() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
-      if (document.getElementById('flym-cmd-overlay')) closeCommandPalette();
+      if (document.getElementById('sculpt-cmd-overlay')) closeCommandPalette();
       else openCommandPalette();
     }
     if (e.key === 'Escape') closeCommandPalette();
@@ -482,8 +458,8 @@ function bindCommandPalette() {
 // ── Floating Action Button ───────────────────────────────
 let fabMenuOpen = false;
 function updateFAB(section) {
-  let fab = document.getElementById('flym-fab');
-  const fabMenu = document.getElementById('flym-fab-menu');
+  let fab = document.getElementById('sculpt-fab');
+  const fabMenu = document.getElementById('sculpt-fab-menu');
   if (fabMenu) fabMenu.remove();
   fabMenuOpen = false;
 
@@ -495,7 +471,7 @@ function updateFAB(section) {
 
   if (!fab) {
     fab = document.createElement('button');
-    fab.id = 'flym-fab';
+    fab.id = 'sculpt-fab';
     fab.className = 'fab';
     fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
     document.body.appendChild(fab);
@@ -504,7 +480,7 @@ function updateFAB(section) {
 }
 
 function toggleFABMenu() {
-  const existing = document.getElementById('flym-fab-menu');
+  const existing = document.getElementById('sculpt-fab-menu');
   if (existing) { existing.remove(); fabMenuOpen = false; return; }
   fabMenuOpen = true;
 
@@ -520,7 +496,7 @@ function toggleFABMenu() {
   if (actions.length === 0) return;
 
   const menu = document.createElement('div');
-  menu.id = 'flym-fab-menu';
+  menu.id = 'sculpt-fab-menu';
   menu.className = 'fab-menu';
   menu.innerHTML = actions.map(a => `<div class="fab-menu-item" data-action="${escHtml(a.label)}">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -536,7 +512,7 @@ function toggleFABMenu() {
   });
 
   setTimeout(() => {
-    const handler = (e) => { if (!menu.contains(e.target) && e.target.id !== 'flym-fab') { menu.remove(); fabMenuOpen = false; document.removeEventListener('click', handler); } };
+    const handler = (e) => { if (!menu.contains(e.target) && e.target.id !== 'sculpt-fab') { menu.remove(); fabMenuOpen = false; document.removeEventListener('click', handler); } };
     document.addEventListener('click', handler);
   }, 10);
 }

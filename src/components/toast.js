@@ -9,10 +9,10 @@ const ICONS = {
 const COLORS = { green:'var(--green)', red:'var(--red)', blue:'var(--brand)', amber:'var(--amber)' };
 
 export function showToast(message, type = 'blue', duration) {
-  let toast = document.getElementById('flym-toast');
+  let toast = document.getElementById('sculpt-toast');
   if (!toast) {
     toast = document.createElement('div');
-    toast.id = 'flym-toast';
+    toast.id = 'sculpt-toast';
     toast.className = 'toast';
     toast.innerHTML = '<div class="toast-icon" id="toast-icon"></div><span class="toast-msg" id="toast-msg"></span><div class="toast-progress" id="toast-progress"></div>';
     document.body.appendChild(toast);

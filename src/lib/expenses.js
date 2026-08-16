@@ -42,7 +42,7 @@ async function fetchAllExpenses(buildQuery) {
     out.push(...page);
     if (page.length < EXP_PAGE) return out;
   }
-  console.warn(`[Flym] expenses hit the ${EXP_MAX}-row ceiling — totals are incomplete.`);
+  console.warn(`[Sculpt] expenses hit the ${EXP_MAX}-row ceiling — totals are incomplete.`);
   out._truncated = true;
   return out;
 }

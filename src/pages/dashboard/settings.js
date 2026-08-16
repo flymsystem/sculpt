@@ -6,7 +6,6 @@ import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, bindModalCancel } from '../../components/modal.js';
 import { pickLogo } from '../../components/photo-picker.js';
 import { saveGymLogo } from './photo.js';
-import { showPrintPreview } from '../../components/print-preview.js';
 
 let _nav;
 export function setNavHandler(fn) { _nav = fn; }
@@ -18,130 +17,6 @@ export function setNavHandler(fn) { _nav = fn; }
 let pendingLogoDataUrl = null;
 let pendingLogoMime = 'image/png';
 
-// ── Subscription display helpers ────────────────────────────────
-function buildSubscriptionCard() {
-  const sub = S.subscription;
-  if (!sub) return '';
-
-  const now = new Date();
-  const endDate = new Date(sub.end_date + 'T23:59:59');
-  const startDate = new Date(sub.start_date);
-  const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-  const isExpired = daysLeft < 0;
-  const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-  const elapsed = Math.max(0, totalDays - Math.max(0, daysLeft));
-  const pct = totalDays > 0 ? Math.min(100, Math.round((elapsed / totalDays) * 100)) : 100;
-
-  let statusColor, statusBg, statusLabel;
-  if (isExpired) {
-    statusColor = 'var(--red)'; statusBg = 'var(--red-fade)'; statusLabel = 'Expired';
-  } else if (daysLeft <= 7) {
-    statusColor = 'var(--red)'; statusBg = 'var(--red-fade)'; statusLabel = `${daysLeft} days left`;
-  } else if (daysLeft <= 15) {
-    statusColor = 'var(--amber)'; statusBg = 'var(--amber-fade)'; statusLabel = `${daysLeft} days left`;
-  } else {
-    statusColor = 'var(--green)'; statusBg = 'var(--green-fade)'; statusLabel = `${daysLeft} days left`;
-  }
-
-  const fmtD = ds => new Date(ds).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  const itemsHTML = (sub.items || []).map(item =>
-    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:13px;">
-      <span style="color:var(--text-secondary);">${escHtml(item.description)}</span>
-      <span style="font-weight:600;color:${parseFloat(item.amount) === 0 ? 'var(--green)' : 'var(--text-primary)'};">
-        ${parseFloat(item.amount) === 0 ? 'Free' : `₹${Number(item.amount).toLocaleString('en-IN')}`}
-      </span>
-    </div>`
-  ).join('');
-
-  return `
-    <div style="margin-top:24px;">
-      <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary);margin-bottom:16px;">Flym Subscription</div>
-      <div class="settings-card" style="border-left:3px solid ${statusColor};">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
-          <div>
-            <div style="font-size:16px;font-weight:700;color:var(--text-primary);">${escHtml(sub.plan_name)}</div>
-            <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${fmtD(sub.start_date)} — ${fmtD(sub.end_date)}</div>
-          </div>
-          <span style="padding:4px 10px;border-radius:var(--radius-pill);background:${statusBg};
-                color:${statusColor};font-size:11px;font-weight:600;">${statusLabel}</span>
-        </div>
-        <div style="margin-bottom:16px;">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">
-            <span>${pct}% elapsed</span>
-            <span>${isExpired ? 'Expired' : `${daysLeft}d remaining`}</span>
-          </div>
-          <div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:${statusColor};border-radius:3px;transition:width 0.3s;"></div>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;
-             background:var(--surface-2);border-radius:var(--radius-md);margin-bottom:${itemsHTML ? '16px' : '0'};">
-          <span style="font-size:13px;color:var(--text-tertiary);">Amount Paid</span>
-          <span style="font-size:18px;font-weight:700;color:var(--text-primary);">₹${Number(sub.amount).toLocaleString('en-IN')}</span>
-        </div>
-        ${itemsHTML ? `<div style="margin-bottom:16px;">${itemsHTML}</div>` : ''}
-        ${sub.notes ? `<div style="font-size:12px;color:var(--text-tertiary);padding:8px 12px;background:var(--surface-2);border-radius:var(--radius-sm);margin-bottom:16px;">${escHtml(sub.notes)}</div>` : ''}
-        <button class="btn btn-ghost" id="btn-sub-invoice" style="width:100%;">🖨️ View Invoice</button>
-      </div>
-    </div>`;
-}
-
-function buildSubscriptionInvoiceHTML() {
-  const sub = S.subscription;
-  if (!sub) return '';
-  const gymName = S.gym?.name || 'Gym';
-  const fmtD = ds => new Date(ds).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  const itemRows = (sub.items || []).map(item =>
-    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">${escHtml(item.description)}</td>
-     <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">
-       ${parseFloat(item.amount) === 0 ? 'Free' : `₹${Number(item.amount).toLocaleString('en-IN')}`}
-     </td></tr>`
-  ).join('');
-
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Flym Subscription Invoice</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Inter','Segoe UI',sans-serif;color:#1a1a2e;padding:24px;max-width:600px;margin:0 auto;}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #2A8FFF;}
-  .logo{font-size:28px;font-weight:200;letter-spacing:-2px;color:#2A8FFF;font-family:'Helvetica Neue',sans-serif;}
-  .sub-label{font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-top:4px;}
-  table{width:100%;border-collapse:collapse;margin:16px 0;}
-  thead th{text-align:left;padding:8px 12px;background:#f5f7fa;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#666;}
-  thead th:last-child{text-align:right;}
-  .total-row td{font-weight:700;font-size:15px;padding:12px;border-top:2px solid #2A8FFF;}
-  .footer{margin-top:24px;font-size:11px;color:#999;text-align:center;padding-top:16px;border-top:1px solid #eee;}
-  @media print{body{padding:0;}}
-</style></head><body>
-  <div class="header">
-    <div>
-      <div class="logo">flym</div>
-      <div class="sub-label">Subscription Invoice</div>
-    </div>
-    <div style="text-align:right;font-size:13px;color:#555;">
-      <div style="font-weight:600;">${escHtml(gymName)}</div>
-      ${S.gym?.city ? `<div>${escHtml(S.gym.city)}</div>` : ''}
-      <div style="margin-top:8px;font-size:11px;color:#888;">
-        Period: ${fmtD(sub.start_date)} — ${fmtD(sub.end_date)}
-      </div>
-    </div>
-  </div>
-  <table>
-    <thead><tr><th>Description</th><th>Amount</th></tr></thead>
-    <tbody>
-      ${itemRows || `<tr><td style="padding:8px 12px;">${escHtml(sub.plan_name)}</td><td style="padding:8px 12px;text-align:right;">₹${Number(sub.amount).toLocaleString('en-IN')}</td></tr>`}
-      <tr class="total-row"><td>Total</td><td style="text-align:right;">₹${Number(sub.amount).toLocaleString('en-IN')}</td></tr>
-    </tbody>
-  </table>
-  ${sub.notes ? `<div style="font-size:12px;color:#666;padding:10px 12px;background:#f9f9f9;border-radius:6px;margin:16px 0;">${escHtml(sub.notes)}</div>` : ''}
-  <div class="footer">
-    <div>Thank you for choosing Flym!</div>
-    <div style="margin-top:4px;">flym.in</div>
-  </div>
-</body></html>`;
-}
 
 function renderGymConfig(c) {
   // Fresh render — clear any stale pending logo pick from a previous visit
@@ -151,7 +26,6 @@ function renderGymConfig(c) {
   const g    = S.gym || {};
   const tpl  = g.wa_template   || DEFAULT_WA_TEMPLATE;
   const days = g.reminder_days ?? 7;
-  const autoOn = !!g.auto_reminders_enabled;
 
   const gstPct = parseFloat(g.gst_percentage) || 18;
   const discountEnabled = !!g.discount_enabled;
@@ -175,7 +49,6 @@ function renderGymConfig(c) {
       <button class="settings-tab" data-tab="whatsapp">WhatsApp</button>
       <button class="settings-tab" data-tab="security">Security</button>
       <button class="settings-tab" data-tab="addons">Add-ons</button>
-      <button class="settings-tab" data-tab="subscription">Subscription</button>
     </div>
 
     <div id="settings-panels">
@@ -203,32 +76,6 @@ function renderGymConfig(c) {
         <button class="btn btn-primary" id="btn-savegym">Save Changes</button>
       </div>
 
-      <!-- Auto Reminders card in general tab -->
-      <div class="settings-card" style="border-color:${autoOn?'var(--green-strong)':'var(--border-subtle)'};">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div class="settings-card-title" style="margin-bottom:0;">Auto WhatsApp Reminders</div>
-          <label class="flym-switch" style="margin:0;">
-            <input type="checkbox" id="cfg-auto-reminders" ${autoOn?'checked':''}>
-            <span class="flym-switch-slider"></span>
-          </label>
-        </div>
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
-          Automatically sends WhatsApp reminders <strong style="color:var(--text-primary);">7 days</strong> and <strong style="color:var(--text-primary);">1 day</strong> before expiry. Runs daily at 9:00 AM IST.
-        </div>
-        <div id="cfg-auto-status" style="display:${autoOn?'flex':'none'};align-items:center;gap:8px;margin-top:12px;
-          padding:10px 14px;background:var(--green-fade);border:1px solid var(--green-strong);
-          border-radius:var(--radius-md);font-size:13px;color:var(--green);">
-          <span style="width:8px;height:8px;background:var(--green);border-radius:50%;flex-shrink:0;"></span>
-          Auto-reminders are <strong>active</strong>
-        </div>
-        <div id="cfg-auto-status-off" style="display:${autoOn?'none':'flex'};align-items:center;gap:8px;margin-top:12px;
-          padding:10px 14px;background:var(--surface-2);border:1px solid var(--border-default);
-          border-radius:var(--radius-md);font-size:13px;color:var(--text-tertiary);">
-          <span style="width:8px;height:8px;background:var(--text-quaternary);border-radius:50%;flex-shrink:0;"></span>
-          Auto-reminders are <strong>disabled</strong>
-        </div>
-        <div id="cfg-auto-err" style="display:none;color:var(--red);font-size:12px;margin-top:10px;"></div>
-      </div>
     </div>
     </div>
 
@@ -274,9 +121,9 @@ function renderGymConfig(c) {
             <div style="font-size:13px;color:var(--text-primary);font-weight:500;">GST Registered</div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Enable to add GST breakdown on invoices</div>
           </div>
-          <label class="flym-switch" style="margin:0;">
+          <label class="sculpt-switch" style="margin:0;">
             <input type="checkbox" id="cfg-gst-enabled" ${g.gst_enabled?'checked':''}>
-            <span class="flym-switch-slider"></span>
+            <span class="sculpt-switch-slider"></span>
           </label>
         </div>
         <div id="cfg-gst-details" style="${g.gst_enabled?'':'display:none;'}">
@@ -325,9 +172,9 @@ function renderGymConfig(c) {
             <div style="font-size:13px;color:var(--text-primary);font-weight:500;">Enable Discounts</div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Show discount field when adding/renewing members</div>
           </div>
-          <label class="flym-switch" style="margin:0;">
+          <label class="sculpt-switch" style="margin:0;">
             <input type="checkbox" id="cfg-discount-enabled" ${discountEnabled?'checked':''}>
-            <span class="flym-switch-slider"></span>
+            <span class="sculpt-switch-slider"></span>
           </label>
         </div>
         <div id="cfg-discount-details" style="${discountEnabled?'':'display:none;'}">
@@ -347,31 +194,6 @@ function renderGymConfig(c) {
     <div class="settings-grid">
 
       <!-- WhatsApp Template -->
-        <div class="settings-card" style="border-color:${autoOn?'var(--green-strong)':'var(--border-subtle)'};">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div class="settings-card-title" style="margin-bottom:0;">Automatic WhatsApp Reminders</div>
-            <label class="flym-switch" style="margin:0;">
-              <input type="checkbox" id="cfg-auto-reminders" ${autoOn?'checked':''}>
-              <span class="flym-switch-slider"></span>
-            </label>
-          </div>
-          <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">
-            When enabled, Flym automatically sends WhatsApp reminders <strong style="color:var(--text-primary);">7 days</strong> and <strong style="color:var(--text-primary);">1 day</strong> before a member's plan expires. Runs daily at 9:00 AM IST.
-          </div>
-          <div id="cfg-auto-status" style="display:${autoOn?'flex':'none'};align-items:center;gap:8px;
-            padding:10px 14px;background:var(--green-fade);border:1px solid var(--green-strong);
-            border-radius:var(--radius-md);font-size:13px;color:var(--green);">
-            <span style="width:8px;height:8px;background:var(--green);border-radius:50%;flex-shrink:0;"></span>
-            Auto-reminders are <strong>active</strong>
-          </div>
-          <div id="cfg-auto-status-off" style="display:${autoOn?'none':'flex'};align-items:center;gap:8px;
-            padding:10px 14px;background:var(--surface-2);border:1px solid var(--border-default);
-            border-radius:var(--radius-md);font-size:13px;color:var(--text-tertiary);">
-            <span style="width:8px;height:8px;background:var(--text-quaternary);border-radius:50%;flex-shrink:0;"></span>
-            Auto-reminders are <strong>disabled</strong>
-          </div>
-          <div id="cfg-auto-err" style="display:none;color:var(--red);font-size:12px;margin-top:10px;"></div>
-        </div>
 
         <!-- WhatsApp Template -->
         <div class="settings-card">
@@ -492,11 +314,6 @@ function renderGymConfig(c) {
             </div></div>`
           ).join('')}
       </div>
-    </div>
-
-    <!-- SUBSCRIPTION -->
-    <div class="settings-panel" data-panel="subscription" style="display:none;">
-      ${buildSubscriptionCard() || `<div class="empty-state" style="padding:40px;"><span class="empty-icon">\uD83D\uDCE6</span><div class="empty-title">No active subscription</div><p>Contact Flym support to set up your subscription.</p></div>`}
     </div>
 
     </div>
@@ -626,7 +443,7 @@ function renderGymConfig(c) {
         if (error) throw error;
       }
       S.gym = { ...S.gym, ...updates };
-      if (window.__flymSession?.gym) window.__flymSession.gym = { ...window.__flymSession.gym, ...updates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...updates };
       showToast('Tax settings saved!', 'green');
     } catch (err) { showToast(err.message || 'Save failed', 'red'); }
     finally { btn.disabled = false; btn.textContent = 'Save Tax Settings'; }
@@ -667,46 +484,7 @@ function renderGymConfig(c) {
     finally { btn.disabled = false; btn.textContent = 'Save Discount Settings'; }
   });
 
-  // ── Subscription invoice button ──
-  document.getElementById('btn-sub-invoice')?.addEventListener('click', () => {
-    if (!S.subscription) return;
-    showPrintPreview('Flym Subscription Invoice', buildSubscriptionInvoiceHTML());
-  });
 
-  // ── Auto-reminder toggle handler ──────────────────────────────
-  document.getElementById('cfg-auto-reminders')?.addEventListener('change', async (e) => {
-    const checked = e.currentTarget.checked;
-    const errEl   = document.getElementById('cfg-auto-err');
-    const onEl    = document.getElementById('cfg-auto-status');
-    const offEl   = document.getElementById('cfg-auto-status-off');
-    errEl.style.display = 'none';
-
-    // Optimistic UI flip
-    onEl.style.display  = checked ? 'flex' : 'none';
-    offEl.style.display = checked ? 'none' : 'flex';
-
-    try {
-      if (S.gym?.id) {
-        const { error } = await supabase
-          .from('gyms')
-          .update({ auto_reminders_enabled: checked })
-          .eq('id', S.gym.id);
-        if (error) throw error;
-      }
-      S.gym = { ...S.gym, auto_reminders_enabled: checked };
-      if (window.__flymSession?.gym) {
-        window.__flymSession.gym = { ...window.__flymSession.gym, auto_reminders_enabled: checked };
-      }
-      showToast(checked ? 'Auto-reminders enabled' : 'Auto-reminders disabled', checked ? 'green' : 'amber');
-    } catch (err) {
-      // Revert UI on failure
-      e.currentTarget.checked = !checked;
-      onEl.style.display  = !checked ? 'flex' : 'none';
-      offEl.style.display = !checked ? 'none' : 'flex';
-      errEl.textContent = err.message || 'Could not save. Please try again.';
-      errEl.style.display = 'block';
-    }
-  });
 
   // ── Save gym information ──────────────────────────────────────
   document.getElementById('btn-savegym').addEventListener('click', async (e) => {
@@ -737,11 +515,11 @@ function renderGymConfig(c) {
 
       // ✅ Patch local state — re-navigation now shows saved values
       S.gym = { ...S.gym, ...updates };
-      if (window.__flymSession?.gym) window.__flymSession.gym = { ...window.__flymSession.gym, ...updates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...updates };
 
       showToast('Gym settings saved!', 'green');
     } catch (err) {
-      console.error('[Flym] saveGym:', err);
+      console.error('[Sculpt] saveGym:', err);
       errEl.textContent = err.message || 'Save failed. Please try again.';
       errEl.style.display = 'block';
     } finally {
@@ -798,7 +576,7 @@ function renderGymConfig(c) {
             throw new Error('Password update failed (database sync error). Your password was not changed. Please try again.');
           } catch (rollbackErr) {
             // Rollback also failed — passwords are now out of sync
-            throw new Error('Password was updated in login but the admin record could not be synced. Please contact Flym support.');
+            throw new Error('Password was updated in login but the admin record could not be synced. Please contact the gym owner.');
           }
         }
       }
@@ -839,12 +617,12 @@ function renderGymConfig(c) {
       }
 
       S.gym = { ...S.gym, ...updates };
-      if (window.__flymSession?.gym) window.__flymSession.gym = { ...window.__flymSession.gym, ...updates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...updates };
 
       showToast('Branding & tax settings saved!', 'green');
       _nav('gymconfig');
     } catch (err) {
-      console.error('[Flym] saveBrand:', err);
+      console.error('[Sculpt] saveBrand:', err);
       errEl.textContent = err.message || 'Save failed. Please try again.';
       errEl.style.display = 'block';
       btn.disabled = false;
@@ -876,11 +654,11 @@ function renderGymConfig(c) {
 
       // ✅ Patch local state — re-navigation now shows saved values
       S.gym = { ...S.gym, ...waUpdates };
-      if (window.__flymSession?.gym) window.__flymSession.gym = { ...window.__flymSession.gym, ...waUpdates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...waUpdates };
 
       showToast('WhatsApp settings saved!', 'green');
     } catch (err) {
-      console.error('[Flym] saveWA:', err);
+      console.error('[Sculpt] saveWA:', err);
       errEl.textContent = err.message || 'Save failed. Please try again.';
       errEl.style.display = 'block';
     } finally {
@@ -920,7 +698,7 @@ function renderGymConfig(c) {
         <div class="form-group"><label class="form-label">Default Price (₹)</label>
           <input class="form-input" id="atpl-price" type="number" min="0" value="${existing?.default_price||''}"></div>
         <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;">
-          <label class="flym-switch"><input type="checkbox" id="atpl-onetime" ${existing?.is_one_time?'checked':''}><span class="flym-switch-slider"></span></label>
+          <label class="sculpt-switch"><input type="checkbox" id="atpl-onetime" ${existing?.is_one_time?'checked':''}><span class="sculpt-switch-slider"></span></label>
           <div><span style="font-size:var(--text-sm);color:var(--text-secondary);">One-time fee</span>
             <div style="font-size:var(--text-xs);color:var(--text-quaternary);">Won't appear in Renew modal (e.g. Admission)</div></div>
         </div>

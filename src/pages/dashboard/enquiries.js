@@ -53,7 +53,7 @@ async function renderEnquiries(c) {
   try {
     S.enquiries = await getEnquiries(gymId);
   } catch (err) {
-    console.warn('[Flym] Enquiry fetch:', err);
+    console.warn('[Sculpt] Enquiry fetch:', err);
     renderError(c, { onRetry: () => renderEnquiries(c) });
     return;
   }
@@ -134,7 +134,7 @@ async function renderEnquiries(c) {
                 </div>
                 <div style="font-size:12px;color:var(--text-tertiary);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;">
                   ${e.phone
-                    ? `<a href="tel:${escHtml(normalizePhone(e.phone))}" class="flym-tel" onclick="event.stopPropagation();">📞 ${escHtml(formatPhone(e.phone))}</a>`
+                    ? `<a href="tel:${escHtml(normalizePhone(e.phone))}" class="sculpt-tel" onclick="event.stopPropagation();">📞 ${escHtml(formatPhone(e.phone))}</a>`
                     : '<span style="color:var(--text-quaternary);">No phone</span>'}
                   <span>🕐 ${fmtTime(e.created_at)}</span>
                   ${e.followed_up_at ? `<span style="color:var(--green);">✓ Followed up ${fmtTime(e.followed_up_at)}</span>` : ''}

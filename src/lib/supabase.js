@@ -15,7 +15,7 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    '[Flym] Missing Supabase env vars. Copy .env.example → .env.local and fill in your values.'
+    '[Sculpt] Missing Supabase env vars. Copy .env.example → .env.local and fill in your values.'
   );
 }
 
@@ -24,7 +24,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,   // we do our own routing
-    storageKey: 'flym-session',
+    storageKey: 'sculpt-session',
   },
 });
 

@@ -40,7 +40,7 @@ export async function signIn(email, password) {
 /** Sign out. */
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (error) console.warn('[Flym] Sign out error:', error.message);
+  if (error) console.warn('[Sculpt] Sign out error:', error.message);
 }
 
 /**
@@ -77,7 +77,7 @@ export async function getMyProfile(userId) {
   // If that errored because a column doesn't exist, transparently retry
   // with the legacy column set (pre-migration environments)
   if (error && /column .* does not exist/i.test(error.message || '')) {
-    console.warn('[Flym auth] Falling back to legacy columns.');
+    console.warn('[Sculpt auth] Falling back to legacy columns.');
     const retry = await supabase
       .from('gym_users')
       .select(`id, role, gym_id, is_selected, gyms (${baseCols})`)
@@ -97,7 +97,7 @@ export async function getMyProfile(userId) {
   }
 
   if (error) {
-    console.error('[Flym auth] getMyProfile error:', error);
+    console.error('[Sculpt auth] getMyProfile error:', error);
     throw new Error(
       'Could not load your profile. ' +
       (error.message ? `Reason: ${error.message}` : 'Please check your connection or contact support.')
@@ -107,7 +107,7 @@ export async function getMyProfile(userId) {
   if (!gymUsers || gymUsers.length === 0) {
     throw new Error(
       'Account not configured. Your login exists but is not linked to a gym. ' +
-      'Contact your Flym administrator.'
+      'Contact the gym owner.'
     );
   }
 
@@ -137,7 +137,7 @@ export async function getMyProfile(userId) {
         .single();
       staffRecord = staffData;
     } catch (e) {
-      console.warn('[Flym auth] Could not fetch staff record:', e.message);
+      console.warn('[Sculpt auth] Could not fetch staff record:', e.message);
     }
 
     if (!staffRecord) {
@@ -170,7 +170,7 @@ export async function getMyProfile(userId) {
       await supabase.auth.signOut();
       throw new Error(
         'Your gym account has been deactivated. ' +
-        'Please contact Flym support to reactivate your account.'
+        'Please contact the gym owner to reactivate your account.'
       );
     }
   }

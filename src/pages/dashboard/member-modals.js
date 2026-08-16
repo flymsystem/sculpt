@@ -378,7 +378,7 @@ async function submitAdd(mType) {
         return;
       }
     } catch (e) {
-      console.warn('[Flym] Duplicate phone check failed:', e.message);
+      console.warn('[Sculpt] Duplicate phone check failed:', e.message);
       // Non-blocking — allow save if the check itself errors
     }
   }
@@ -501,7 +501,7 @@ async function submitAdd(mType) {
       try {
         await _saveMemberPhoto(photoDataUrl, S.gym.id, saved.id);
       } catch (err) {
-        console.warn('[Flym] Photo upload failed:', err.message);
+        console.warn('[Sculpt] Photo upload failed:', err.message);
         showToast('Member saved but photo upload failed — try editing the member to re-upload', 'amber');
       }
     }
@@ -527,7 +527,7 @@ async function submitAdd(mType) {
         const orphan = await findMemberById(gymId, clientId);
         if (orphan) {
           // Member WAS created — the error was just a network timeout.
-          console.warn(`[Flym] Orphan detected: member ${clientId} exists despite network error`);
+          console.warn(`[Sculpt] Orphan detected: member ${clientId} exists despite network error`);
           try { S.members = await getMembers(gymId); } catch(_) {}
           try { S.payHistory = await getPaymentHistory(gymId); } catch(_) {}
           closeModal();
@@ -834,7 +834,7 @@ function openEditModal(id) {
               return;
             }
           } catch (e) {
-            console.warn('[Flym] Duplicate phone check failed:', e.message);
+            console.warn('[Sculpt] Duplicate phone check failed:', e.message);
           }
         }
 
@@ -945,7 +945,7 @@ function confirmDelete(id) {
           // Show undo toast
           const undoId = 'undo-del-' + Date.now();
           let undone = false;
-          const toast = document.getElementById('flym-toast') || (() => { const t = document.createElement('div'); t.id = 'flym-toast'; t.className = 'toast'; document.body.appendChild(t); return t; })();
+          const toast = document.getElementById('sculpt-toast') || (() => { const t = document.createElement('div'); t.id = 'sculpt-toast'; t.className = 'toast'; document.body.appendChild(t); return t; })();
           toast.innerHTML = `<div class="toast-dot" style="background:var(--red)"></div>
             <span class="toast-msg">Member removed</span>
             <button id="${undoId}" style="margin-left:12px;background:none;border:1px solid var(--text-secondary);color:var(--text-primary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">Undo</button>`;
@@ -1030,7 +1030,7 @@ function confirmCancelMembership(id) {
           // Undo toast
           const undoId = 'undo-cancelmem-' + Date.now();
           let undone = false;
-          const toast = document.getElementById('flym-toast') || (() => { const t = document.createElement('div'); t.id = 'flym-toast'; t.className = 'toast'; document.body.appendChild(t); return t; })();
+          const toast = document.getElementById('sculpt-toast') || (() => { const t = document.createElement('div'); t.id = 'sculpt-toast'; t.className = 'toast'; document.body.appendChild(t); return t; })();
           toast.innerHTML = `<div class="toast-dot" style="background:var(--amber)"></div>
             <span class="toast-msg">Membership cancelled</span>
             <button id="${undoId}" style="margin-left:12px;background:none;border:1px solid var(--text-secondary);color:var(--text-primary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">Undo</button>`;
@@ -1952,7 +1952,7 @@ function buildWhatsAppText(m, gymName) {
 function openInvoiceModal(id) {
   const m   = S.members.find(x=>String(x.id)===String(id));
   if (!m) return;
-  const gym = S.gym?.name || 'Flym Gym';
+  const gym = S.gym?.name || 'D Sculpt Fitness';
   const price = memberTotal(m) > 0 ? `₹${Number(memberTotal(m)).toLocaleString('en-IN')}` : '—';
 
   openModal({
@@ -2012,7 +2012,7 @@ function openInvoiceModal(id) {
           const url  = await uploadInvoicePdf(blob, S.gym.id, m.id, invoiceNo);
           if (url) text += `\n${url}`;
         } catch (err) {
-          console.warn('[Flym] Invoice PDF failed, sending text only:', err.message);
+          console.warn('[Sculpt] Invoice PDF failed, sending text only:', err.message);
           showToast('PDF failed — sent text only', 'amber');
         }
 

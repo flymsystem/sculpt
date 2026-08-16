@@ -32,7 +32,7 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
   _lastFocusedEl = document.activeElement;
 
   const isMobile   = window.innerWidth <= 768;
-  const titleId    = 'flym-modal-title-' + Math.random().toString(36).slice(2, 8);
+  const titleId    = 'sculpt-modal-title-' + Math.random().toString(36).slice(2, 8);
 
   _lockScroll();
 
@@ -40,18 +40,18 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
     _injectMobileStyles();
     const panel = document.createElement('div');
     panel.id        = 'sculpt-modal-overlay';
-    panel.className = 'flym-mobile-fullscreen';
+    panel.className = 'sculpt-mobile-fullscreen';
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'true');
     panel.setAttribute('aria-labelledby', titleId);
     panel.innerHTML = `
-      <div class="flym-mobile-inner">
-        <div class="flym-mobile-header">
+      <div class="sculpt-mobile-inner">
+        <div class="sculpt-mobile-header">
           <div class="modal-title" id="${titleId}">${title}</div>
           <button class="modal-close" id="modal-close-btn" type="button" aria-label="Close">✕</button>
         </div>
-        <div class="flym-mobile-body" id="flym-modal-body">${body}</div>
-        ${footer ? `<div class="flym-mobile-footer">${footer}</div>` : ''}
+        <div class="sculpt-mobile-body" id="sculpt-modal-body">${body}</div>
+        ${footer ? `<div class="sculpt-mobile-footer">${footer}</div>` : ''}
       </div>`;
 
     document.body.appendChild(panel);
@@ -59,7 +59,7 @@ export function openModal({ title, body, footer = '', size = 'md', onOpen, mobil
     document.addEventListener('keydown', _handleKey);
     panel.addEventListener('keydown', _handleTabTrap);
     requestAnimationFrame(() => {
-      panel.querySelector('.flym-mobile-body')?.scrollTo({ top: 0 });
+      panel.querySelector('.sculpt-mobile-body')?.scrollTo({ top: 0 });
       _focusFirst(panel);
     });
     if (onOpen) onOpen(panel);
@@ -186,18 +186,18 @@ function _injectMobileStyles() {
   _stylesInjected = true;
 
   const s = document.createElement('style');
-  s.id = 'flym-mobile-modal-styles';
+  s.id = 'sculpt-mobile-modal-styles';
   s.textContent = `
-    .flym-mobile-fullscreen {
+    .sculpt-mobile-fullscreen {
       position: fixed; inset: 0; z-index: 600;
       background: var(--surface-1, #101218);
       display: flex; flex-direction: column;
     }
-    .flym-mobile-inner {
+    .sculpt-mobile-inner {
       display: flex; flex-direction: column;
       height: 100%; width: 100%; min-height: 0;
     }
-    .flym-mobile-header {
+    .sculpt-mobile-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 16px 16px 14px;
       padding-top: max(16px, env(safe-area-inset-top, 0px));
@@ -205,20 +205,20 @@ function _injectMobileStyles() {
       background: var(--surface-1, #101218);
       flex-shrink: 0; position: relative;
     }
-    .flym-mobile-header::before {
+    .sculpt-mobile-header::before {
       content: ''; position: absolute;
       top: 7px; left: 50%; transform: translateX(-50%);
       width: 38px; height: 3px;
       background: rgba(255,255,255,0.12);
       border-radius: 2px;
     }
-    .flym-mobile-body {
+    .sculpt-mobile-body {
       flex: 1; overflow-y: auto; overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y; overscroll-behavior: contain;
       padding: 16px; min-height: 0;
     }
-    .flym-mobile-footer {
+    .sculpt-mobile-footer {
       display: flex; gap: 8px; flex-wrap: wrap;
       padding: 12px 16px;
       padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -226,12 +226,12 @@ function _injectMobileStyles() {
       background: var(--surface-1, #101218);
       flex-shrink: 0;
     }
-    .flym-mobile-footer .btn { flex: 1; min-width: 100px; justify-content: center; }
-    .flym-mobile-body .form-row  { grid-template-columns: 1fr; gap: 0; }
-    .flym-mobile-body .form-group{ margin-bottom: 14px; }
-    .flym-mobile-body .form-label{ font-size: 10px; margin-bottom: 5px; }
-    .flym-mobile-body .form-input{ padding: 10px 12px; font-size: 16px; }
-    .flym-mobile-body .mtype-btn { font-size: 10px; padding: 8px 4px; }
+    .sculpt-mobile-footer .btn { flex: 1; min-width: 100px; justify-content: center; }
+    .sculpt-mobile-body .form-row  { grid-template-columns: 1fr; gap: 0; }
+    .sculpt-mobile-body .form-group{ margin-bottom: 14px; }
+    .sculpt-mobile-body .form-label{ font-size: 10px; margin-bottom: 5px; }
+    .sculpt-mobile-body .form-input{ padding: 10px 12px; font-size: 16px; }
+    .sculpt-mobile-body .mtype-btn { font-size: 10px; padding: 8px 4px; }
   `;
   document.head.appendChild(s);
 }

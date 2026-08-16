@@ -12,7 +12,6 @@ export let S = {
   enquiries: [],
   staff: [],
   branches: [],
-  subscription: null,
   section: 'overview',
   // ── v3: Role & tier ──
   role: 'owner',          // 'owner' or 'staff'

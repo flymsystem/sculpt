@@ -58,7 +58,7 @@ export function callBtn(phone, opts = {}) {
   const disabled = !n;
   const label = opts.label ? '<span style="margin-left:5px;">Call</span>' : '';
   const size = opts.size === 'md' ? 'padding:8px 12px;' : 'padding:5px 8px;';
-  return `<button type="button" class="btn btn-sm flym-call-btn"
+  return `<button type="button" class="btn btn-sm sculpt-call-btn"
     ${disabled ? 'disabled' : `data-call="${n}"`}
     title="${disabled ? 'No phone number' : 'Call ' + formatPhone(n)}"
     style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);${size}display:inline-flex;align-items:center;justify-content:center;${disabled ? 'opacity:0.35;cursor:not-allowed;' : ''}">
@@ -145,7 +145,7 @@ export function linkifyPhones(root) {
         }
         const a = document.createElement('a');
         a.href = 'tel:' + tel;
-        a.className = 'flym-tel';
+        a.className = 'sculpt-tel';
         a.textContent = raw;
         a.setAttribute('title', 'Call ' + formatPhone(tel));
         // Stop the click bubbling into row handlers (open member modal, etc.)
@@ -157,7 +157,7 @@ export function linkifyPhones(root) {
       if (frag.childNodes.length) node.parentNode.replaceChild(frag, node);
     });
   } catch (err) {
-    console.warn('[Flym] linkifyPhones:', err.message);
+    console.warn('[Sculpt] linkifyPhones:', err.message);
   }
 }
 
@@ -193,23 +193,23 @@ export function stopObservingModals() {
 
 // ── Styles ────────────────────────────────────────────────────────
 export function injectCallStyles() {
-  if (document.getElementById('flym-call-styles')) return;
+  if (document.getElementById('sculpt-call-styles')) return;
   const s = document.createElement('style');
-  s.id = 'flym-call-styles';
+  s.id = 'sculpt-call-styles';
   s.textContent = `
-    a.flym-tel {
+    a.sculpt-tel {
       color: inherit;
       text-decoration: none;
       border-bottom: 1px dashed var(--green-strong, rgba(52,199,89,.4));
       cursor: pointer;
       white-space: nowrap;
     }
-    a.flym-tel:hover, a.flym-tel:active { color: var(--green); border-bottom-color: var(--green); }
-    .flym-call-btn:active:not([disabled]) { transform: scale(0.94); }
+    a.sculpt-tel:hover, a.sculpt-tel:active { color: var(--green); border-bottom-color: var(--green); }
+    .sculpt-call-btn:active:not([disabled]) { transform: scale(0.94); }
     /* Give the finger some room on touch devices */
     @media (max-width: 768px) {
-      a.flym-tel { padding: 2px 0; }
-      .flym-call-btn { min-width: 34px; min-height: 32px; }
+      a.sculpt-tel { padding: 2px 0; }
+      .sculpt-call-btn { min-width: 34px; min-height: 32px; }
     }
   `;
   document.head.appendChild(s);

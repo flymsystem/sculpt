@@ -110,7 +110,7 @@ function renderExpenses(c) {
         <div class="form-group"><label class="form-label">Amount (\u20B9)</label><input class="form-input" id="exp-amt" type="number" min="0" value="${existing?existing.amount:''}" placeholder="0"></div>
         <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="exp-date" type="date" value="${existing?.expense_date||todayISO}"></div>
         <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;">
-          <label class="flym-switch"><input type="checkbox" id="exp-recurring" ${existing?.is_recurring?'checked':''}><span class="flym-switch-slider"></span></label>
+          <label class="sculpt-switch"><input type="checkbox" id="exp-recurring" ${existing?.is_recurring?'checked':''}><span class="sculpt-switch-slider"></span></label>
           <span style="font-size:var(--text-sm);color:var(--text-secondary);">Recurring (copied monthly)</span>
         </div>
       </div>`,

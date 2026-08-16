@@ -1,4 +1,4 @@
-/* src/styles/dashboard.css — Flym Dashboard Layout v2 — Mobile-First Audit */
+/* src/styles/dashboard.css — D Sculpt Fitness Dashboard Layout — Mobile-First Audit */
 *,*::before,*::after{box-sizing:border-box;}
 html{width:100%;overflow-x:hidden;}
 body{width:100%;overflow-x:hidden;position:relative;}
@@ -80,12 +80,12 @@ body{width:100%;overflow-x:hidden;position:relative;}
 .mtype-btn[data-type="Trial"].active{background:var(--amber-fade);color:var(--amber);border-color:var(--amber-strong);}
 
 /* TOGGLE SWITCH */
-.flym-switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;}
-.flym-switch input{opacity:0;width:0;height:0;}
-.flym-switch-slider{position:absolute;inset:0;background:var(--surface-3);border:1px solid var(--border-default);border-radius:24px;transition:.22s;cursor:pointer;}
-.flym-switch-slider::before{position:absolute;content:'';height:18px;width:18px;left:2px;top:2px;background:var(--text-quaternary);border-radius:50%;transition:.22s;}
-.flym-switch input:checked + .flym-switch-slider{background:var(--green-fade);border-color:var(--green-strong);}
-.flym-switch input:checked + .flym-switch-slider::before{transform:translateX(20px);background:var(--green);box-shadow:0 0 8px var(--green-fade);}
+.sculpt-switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;}
+.sculpt-switch input{opacity:0;width:0;height:0;}
+.sculpt-switch-slider{position:absolute;inset:0;background:var(--surface-3);border:1px solid var(--border-default);border-radius:24px;transition:.22s;cursor:pointer;}
+.sculpt-switch-slider::before{position:absolute;content:'';height:18px;width:18px;left:2px;top:2px;background:var(--text-quaternary);border-radius:50%;transition:.22s;}
+.sculpt-switch input:checked + .sculpt-switch-slider{background:var(--green-fade);border-color:var(--green-strong);}
+.sculpt-switch input:checked + .sculpt-switch-slider::before{transform:translateX(20px);background:var(--green);box-shadow:0 0 8px var(--green-fade);}
 
 /* PLAN CARDS */
 .plan-card{background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:22px;transition:border-color var(--duration-fast),transform var(--duration-fast),box-shadow var(--duration-fast);display:flex;flex-direction:column;}

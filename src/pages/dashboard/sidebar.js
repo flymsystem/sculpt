@@ -20,7 +20,7 @@ function bindThemeToggle() {
   };
   updateIcon();
   btn.addEventListener('click', () => { window.__sculptThemeController?.toggle(); updateIcon(); if (S.section) setTimeout(() => _nav(S.section), 30); });
-  window.addEventListener('flym:themechange', updateIcon);
+  window.addEventListener('sculpt:themechange', updateIcon);
 }
 
 function buildBranchSwitcher() {
@@ -47,25 +47,6 @@ function buildBranchSwitcher() {
   </div>`;
 }
 
-function buildSubscriptionBadge() {
-  const sub = S.subscription;
-  if (!sub) return '';
-  // Only show subscription badge to owners
-  if (S.role !== 'owner') return '';
-  const now = new Date(), endDate = new Date(sub.end_date + 'T23:59:59');
-  const dl = Math.ceil((endDate - now) / 86400000);
-  const isExpired = dl < 0;
-  let color, bg, label;
-  if (isExpired) { color='var(--red)'; bg='var(--red-fade)'; label='Expired'; }
-  else if (dl <= 7) { color='var(--red)'; bg='var(--red-fade)'; label=`${dl}d left`; }
-  else if (dl <= 15) { color='var(--amber)'; bg='var(--amber-fade)'; label=`${dl}d left`; }
-  else { color='var(--green)'; bg='var(--green-fade)'; label=`${dl}d left`; }
-  return `<button class="sub-badge" type="button" id="sub-badge-btn" style="margin:8px 14px;padding:8px 12px;background:${bg};border-radius:var(--radius-md);border:1px solid ${color}33;display:flex;align-items:center;gap:8px;cursor:pointer;width:calc(100% - 28px);text-align:left;transition:all var(--duration-fast) var(--ease-out);font-family:var(--font-sans);">
-    <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;${!isExpired?'animation:pulse-dot 2s infinite;':''}"></span>
-    <div style="flex:1;min-width:0;"><div style="font-size:11px;color:${color};font-weight:600;">${escHtml(sub.plan_name)} \u2014 ${label}</div>
-    <div style="font-size:10px;color:var(--text-tertiary);">Tap to view subscription</div></div>
-  </button>`;
-}
 
 function getAlertCount() {
   return S.members.filter(m => { const st = memberStatus(m); return st === 'Expired' || st === 'Expiring' || st === 'Due'; }).length;
@@ -197,10 +178,8 @@ function buildSidebar(gymName, gymCode, logoUrl) {
 
   return `<div class="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-logo">
-      <svg viewBox="90 128 410 162" width="68" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Flym" role="img">
-        <path opacity="0.4" d="M124 188C221.333 134.667 340 122.667 480 152" stroke="#2A8FFF" stroke-width="3.5" stroke-linecap="round"/>
-        <text x="90" y="280" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-weight="200" font-size="188" letter-spacing="-12" fill="currentColor" style="color:var(--text-primary)">flym</text>
-      </svg>
+      <img src="/icon-192.png" alt="D Sculpt Fitness" width="40" height="40"
+        style="border-radius:8px;display:block;">
     </div>
     <div class="sidebar-identity">
       ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="" style="max-width:180px;max-height:60px;width:auto;height:auto;object-fit:contain;object-position:left center;margin-bottom:10px;display:block;">` : ''}
@@ -210,7 +189,6 @@ function buildSidebar(gymName, gymCode, logoUrl) {
       <div class="sidebar-badges">${roleBadge}</div>
     </div>
     ${buildBranchSwitcher()}
-    ${buildSubscriptionBadge()}
     <nav class="sidebar-nav" aria-label="Sections">
       ${navItems.join('\n      ')}
     </nav>
@@ -226,7 +204,7 @@ function bindSidebar(router) {
     item.addEventListener('click', activate);
     item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
   });
-  const doLogout = async () => { await signOut().catch(() => {}); window.__flymSession = null; router.go('landing'); };
+  const doLogout = async () => { await signOut().catch(() => {}); window.__sculptSession = null; router.go('landing'); };
   document.getElementById('sidebar-logout')?.addEventListener('click', doLogout);
   document.getElementById('topbar-logout-btn')?.addEventListener('click', doLogout);
 
@@ -241,13 +219,12 @@ function bindSidebar(router) {
       const pick = async () => {
         const gymId = opt.dataset.gymId; branchDrop.style.display = 'none';
         showToast('Switching branch...', 'blue');
-        try { await switchGym(gymId); const user = await getAuthUser(); if (user) { const profile = await getMyProfile(user.id); window.__flymSession = { role: profile.role, gym: profile.gym, branches: profile.branches, staffRecord: profile.staffRecord || null }; if (_reloadDashboard) _reloadDashboard(router); else location.reload(); } } catch (err) { showToast(err.message || 'Switch failed', 'red'); }
+        try { await switchGym(gymId); const user = await getAuthUser(); if (user) { const profile = await getMyProfile(user.id); window.__sculptSession = { role: profile.role, gym: profile.gym, branches: profile.branches, staffRecord: profile.staffRecord || null }; if (_reloadDashboard) _reloadDashboard(router); else location.reload(); } } catch (err) { showToast(err.message || 'Switch failed', 'red'); }
       };
       opt.addEventListener('click', pick);
       opt.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     });
   }
-  document.getElementById('sub-badge-btn')?.addEventListener('click', () => { _nav('gymconfig'); closeMobileSidebar(); });
 
   // Mobile hamburger
   const hamburger = document.getElementById('hamburger-btn');
@@ -257,17 +234,17 @@ function bindSidebar(router) {
   overlay?.addEventListener('click', closeMobileSidebar);
 
   // Swipe gestures
-  if (window.__flymTouchStart) document.removeEventListener('touchstart', window.__flymTouchStart);
-  if (window.__flymTouchEnd) document.removeEventListener('touchend', window.__flymTouchEnd);
+  if (window.__sculptTouchStart) document.removeEventListener('touchstart', window.__sculptTouchStart);
+  if (window.__sculptTouchEnd) document.removeEventListener('touchend', window.__sculptTouchEnd);
   let _tsX = 0, _tsY = 0, _blocked = false;
   const isModalOpen = () => !!document.getElementById('sculpt-modal-overlay');
   const startedInHScroller = (target) => { let el = target; while (el && el !== document.body) { const style = getComputedStyle(el); if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true; el = el.parentElement; } return false; };
-  window.__flymTouchStart = (e) => { if (!e.touches?.[0]) return; _tsX = e.touches[0].clientX; _tsY = e.touches[0].clientY; _blocked = isModalOpen() || startedInHScroller(e.target); };
-  window.__flymTouchEnd = (e) => { if (_blocked || isModalOpen() || !e.changedTouches?.[0]) return; const dx = e.changedTouches[0].clientX - _tsX; const dy = Math.abs(e.changedTouches[0].clientY - _tsY); const isSidebarOpen = sidebar?.classList.contains('sidebar-open'); if (Math.abs(dx) < 40 || dy > Math.abs(dx)) return; if (dx > 60 && _tsX < 30 && !isSidebarOpen) { sidebar?.classList.add('sidebar-open'); overlay?.classList.add('active'); hamburger?.classList.add('open'); } else if (dx < -60 && isSidebarOpen) closeMobileSidebar(); };
-  document.addEventListener('touchstart', window.__flymTouchStart, { passive: true });
-  document.addEventListener('touchend', window.__flymTouchEnd, { passive: true });
-  if (typeof window.__flymRegisterCleanup === 'function') {
-    window.__flymRegisterCleanup(() => { if (window.__flymTouchStart) document.removeEventListener('touchstart', window.__flymTouchStart); if (window.__flymTouchEnd) document.removeEventListener('touchend', window.__flymTouchEnd); delete window.__flymTouchStart; delete window.__flymTouchEnd; });
+  window.__sculptTouchStart = (e) => { if (!e.touches?.[0]) return; _tsX = e.touches[0].clientX; _tsY = e.touches[0].clientY; _blocked = isModalOpen() || startedInHScroller(e.target); };
+  window.__sculptTouchEnd = (e) => { if (_blocked || isModalOpen() || !e.changedTouches?.[0]) return; const dx = e.changedTouches[0].clientX - _tsX; const dy = Math.abs(e.changedTouches[0].clientY - _tsY); const isSidebarOpen = sidebar?.classList.contains('sidebar-open'); if (Math.abs(dx) < 40 || dy > Math.abs(dx)) return; if (dx > 60 && _tsX < 30 && !isSidebarOpen) { sidebar?.classList.add('sidebar-open'); overlay?.classList.add('active'); hamburger?.classList.add('open'); } else if (dx < -60 && isSidebarOpen) closeMobileSidebar(); };
+  document.addEventListener('touchstart', window.__sculptTouchStart, { passive: true });
+  document.addEventListener('touchend', window.__sculptTouchEnd, { passive: true });
+  if (typeof window.__sculptRegisterCleanup === 'function') {
+    window.__sculptRegisterCleanup(() => { if (window.__sculptTouchStart) document.removeEventListener('touchstart', window.__sculptTouchStart); if (window.__sculptTouchEnd) document.removeEventListener('touchend', window.__sculptTouchEnd); delete window.__sculptTouchStart; delete window.__sculptTouchEnd; });
   }
 }
 

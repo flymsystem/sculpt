@@ -53,12 +53,12 @@ export function permissionState() {
 export function unavailableReason() {
   if (typeof window === 'undefined') return 'Not supported here.';
   if (isIOS() && !isStandalone()) {
-    return 'On iPhone/iPad, add Flym to your Home Screen first (Share → Add to Home Screen), then open it from there to enable notifications.';
+    return 'On iPhone/iPad, add D Sculpt Fitness to your Home Screen first (Share → Add to Home Screen), then open it from there to enable notifications.';
   }
   if (!pushSupported()) return 'This browser does not support push notifications.';
   if (!VAPID_PUBLIC_KEY) return 'Push is not configured for this deployment yet.';
   if (Notification.permission === 'denied') {
-    return 'Notifications are blocked. Enable them for flym.in in your browser/site settings.';
+    return 'Notifications are blocked. Enable them for this site in your browser settings.';
   }
   return null;
 }
@@ -131,7 +131,7 @@ export async function enablePush(gymId) {
     }, { onConflict: 'endpoint' });
 
   if (error) {
-    console.warn('[Flym] push subscribe save failed:', error.message);
+    console.warn('[Sculpt] push subscribe save failed:', error.message);
     return { ok: false, reason: error.message };
   }
 
@@ -180,6 +180,6 @@ export async function sendPushToGym(gymId, { title, body, section, tag }) {
       body: { gymId, title, body: body || '', section: section || '', tag: tag || '' },
     });
   } catch (err) {
-    console.warn('[Flym] sendPushToGym:', err.message);
+    console.warn('[Sculpt] sendPushToGym:', err.message);
   }
 }

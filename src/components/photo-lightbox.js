@@ -12,7 +12,7 @@ export function openPhotoLightbox(url) {
   closePhotoLightbox(); // guard against stacking if triggered twice quickly
 
   const overlay = document.createElement('div');
-  overlay.id = 'flym-photo-lightbox';
+  overlay.id = 'sculpt-photo-lightbox';
   overlay.style.cssText = `
     position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
     display:flex;align-items:center;justify-content:center;
@@ -20,7 +20,7 @@ export function openPhotoLightbox(url) {
   `;
 
   overlay.innerHTML = `
-    <button id="flym-lightbox-close" aria-label="Close"
+    <button id="sculpt-lightbox-close" aria-label="Close"
       style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;
         background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:18px;cursor:pointer;
         display:flex;align-items:center;justify-content:center;z-index:1;">✕</button>
@@ -34,7 +34,7 @@ export function openPhotoLightbox(url) {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closePhotoLightbox();
   });
-  document.getElementById('flym-lightbox-close')?.addEventListener('click', closePhotoLightbox);
+  document.getElementById('sculpt-lightbox-close')?.addEventListener('click', closePhotoLightbox);
 
   function onKey(e) { if (e.key === 'Escape') closePhotoLightbox(); }
   document.addEventListener('keydown', onKey);
@@ -42,7 +42,7 @@ export function openPhotoLightbox(url) {
 }
 
 export function closePhotoLightbox() {
-  const el = document.getElementById('flym-photo-lightbox');
+  const el = document.getElementById('sculpt-photo-lightbox');
   if (!el) return;
   if (el._onKey) document.removeEventListener('keydown', el._onKey);
   el.remove();

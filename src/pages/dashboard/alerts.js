@@ -168,7 +168,7 @@ function renderMemberAlerts(c) {
             <span class="badge ${st === 'Expired' ? 'badge-red' : st === 'Expiring' ? 'badge-amber' : 'badge-purple'} badge-dot">${statusText}</span>${paymentDueBadge}
           </div>
           <div style="font-size:12px;color:var(--text-tertiary);display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
-            ${tel ? `<a href="tel:${escHtml(tel)}" class="flym-tel" onclick="event.stopPropagation();">${escHtml(formatPhone(tel))}</a>
+            ${tel ? `<a href="tel:${escHtml(tel)}" class="sculpt-tel" onclick="event.stopPropagation();">${escHtml(formatPhone(tel))}</a>
             <span style="color:var(--border-strong);">·</span>` : ''}
             <span>${escHtml(m.plan_name || m.plan || '—')}</span>
             <span style="color:var(--border-strong);">·</span>

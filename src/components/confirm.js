@@ -4,7 +4,7 @@
 // Reasons:
 //  - Native confirm is jarring in iOS PWA (system chrome)
 //  - Blocks the JS thread
-//  - Cannot be styled to match Flym's dark theme
+//  - Cannot be styled to match the app’s dark theme
 //
 // Usage:
 //   import { showConfirm } from '../../components/confirm.js';

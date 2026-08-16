@@ -1,6 +1,6 @@
 // src/components/print-preview.js
 // ─────────────────────────────────────────────────────────────────
-// Shows a printable HTML document inside Flym's own modal instead of
+// Shows a printable HTML document inside the app’s own modal instead of
 // window.open(). On iOS, when the app is added to the home screen
 // (standalone/PWA mode), window.open() often does NOT give you a real
 // second window with its own browser history — there's nothing to
@@ -9,7 +9,7 @@
 //
 // This avoids the problem entirely: nothing ever navigates away from
 // the app. "Close" just closes our own modal (always works, same as
-// every other modal in Flym). "Print" calls print() on a hidden
+// every other modal in the app). "Print" calls print() on a hidden
 // iframe scoped to just this document's content — no new window,
 // no new tab, no lost history.
 // ─────────────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ export function showPrintPreview(title, html) {
           fr?.contentWindow?.focus();
           fr?.contentWindow?.print();
         } catch (err) {
-          console.warn('[Flym] print() failed:', err.message);
+          console.warn('[Sculpt] print() failed:', err.message);
         }
       });
     }

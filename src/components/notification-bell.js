@@ -61,7 +61,7 @@ export function setNotificationNav(fn) { _navHandler = fn; }
 let _audioCtx = null;
 function playChime() {
   try {
-    if (localStorage.getItem('flym-notif-sound') === 'off') return;
+    if (localStorage.getItem('sculpt-notif-sound') === 'off') return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     if (!_audioCtx) _audioCtx = new Ctx();
@@ -223,7 +223,7 @@ async function renderPushRow() {
          <button class="notif-link" data-notif-act="push-off" type="button">Turn off</button>
        </div>`
     : `<div class="notif-push-hint">
-         <span>Get alerts on this device even when Flym is closed.</span>
+         <span>Get alerts on this device even when the app is closed.</span>
          <button class="notif-link notif-link-primary" data-notif-act="push-on" type="button">Enable</button>
        </div>`;
 }
@@ -231,7 +231,7 @@ async function renderPushRow() {
 function renderSoundBtn() {
   const btn = document.getElementById('notif-sound-btn');
   if (!btn) return;
-  const off = localStorage.getItem('flym-notif-sound') === 'off';
+  const off = localStorage.getItem('sculpt-notif-sound') === 'off';
   btn.textContent = off ? 'Sound off' : 'Sound on';
   btn.classList.toggle('is-muted', off);
 }
@@ -256,7 +256,7 @@ async function refresh({ full = false } = {}) {
 //
 // The generate-notifications Edge Function already does exactly this
 // job, server-side, on a nightly cron, for every gym whether anyone has
-// Flym open or not. Two implementations of the same rules is also how
+// the app open or not. Two implementations of the same rules is also how
 // dedupe keys drift apart and owners get notified twice.
 //
 // The bell is now read-only: fetch, display, mark read. buildNotificationRows()
@@ -400,8 +400,8 @@ async function _panelClick(ev) {
     }
 
     if (act === 'sound') {
-      const off = localStorage.getItem('flym-notif-sound') === 'off';
-      localStorage.setItem('flym-notif-sound', off ? 'on' : 'off');
+      const off = localStorage.getItem('sculpt-notif-sound') === 'off';
+      localStorage.setItem('sculpt-notif-sound', off ? 'on' : 'off');
       renderSoundBtn();
       if (off) playChime();   // was off, now on — demo the sound
       return;
@@ -451,7 +451,7 @@ export async function mountNotificationBell() {
   cleanupNotificationBell();   // safe re-mount (branch switch)
 
   if (!document.getElementById('notif-bell-btn')) {
-    console.warn('[Flym] notification bell: no #notif-bell-btn in the DOM — did bellMarkup() get rendered?');
+    console.warn('[Sculpt] notification bell: no #notif-bell-btn in the DOM — did bellMarkup() get rendered?');
     return;
   }
 
@@ -506,9 +506,9 @@ export function cleanupNotificationBell() {
 
 // ── Styles ────────────────────────────────────────────────────────
 function injectStyles() {
-  if (document.getElementById('flym-notif-styles')) return;
+  if (document.getElementById('sculpt-notif-styles')) return;
   const s = document.createElement('style');
-  s.id = 'flym-notif-styles';
+  s.id = 'sculpt-notif-styles';
   s.textContent = `
   .notif-wrap { position: relative; display: flex; align-items: center; }
 

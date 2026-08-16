@@ -53,7 +53,7 @@ export async function getNotifications(gymId, limit = 50) {
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) {
-    console.warn('[Flym] getNotifications:', error.message);
+    console.warn('[Sculpt] getNotifications:', error.message);
     return [];
   }
   return data || [];
@@ -78,7 +78,7 @@ export async function markRead(ids) {
   const payload = Array.isArray(ids) && ids.length ? { p_ids: ids } : { p_ids: null };
   const { data, error } = await supabase.rpc('mark_notifications_read', payload);
   if (error) {
-    console.warn('[Flym] markRead:', error.message);
+    console.warn('[Sculpt] markRead:', error.message);
     return 0;
   }
   return data || 0;
@@ -131,7 +131,7 @@ export async function createNotifications(gymId, rows) {
     .select();
 
   if (error) {
-    console.warn('[Flym] createNotifications:', error.message);
+    console.warn('[Sculpt] createNotifications:', error.message);
     return [];
   }
   return data || [];
@@ -269,7 +269,7 @@ export async function syncNotifications(gymId, members, enquiries, reminderDays)
     if (!rows.length) return [];
     return await createNotifications(gymId, rows);
   } catch (err) {
-    console.warn('[Flym] syncNotifications:', err.message);
+    console.warn('[Sculpt] syncNotifications:', err.message);
     return [];
   }
 }
@@ -285,7 +285,7 @@ export function subscribeToNotifications(gymId, onInsert) {
   let channel;
   try {
     channel = supabase
-      .channel(`flym-notifications-${gymId}`)
+      .channel(`sculpt-notifications-${gymId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `gym_id=eq.${gymId}` },
@@ -293,7 +293,7 @@ export function subscribeToNotifications(gymId, onInsert) {
       )
       .subscribe();
   } catch (err) {
-    console.warn('[Flym] realtime subscribe failed:', err.message);
+    console.warn('[Sculpt] realtime subscribe failed:', err.message);
     return () => {};
   }
   return () => {

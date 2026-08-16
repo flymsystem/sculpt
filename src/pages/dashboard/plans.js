@@ -309,7 +309,7 @@ function renderPlansShowcase(c) {
         <div style="text-align:right;"><span style="font-weight:600;color:var(--brand-text);font-variant-numeric:tabular-nums;">+₹${parseFloat(a.default_price).toLocaleString('en-IN')}</span>
         ${a.is_one_time?'<div style="font-size:var(--text-xs);color:var(--text-quaternary);">one-time</div>':'<div style="font-size:var(--text-xs);color:var(--text-quaternary);">/month</div>'}</div>
       </div>`).join('')}</div>`:''}
-    <div style="text-align:center;padding:32px 0;color:var(--text-quaternary);font-size:var(--text-xs);">Powered by Flym</div>
+    
   </div>`;
 }
 
