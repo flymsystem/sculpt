@@ -223,7 +223,7 @@ export async function addMember(gymId, d) {
   // The member row and the joining payment commit together. Previously a
   // dropped connection between the two writes created a member whose
   // money was never recorded, undetectably.
-  const rpc = await supabase.rpc('flym_add_member', {
+  const rpc = await supabase.rpc('sculpt_add_member', {
     p_id:                   memberId,
     p_gym_id:               gymId,
     p_full_name:            payload.full_name,
@@ -412,7 +412,7 @@ export async function renewMember(memberId, gymId, r) {
   const notes      = r.paymentNotes || 'Membership renewal';
 
   // ── Preferred path: one transaction (migration 033) ─────────────
-  const rpc = await supabase.rpc('flym_renew_member', {
+  const rpc = await supabase.rpc('sculpt_renew_member', {
     p_member_id:            memberId,
     p_gym_id:               gymId,
     p_plan_id:              txt(r.planId),
@@ -503,7 +503,7 @@ export async function clearBalance(memberId, gymId, amountPaid, paymentMode) {
   // Balance update + payment row commit together or not at all, and
   // FOR UPDATE inside the function serialises two devices collecting
   // against the same member.
-  const rpc = await supabase.rpc('flym_clear_balance', {
+  const rpc = await supabase.rpc('sculpt_clear_balance', {
     p_member_id:    memberId,
     p_gym_id:       gymId,
     p_amount:       paidRpc,
@@ -727,7 +727,7 @@ const iso = (d) => (d instanceof Date && !isNaN(d) ? d.toISOString() : null);
 
 /** Totals + payment-mode split for one period. */
 export async function getRevenueSummary(gymId, start, end) {
-  const { data, error } = await supabase.rpc('flym_revenue_summary', {
+  const { data, error } = await supabase.rpc('sculpt_revenue_summary', {
     p_gym_id: gymId, p_start: iso(start), p_end: iso(end),
   });
   if (error) {
@@ -746,7 +746,7 @@ export async function getRevenueSummary(gymId, start, end) {
 
 /** Totals for a list of date buckets (the 6-month chart), in one call. */
 export async function getRevenueMonthly(gymId, buckets) {
-  const { data, error } = await supabase.rpc('flym_revenue_monthly', {
+  const { data, error } = await supabase.rpc('sculpt_revenue_monthly', {
     p_gym_id: gymId,
     p_starts: buckets.map(b => iso(b.start)),
     p_ends:   buckets.map(b => iso(b.end)),
@@ -762,7 +762,7 @@ export async function getRevenueMonthly(gymId, buckets) {
 
 /** One page of the revenue drill-down table. */
 export async function getRevenueRows(gymId, start, end, limit = 200, offset = 0) {
-  const { data, error } = await supabase.rpc('flym_revenue_rows', {
+  const { data, error } = await supabase.rpc('sculpt_revenue_rows', {
     p_gym_id: gymId, p_start: iso(start), p_end: iso(end),
     p_limit: limit, p_offset: offset,
   });

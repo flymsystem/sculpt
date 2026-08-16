@@ -89,18 +89,21 @@ Deno.serve(async (req) => {
     // Check gym's subscription tier (staff login is Pro-only)
     const { data: gym } = await admin
       .from('gyms')
-      .select('subscription_tier, name')
+      .select('name')
       .eq('id', gymId)
       .maybeSingle();
 
     if (!gym) {
       return json({ error: 'Gym not found.' }, 404);
     }
-    if (gym.subscription_tier !== 'pro') {
-      return json({
-        error: 'Staff login requires a Flym Pro subscription. Please upgrade to continue.',
-      }, 402);
-    }
+
+    // No subscription-tier gate. This build has no plan tiers — the only
+    // access control is the owner-role check above, which still applies.
+    //
+    // The removed gate compared gyms.subscription_tier against 'pro'. That
+    // column defaults to 'core', so leaving it in place would have made
+    // every staff-login creation fail with a 402 pointing at an upgrade
+    // path that no longer exists.
 
     // ── Parse request body ──────────────────────────────────────
     let payload: any;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Flym — Clear &amp; Refresh</title>
+<title>D Sculpt Fitness — Clear &amp; Refresh</title>
 <meta name="robots" content="noindex">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -134,7 +134,7 @@
 <body>
   <div class="card">
     <div class="header">
-      <div class="logo">flym</div>
+      <div class="logo"><img src="/icon-192.png" alt="D Sculpt Fitness" width="48" height="48" style="border-radius:10px;display:block;margin:0 auto;"></div>
       <div class="subtitle">Clear &amp; Refresh</div>
     </div>
 
@@ -174,7 +174,7 @@
       <div class="result-icon">✓</div>
       <div class="result-title" style="color:#00D762;">You're all set!</div>
       <div class="result-sub">All cached data has been cleared. The app is ready to use.</div>
-      <a href="/" class="btn btn-primary btn-big" id="open-btn">Open Flym →</a>
+      <a href="/" class="btn btn-primary btn-big" id="open-btn">Open D Sculpt Fitness →</a>
       <div class="pwa-note" id="pwa-note"></div>
       <div class="summary" id="summary"></div>
       <div class="countdown" id="countdown"></div>
@@ -186,7 +186,7 @@
       <div class="result-title" style="color:#EF4444;">Something went wrong</div>
       <div class="result-sub" id="err-msg">An error occurred during cleanup.</div>
       <button class="btn btn-primary" onclick="location.reload()">Retry</button>
-      <a href="/" class="btn btn-ghost">Skip → Open Flym</a>
+      <a href="/" class="btn btn-ghost">Skip → Open D Sculpt Fitness</a>
       <div class="error-detail" id="err-detail"></div>
     </div>
   </div>
@@ -302,7 +302,7 @@
       : 'Nothing to clean');
 
     /* ── Step 4: Verify connectivity ───────────────────────── */
-    setActive(4, 'Checking connection to Flym…');
+    setActive(4, 'Checking connection to the app…');
     await delay(300);
 
     var online = navigator.onLine;
@@ -324,7 +324,7 @@
     if (reachable) {
       setDone(4, 'Connection OK');
     } else if (online) {
-      setDone(4, 'Online but server may be slow — try opening Flym');
+      setDone(4, 'Online but server may be slow — try opening the app');
     } else {
       setError(4, 'No internet — connect to WiFi or mobile data and retry');
     }
@@ -360,7 +360,7 @@
     var pwaEl = document.getElementById('pwa-note');
     if (isInAppBrowser) {
       // Opened inside WhatsApp/Instagram in-app browser
-      pwaEl.innerHTML = 'Now close this window and open the Flym app from your home screen — it will load the latest version.';
+      pwaEl.innerHTML = 'Now close this window and open the D Sculpt Fitness app from your home screen — it will load the latest version.';
       pwaEl.classList.add('show');
     } else if (isPWA) {
       // They're in the actual PWA

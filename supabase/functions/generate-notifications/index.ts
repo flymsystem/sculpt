@@ -3,7 +3,7 @@
 // Scheduled Edge Function — generates notifications for EVERY active gym
 // and pushes a summary to each gym's registered devices.
 //
-// This is what makes notifications work when nobody has Flym open.
+// This is what makes notifications work when nobody has the app open.
 // The client-side sync in src/lib/notifications.js only runs while a tab
 // is alive; this runs on a cron whether anyone is looking or not.
 //
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     const canPush = !!(VAPID_PUBLIC && VAPID_PRIVATE);
     if (canPush) {
       webpush.setVapidDetails(
-        Deno.env.get('VAPID_SUBJECT') || 'mailto:flym.system@gmail.com',
+        Deno.env.get('VAPID_SUBJECT') || 'mailto:[PLACEHOLDER-EMAIL]',
         VAPID_PUBLIC!, VAPID_PRIVATE!,
       );
     }
@@ -264,7 +264,7 @@ Deno.serve(async (req) => {
           title: String(title).slice(0, 120),
           body: String(body).slice(0, 240),
           section: 'alerts',
-          tag: 'flym-daily',
+          tag: 'sculpt-daily',
           ts: Date.now(),
         });
 

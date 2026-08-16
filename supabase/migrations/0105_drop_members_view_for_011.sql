@@ -1,0 +1,26 @@
+-- 0105_drop_members_view_for_011.sql
+--
+-- Drops members_with_status so migration 011 can run.
+--
+-- 011 converts members.member_addons from TEXT to JSONB, then rebuilds
+-- the view. But the view is defined as SELECT m.* FROM members, so it
+-- depends on that column and Postgres refuses the ALTER while it exists:
+--
+--   ERROR: cannot alter type of a column used by a view or rule
+--   rule _RETURN on view members_with_status depends on column "member_addons"
+--
+-- 011 drops the view itself, but only AFTER the ALTER, so it never gets
+-- that far. Dropping it here is enough: 011 recreates it a few statements
+-- later, and 012 and every later migration drop and recreate it again.
+--
+-- This is why the original project's notes record members.member_addons
+-- as "type unconfirmed — jsonb if migration 011 was applied, text
+-- otherwise". Applying 011 to a database that already had the view was
+-- impossible, so on that project the column stayed TEXT and
+-- parseMemberAddons() kept working by accident. Here 011 applies
+-- properly and the column is genuinely JSONB — see 038, which fixes the
+-- client-side cast that assumption affects.
+--
+-- Filename sorts "010" < "0105" < "011", which is the apply order.
+
+DROP VIEW IF EXISTS members_with_status;

@@ -7,7 +7,7 @@
 //   supabase functions deploy send-push
 //
 // Secrets required:
-//   supabase secrets set VAPID_PUBLIC_KEY=...  VAPID_PRIVATE_KEY=...  VAPID_SUBJECT=mailto:flym.system@gmail.com
+//   supabase secrets set VAPID_PUBLIC_KEY=...  VAPID_PRIVATE_KEY=...  VAPID_SUBJECT=mailto:[PLACEHOLDER-EMAIL]
 //
 // Generate the VAPID pair once with:
 //   npx web-push generate-vapid-keys
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   try {
     const VAPID_PUBLIC  = Deno.env.get('VAPID_PUBLIC_KEY');
     const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY');
-    const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:flym.system@gmail.com';
+    const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:[PLACEHOLDER-EMAIL]';
 
     if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
       // Test mode — mirrors how process-broadcast behaves without WA creds.
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       title: String(title).slice(0, 120),
       body: String(body || '').slice(0, 240),
       section: section || '',
-      tag: tag || 'flym-notification',
+      tag: tag || 'sculpt-notification',
       ts: Date.now(),
     });
 

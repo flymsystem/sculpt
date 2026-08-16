@@ -3,7 +3,6 @@
 // v3 CHANGES:
 //  1. getMyProfile: supports staff role (role='staff' in gym_users)
 //     Returns staffRecord with the linked staff row for staff users
-//  2. subscription_tier included in gym fetch
 //  3. createStaffLogin: owner creates staff auth account via Edge Function
 //
 // v3.1 (2026-08):
@@ -67,7 +66,7 @@ export async function getAuthUser() {
  */
 export async function getMyProfile(userId) {
   const baseCols = `id, gym_code, name, owner_name, phone, city, address, email, is_active, wa_template, reminder_days`;
-  const newCols  = `${baseCols}, auto_reminders_enabled, monthly_budget, gst_enabled, gstin, gst_percentage, logo_url, phone2, invoice_terms, subscription_tier`;
+  const newCols  = `${baseCols}, monthly_budget, gst_enabled, gstin, gst_percentage, logo_url, phone2, invoice_terms`;
 
   let { data: gymUsers, error } = await supabase
     .from('gym_users')

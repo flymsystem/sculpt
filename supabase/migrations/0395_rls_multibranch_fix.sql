@@ -1,5 +1,5 @@
 -- ============================================================
--- FLYM RLS FIX: Multi-Branch Gym Owner Support
+-- RLS FIX: Multi-Branch Gym Owner Support
 -- ============================================================
 -- PROBLEM: get_my_gym_id() returns only ONE gym UUID (the 
 -- currently selected one). Multi-branch owners get blocked 
@@ -106,24 +106,6 @@ CREATE POLICY "Owners see own gym enquiries" ON enquiries
   WITH CHECK (is_my_gym(gym_id));
 
 
--- ── STEP 11: Fix gym_subscriptions table ────────────────────
-DROP POLICY IF EXISTS owner_read_own_subscriptions ON gym_subscriptions;
-CREATE POLICY owner_read_own_subscriptions ON gym_subscriptions
-  FOR SELECT TO public
-  USING (is_my_gym(gym_id));
-
-
--- ── STEP 12: Fix gym_subscription_items table ───────────────
--- Old: subscription_id IN (SELECT id FROM gym_subscriptions WHERE gym_id = get_my_gym_id())
-DROP POLICY IF EXISTS owner_read_own_subscription_items ON gym_subscription_items;
-CREATE POLICY owner_read_own_subscription_items ON gym_subscription_items
-  FOR SELECT TO public
-  USING (
-    subscription_id IN (
-      SELECT gs.id FROM gym_subscriptions gs
-      WHERE is_my_gym(gs.gym_id)
-    )
-  );
 
 
 -- ── STEP 13: Fix staff table ────────────────────────────────
@@ -194,15 +176,6 @@ DROP POLICY IF EXISTS staff_pay_delete ON staff_salary_payments;
 CREATE POLICY staff_pay_delete ON staff_salary_payments
   FOR DELETE TO public
   USING ((is_my_gym(gym_id)) OR is_flym_admin());
-
-
--- ── STEP 16: Fix support_messages table ─────────────────────
--- Old INSERT had NULL qual — need to check with_check separately
--- If with_check used get_my_gym_id(), fix it:
-DROP POLICY IF EXISTS owner_insert_support ON support_messages;
-CREATE POLICY owner_insert_support ON support_messages
-  FOR INSERT TO public
-  WITH CHECK (is_my_gym(gym_id));
 
 
 -- ── STEP 17: Fix storage objects (gym-logos bucket) ─────────
