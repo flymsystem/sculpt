@@ -106,11 +106,10 @@ function renderMembers(c) {
 
     <div class="members-filters" role="search">
       <label class="sr-only" for="msearch">Search members</label>
-      <input type="search" class="form-input" id="msearch" name="search"
-        placeholder="Search name, phone, email or app number\u2026" autocomplete="off"
-        style="flex:2;min-width:180px;padding:9px 14px;">
+      <input type="search" class="form-input mf-search" id="msearch" name="search"
+        placeholder="Search name, phone, email or app number\u2026" autocomplete="off">
       <label class="sr-only" for="sf-status">Filter by status</label>
-      <select class="form-input" id="sf-status" style="flex:1;min-width:120px;">
+      <select class="form-input" id="sf-status">
         <option value="">All Status</option>
         <option value="Active">Active</option>
         <option value="Trial">Trial</option>
@@ -120,13 +119,12 @@ function renderMembers(c) {
         <option value="Cancelled">Cancelled</option>
       </select>
       <label class="sr-only" for="sf-plan">Filter by plan</label>
-      <select class="form-input" id="sf-plan" style="flex:1;min-width:120px;">
+      <select class="form-input" id="sf-plan">
         <option value="">All Plans</option>
         ${planOpts}
       </select>
       <label class="sr-only" for="sf-joindate">Filter by join date</label>
-      <input type="date" class="form-input" id="sf-joindate" title="Filter by join date"
-        style="flex:0 0 auto;min-width:140px;padding:9px 10px;font-size:13px;color:var(--text-secondary);">
+      <input type="date" class="form-input mf-date" id="sf-joindate" title="Filter by join date">
     </div>
 
     <div class="members-table-wrap" id="members-table-wrap">
@@ -295,12 +293,33 @@ function fillTable(list) {
   const pageList = list.slice(start, start + PAGE_SIZE);
 
   if (!pageList.length) {
-    tbody.innerHTML = `<tr><td colspan="${canDelete ? 9 : 8}" class="empty-state" style="padding:60px;">
-      <span class="empty-icon">\uD83D\uDC65</span>
-      <div class="empty-title">No members found</div>
-      <p style="color:var(--text-tertiary);">
-        Click <strong style="color:var(--text-primary);">Add Member</strong> to get started.</p></td></tr>`;
+    // Two different situations, two different messages. Telling an owner
+    // whose search matched nothing to "add their first member" reads as a
+    // bug; telling an owner with an empty gym to "clear filters" is worse.
+    const gymIsEmpty = S.members.length === 0;
+    tbody.innerHTML = `<tr><td colspan="${canDelete ? 9 : 8}" class="empty-state">
+      <span class="empty-icon" aria-hidden="true">\uD83D\uDC65</span>
+      ${gymIsEmpty
+        ? `<div class="empty-title">No members yet</div>
+           <p>Add your first member to start managing your gym.</p>`
+        : `<div class="empty-title">No members match these filters</div>
+           <p>Try a different search term, or clear the filters to see all
+              ${S.members.length} member${S.members.length === 1 ? '' : 's'}.</p>
+           <button class="btn btn-ghost btn-sm" id="members-clear-filters" type="button">Clear filters</button>`}
+    </td></tr>`;
     if (pagEl) pagEl.innerHTML = '';
+    document.getElementById('members-clear-filters')?.addEventListener('click', () => {
+      const search = document.getElementById('msearch');
+      const status = document.getElementById('sf-status');
+      const plan = document.getElementById('sf-plan');
+      const joined = document.getElementById('sf-joindate');
+      if (search) search.value = '';
+      if (status) status.value = '';
+      if (plan) plan.value = '';
+      if (joined) joined.value = '';
+      setMemberPage(1);
+      filterTable();
+    });
     return;
   }
 

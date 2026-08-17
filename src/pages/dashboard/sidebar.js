@@ -178,8 +178,13 @@ function buildSidebar(gymName, gymCode, logoUrl) {
 
   return `<div class="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-logo">
-      <img src="/icon-192.png" alt="D Sculpt Fitness" width="40" height="40"
-        style="border-radius:8px;display:block;">
+      <!-- The badge carries the wordmark itself; at 40px the arced
+           lettering was unreadable and it read as an app icon rather than
+           the brand. logo-128 is the bare mark on transparency — the
+           icon-*.png assets carry an opaque plate for the PWA and would
+           show as a black square against the sidebar. -->
+      <img src="/logo-128.png" alt="D Sculpt Fitness" width="56" height="56"
+        style="display:block;">
     </div>
     <div class="sidebar-identity">
       ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="" style="max-width:180px;max-height:60px;width:auto;height:auto;object-fit:contain;object-position:left center;margin-bottom:10px;display:block;">` : ''}

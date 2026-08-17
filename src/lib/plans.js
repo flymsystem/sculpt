@@ -17,6 +17,33 @@ export async function getPlans(gymId) {
   return data;
 }
 
+/**
+ * Plans for the PUBLIC marketing page, read by gym code rather than gym id
+ * so no signed-in session is needed.
+ *
+ * Backed by the `public_gym_plans` RPC (migration 102), which returns a
+ * narrow marketing projection instead of opening the `plans` table to
+ * anonymous readers.
+ *
+ * Never throws: the landing page must render even if the migration has
+ * not been run yet, the network is down, or the owner has switched public
+ * pricing off. All three cases return [] and the section hides itself.
+ */
+export async function getPublicPlans(gymCode) {
+  if (!gymCode) return [];
+  try {
+    const { data, error } = await supabase
+      .rpc('public_gym_plans', { p_gym_code: gymCode });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    // Expected before migration 102 is applied — log once, stay silent to
+    // the visitor rather than showing a broken or empty pricing table.
+    console.warn('[Sculpt] Public plans unavailable:', err?.message || err);
+    return [];
+  }
+}
+
 export async function addPlan(gymId, planData) {
   const name  = (planData.name || '').trim();
   const dur   = parseInt(planData.durationMonths, 10);

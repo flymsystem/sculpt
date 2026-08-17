@@ -21,14 +21,17 @@ function renderPlans(c) {
     </div>
     <div class="grid-3" id="plans-grid">
       ${S.plans.map(renderPlanCard).join('')}
-      ${!S.plans.length ? `<div class="empty-state" style="grid-column:1/-1;padding:60px;text-align:center;">
-        <div style="font-size:32px;margin-bottom:12px;">📋</div>
-        <div style="font-weight:600;margin-bottom:8px;color:var(--text-primary);">No plans yet</div>
-        <p>Create your first membership plan</p>
+      ${!S.plans.length ? `<div class="empty-state" style="grid-column:1/-1;">
+        <span class="empty-icon" aria-hidden="true">📋</span>
+        <div class="empty-title">No plans yet</div>
+        <p>Create a membership plan to start assigning members and tracking revenue.<br>
+           Active plans also appear on your public website.</p>
+        <button class="btn btn-primary btn-sm" id="empty-addplan" type="button">Create your first plan</button>
       </div>` : ''}
     </div>
   </div>`;
   document.getElementById('btn-addplan').addEventListener('click', openAddPlanModal);
+  document.getElementById('empty-addplan')?.addEventListener('click', openAddPlanModal);
   window._editPlan = id => openEditPlanModal(id);
   window._delPlan  = id => confirmDelPlan(id);
   window._dupPlan  = id => duplicatePlan(id);
@@ -46,8 +49,14 @@ function renderPlanCard(p) {
   const mc = S.members.filter(m =>
     m.plan_id ? String(m.plan_id) === String(p.id) : (m.plan_name||m.plan) === p.name
   ).length;
+  // is_active is what the public showcase and member assignment both key
+  // off, so it belongs on the card rather than only in the edit modal.
+  const isActive = p.is_active !== false;
   return `<div class="plan-card">
-    <div class="plan-card-name">${escHtml(p.name)}</div>
+    <div class="plan-card-head">
+      <div class="plan-card-name">${escHtml(p.name)}</div>
+      <span class="badge ${isActive ? 'badge-green' : 'badge-muted'} badge-dot">${isActive ? 'Active' : 'Inactive'}</span>
+    </div>
     <div class="plan-card-duration">${p.duration_months||p.duration} month${(p.duration_months||p.duration)>1?'s':''}</div>
     <div class="plan-card-price">₹${Number(p.price).toLocaleString('en-IN')}<span>/plan</span></div>
     ${feats.length?`<div class="plan-card-features">${feats.map(f=>`<div class="plan-feat-tag">✓ ${escHtml(f)}</div>`).join('')}</div>`:''}

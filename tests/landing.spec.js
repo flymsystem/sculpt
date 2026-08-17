@@ -54,7 +54,28 @@ test('landing contact is links, not a form', async ({ page }) => {
   ).toBe(0);
 
   // And it must actually offer a way to reach the gym.
-  expect(await page.locator('a[href^="tel:"]').count()).toBeGreaterThan(0);
+  //
+  // Two states are legitimate today. Once the client supplies a phone or
+  // WhatsApp number the page renders real tel:/wa.me links. Until then it
+  // renders visible "to be supplied" chips. What is NOT legitimate is the
+  // third state this test used to permit: the page previously fell back to
+  // a hardcoded +910000000000 so that a tel: link always existed, which
+  // shipped a fake number to real visitors. That fallback is gone, and the
+  // assertion below now fails if it ever comes back.
+  const contactable =
+    (await page.locator('a[href^="tel:"]').count()) +
+    (await page.locator('a[href*="wa.me"]').count());
+  const pending = await page.locator('.sc-tbd').count();
+
+  expect(
+    contactable > 0 || pending > 0,
+    'The landing page offers no way to reach the gym and no pending-details marker.'
+  ).toBe(true);
+
+  expect(
+    await page.locator('a[href*="0000000000"]').count(),
+    'A placeholder phone number is being rendered as a real contact link.'
+  ).toBe(0);
 });
 
 test('the login CTA reaches the login page', async ({ page }) => {
@@ -63,5 +84,8 @@ test('the login CTA reaches the login page', async ({ page }) => {
 
   await page.getByRole('button', { name: /member login/i }).first().click();
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
-  await expect(page.getByText(/Welcome to D Sculpt Fitness/i)).toBeVisible();
+  // Assert the login screen actually rendered and is branded, without
+  // pinning the exact headline wording.
+  await expect(page.locator('#login-form')).toBeVisible();
+  await expect(page.getByText(/D Sculpt Fitness/i).first()).toBeVisible();
 });

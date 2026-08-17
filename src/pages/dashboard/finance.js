@@ -371,10 +371,21 @@ function renderFinance(c, period, customStart, customEnd) {
             <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-tertiary);"><span style="width:10px;height:10px;background:var(--brand);border-radius:2px;"></span>Revenue</div>
             <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-tertiary);"><span style="width:10px;height:10px;background:var(--red);border-radius:2px;opacity:0.4;"></span>Expenses</div>
           </div>
-          <div style="display:flex;align-items:flex-end;gap:8px;padding-top:8px;">${barChart}</div>
+          ${chartMax <= 1 ? `
+          <p style="margin:0;padding:24px 4px;text-align:center;color:var(--text-tertiary);font-size:13px;line-height:1.6;">
+            No financial data yet.<br>Record a payment or an expense to see the trend.
+          </p>` :
+          `<div style="display:flex;align-items:flex-end;gap:8px;padding-top:8px;">${barChart}</div>`}
         </div>
         <div class="settings-card">
           <div class="settings-card-title" style="margin-bottom:12px;">Payment Split</div>
+          ${(cashT + cardT + onlineT) <= 0 ? `
+          <!-- With every total at zero the conic-gradient still painted a
+               full ring in the last colour, which read as "100% Online".
+               A sentence is more honest than a chart of nothing. -->
+          <p style="margin:0;padding:24px 4px;text-align:center;color:var(--text-tertiary);font-size:13px;line-height:1.6;">
+            No payment data yet.<br>Record a payment to see how members pay.
+          </p>` : `
           <div style="display:flex;align-items:center;gap:24px;">
             <div style="width:100px;height:100px;border-radius:50%;background:conic-gradient(var(--brand) 0% ${cashPct}%, var(--amber) ${cashPct}% ${cashPct+cardPct}%, var(--green) ${cashPct+cardPct}% 100%);position:relative;">
               <div style="position:absolute;inset:25%;border-radius:50%;background:var(--surface-1);"></div>
@@ -385,7 +396,7 @@ function renderFinance(c, period, customStart, customEnd) {
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span><span style="font-size:13px;color:var(--text-secondary);">Online \u20B9${onlineT.toLocaleString('en-IN')}</span></div>
               <div style="font-size:13px;color:var(--text-tertiary);">New members: <span style="color:var(--text-primary);font-weight:600;">${newMbrs}</span></div>
             </div>
-          </div>
+          </div>`}
         </div>
       </div>
       ${sortedCats.length>0?`<div class="settings-card" style="margin-top:20px;">

@@ -193,28 +193,24 @@ function renderGymConfig(c) {
     <div class="settings-panel" data-panel="whatsapp" style="display:none;">
     <div class="settings-grid">
 
-      <!-- WhatsApp Template -->
-
         <!-- WhatsApp Template -->
         <div class="settings-card">
           <div class="settings-card-title">WhatsApp Template</div>
-          <div class="form-group"><label class="form-label">Manual Reminder Message</label>
-            <textarea class="form-input" id="wa-template" rows="7" style="resize:vertical;">${escHtml(tpl)}</textarea>
+          <div class="form-group"><label class="form-label" for="wa-template">Manual Reminder Message</label>
+            <textarea class="form-input wa-textarea" id="wa-template" rows="7">${escHtml(tpl)}</textarea>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
-            <span style="font-size:12px;color:var(--text-tertiary);line-height:2;">Insert:</span>
-            <button type="button" class="wa-var-btn btn btn-sm btn-ghost" data-var="{name}" style="font-size:11px;padding:3px 8px;">{name}</button>
-            <button type="button" class="wa-var-btn btn btn-sm btn-ghost" data-var="{plan}" style="font-size:11px;padding:3px 8px;">{plan}</button>
-            <button type="button" class="wa-var-btn btn btn-sm btn-ghost" data-var="{gym}" style="font-size:11px;padding:3px 8px;">{gym}</button>
-            <button type="button" class="wa-var-btn btn btn-sm btn-ghost" data-var="{date}" style="font-size:11px;padding:3px 8px;">{date}</button>
+          <div class="wa-vars">
+            <span class="wa-vars-label">Insert</span>
+            <button type="button" class="wa-var-btn wa-var" data-var="{name}">{name}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var="{plan}">{plan}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var="{gym}">{gym}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var="{date}">{date}</button>
           </div>
-          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px;line-height:1.6;
-            padding:10px 12px;background:var(--surface-2);border-radius:var(--radius-md);
-            border:1px solid var(--border-subtle);">
-            \u2139\uFE0F For manual reminders only. Auto-reminders use a Meta-approved template.
-          </div>
-          <div style="margin-bottom:16px;">
-            <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;font-weight:500;">Live Preview</div>
+          <p class="wa-note">
+            For manual reminders only. Auto-reminders use a Meta-approved template.
+          </p>
+          <div class="form-group">
+            <div class="form-label">Live Preview</div>
             <div class="wa-preview"><div id="wa-live-preview"></div></div>
           </div>
           <div class="form-group"><label class="form-label">Warning Window</label>
@@ -227,25 +223,25 @@ function renderGymConfig(c) {
           <div id="wa-err" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;
             padding:10px 14px;background:var(--red-fade);border-radius:var(--radius-md);
             border:1px solid var(--red-strong);"></div>
-          <button class="btn btn-primary" id="btn-savewa">Save Settings</button>
+          <button class="btn btn-primary btn-full" id="btn-savewa">Save Settings</button>
         </div>
 
         <!-- Birthday & Welcome Templates -->
         <div class="settings-card">
-          <div class="settings-card-title">Birthday & Welcome Messages</div>
-          <div class="form-group"><label class="form-label">Birthday Wish</label>
-            <textarea class="form-input" id="wa-birthday" rows="4" style="resize:vertical;" placeholder="🎂 Happy Birthday {name}! Wishing you a wonderful day from all of us at {gym}. Stay fit! 💪">${escHtml(g.wa_birthday_template||'')}</textarea>
+          <div class="settings-card-title">Birthday &amp; Welcome Messages</div>
+          <div class="form-group"><label class="form-label" for="wa-birthday">Birthday Wish</label>
+            <textarea class="form-input wa-textarea" id="wa-birthday" rows="4" placeholder="🎂 Happy Birthday {name}! Wishing you a wonderful day from all of us at {gym}. Stay fit! 💪">${escHtml(g.wa_birthday_template||'')}</textarea>
           </div>
-          <div class="form-group"><label class="form-label">Welcome Message (New Members)</label>
-            <textarea class="form-input" id="wa-welcome" rows="4" style="resize:vertical;" placeholder="🏋️ Welcome to {gym}, {name}! Your {plan} plan is now active. Let's get started on your fitness journey! 💪">${escHtml(g.wa_welcome_template||'')}</textarea>
+          <div class="form-group"><label class="form-label" for="wa-welcome">Welcome Message (New Members)</label>
+            <textarea class="form-input wa-textarea" id="wa-welcome" rows="4" placeholder="🏋️ Welcome to {gym}, {name}! Your {plan} plan is now active. Let's get started on your fitness journey! 💪">${escHtml(g.wa_welcome_template||'')}</textarea>
           </div>
-          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.8;">
-            Variables:
-            <code style="color:var(--brand-text);background:var(--brand-fade);padding:1px 6px;border-radius:4px;">{name}</code>
-            <code style="color:var(--brand-text);background:var(--brand-fade);padding:1px 6px;border-radius:4px;">{gym}</code>
-            <code style="color:var(--brand-text);background:var(--brand-fade);padding:1px 6px;border-radius:4px;">{plan}</code>
+          <div class="wa-vars">
+            <span class="wa-vars-label">Variables</span>
+            <code class="wa-var">{name}</code>
+            <code class="wa-var">{gym}</code>
+            <code class="wa-var">{plan}</code>
           </div>
-          <button class="btn btn-ghost" id="btn-save-extra-wa" style="width:100%;">Save Templates</button>
+          <button class="btn btn-primary btn-full" id="btn-save-extra-wa">Save Templates</button>
         </div>
 
       </div>

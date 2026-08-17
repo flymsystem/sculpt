@@ -85,28 +85,71 @@ To check the database still matches what the code expects:
 node scripts/verify-schema.mjs
 ```
 
+**Responsive checks.** These need `npm run preview` running in another
+terminal. They walk the widths 1600 / 1440 / 1280 / 1024 / 768 / 480 /
+390 / 375 and fail on horizontal overflow or a JS error:
+
+```
+node scripts/qa-responsive.mjs   # landing + login
+node scripts/qa-nav.mjs          # logo size, Member Login, intro fade
+```
+
+The dashboard sweep signs in, so it needs the same credentials:
+
+```
+SCULPT_TEST_EMAIL=sculptfit@gmail.com SCULPT_TEST_PASSWORD=... node scripts/qa-dashboard.mjs
+```
+
 ---
 
 ## 5. What the client still owes
 
-Everything below renders as a visible `[PLACEHOLDER: …]` on the live site.
-Nothing was invented — no fake address, no made-up class times, no
-fictional trainers, no invented member counts.
+Everything below renders as a muted "to be supplied" chip on the live
+site. Nothing was invented — no fake address, no made-up class times, no
+fictional trainers, no invented member counts, and no placeholder phone
+number dressed up as a real `tel:` link.
 
 **All of these live in one place:** the `GYM` object at the top of
-`src/pages/landing.js`. Replace the values and rebuild.
+`src/pages/landing.js`. Replace the values and rebuild. An empty string
+means "not supplied" and renders the chip; a filled-in value renders the
+real link and the chip disappears.
 
+- [x] Street address — Malagala, Bangalore
 - [ ] Phone number
 - [ ] WhatsApp number
 - [ ] Email address
-- [ ] Street address
-- [ ] Area, city, PIN
 - [ ] Weekday opening hours
 - [ ] Weekend opening hours
 - [ ] Google Maps link
-- [ ] A proof point for the hero ("training N members since YEAR")
+- [ ] Instagram / social link
 - [ ] Confirm the four programmes match what the gym actually offers
-- [ ] Four programme photos (they currently show `[PHOTO]` blocks)
+
+**Photography.** The landing page currently ships stock gym photography
+extracted from the Figma reference in `reference/`, regenerated into
+`public/img/` by `scripts/prep-landing-images.mjs`. Two consequences:
+
+- [ ] **Check the licence before going live.** These came from a Figma
+      community template; they are not D Sculpt's own photographs.
+- [ ] **Replace with real D Sculpt photos** when they exist. Drop them in
+      as `public/img/hero.jpg`, `about.jpg` and `train-1…4.jpg` and
+      nothing else needs to change. Every interior shot is rendered
+      black-and-blue duotone in CSS (`.sc-duo`), which is what removes the
+      original gym's yellow branding — real photos will pick up the same
+      treatment automatically. The hero is deliberately full colour.
+
+**One migration still needs running.**
+
+`supabase/migrations/102_public_plans_showcase.sql` makes the landing
+page's Membership section show the plans you configure under Plan
+Settings, so pricing lives in one place instead of two. It is additive
+and safe to run more than once.
+
+- [ ] Run it in the Supabase SQL editor (paste the file, execute).
+
+Until it runs, the Membership section simply does not appear — the page
+logs one console warning and carries on. Nothing else depends on it. If
+you would rather not publish pricing publicly, set
+`gyms.public_plans_enabled = false` and the section stays hidden.
 
 **Also outstanding, elsewhere:**
 
@@ -144,7 +187,10 @@ built from.
   `display:`.** The element stays visible and every close button silently
   stops working. Use a `.is-open` class.
 - **No full-screen overlays on desktop.** Even an invisible one swallows
-  the first click on the sidebar and table rows. Mobile only.
+  the first click on the sidebar and table rows. Mobile only. The landing
+  page's intro fade is the one exception, and it obeys the same rule: the
+  plate is **removed from the DOM** when the fade ends, not just faded to
+  transparent. If you ever change that animation, keep the `.remove()`.
 - **Deleting hides, it does not erase** (`is_active = false`) — except
   expenses, which really are deleted. Do not "fix" that difference.
 - **Any text a user typed must go through `escHtml()`** before being put on

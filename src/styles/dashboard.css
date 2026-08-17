@@ -6,8 +6,9 @@ body{width:100%;overflow-x:hidden;position:relative;}
 .app-layout{display:flex;width:100%;min-height:100vh;overflow-x:hidden;position:relative;}
 
 /* SIDEBAR */
-.sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;flex-shrink:0;transition:width var(--duration-slow) var(--ease-out);}
-.sidebar-logo{padding:18px 20px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;flex-shrink:0;}
+.sidebar-logo{padding:20px 20px 18px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.sidebar-logo img{width:56px;height:56px;}
 .sidebar-logo-text{font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-0.03em;}
 .sidebar-identity{padding:14px 20px;border-bottom:1px solid var(--border-subtle);flex-shrink:0;}
 .sidebar-identity-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;}
@@ -30,14 +31,18 @@ body{width:100%;overflow-x:hidden;position:relative;}
 @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:0.4;}}
 
 /* Nav */
-.sidebar-nav{flex:1;padding:8px 0;overflow-y:auto;}
-.nav-section-label{padding:16px 20px 6px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-quaternary);font-weight:500;}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);border-left:2px solid transparent;transition:all var(--duration-normal) var(--ease-out);margin:1px 0;border-radius:0;position:relative;}
+.sidebar-nav{flex:1;padding:8px 0 12px;overflow-y:auto;}
+/* Group labels sit quieter than the items they head — they are
+   signposts, not content. The generous top padding is what separates
+   one group from the next; there are no divider rules. */
+.nav-section-label{padding:20px 20px 6px;font-size:var(--text-xs);letter-spacing:var(--tracking-wider);text-transform:uppercase;color:var(--text-quaternary);font-weight:var(--font-semibold);}
+.nav-section-label:first-child{padding-top:8px;}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 20px;cursor:pointer;font-size:var(--text-base);font-weight:var(--font-medium);color:var(--text-secondary);border-left:2px solid transparent;transition:color var(--duration-fast) var(--ease-out),background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out);margin:1px 0;border-radius:0;position:relative;}
 .nav-item:hover{color:var(--text-primary);background:var(--surface-glass);border-left-color:var(--border-strong);}
-.nav-item.active{color:var(--brand-text);background:var(--brand-fade);border-left-color:var(--brand);font-weight:600;}
+.nav-item.active{color:var(--brand-text);background:var(--brand-fade);border-left-color:var(--brand);font-weight:var(--font-semibold);}
 .nav-item.active .nav-icon{color:var(--brand);}
-.nav-icon{display:flex;align-items:center;flex-shrink:0;}
-.nav-icon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.nav-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--icon-md);}
+.nav-icon svg{width:var(--icon-md);height:var(--icon-md);stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
 .nav-badge{margin-left:auto;font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--radius-pill);background:var(--red-fade);color:var(--red);line-height:1.4;}
 
 .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border-subtle);flex-shrink:0;}
@@ -90,7 +95,8 @@ body{width:100%;overflow-x:hidden;position:relative;}
 /* PLAN CARDS */
 .plan-card{background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:22px;transition:border-color var(--duration-fast),transform var(--duration-fast),box-shadow var(--duration-fast);display:flex;flex-direction:column;}
 .plan-card:hover{border-color:var(--border-default);transform:translateY(-1px);box-shadow:var(--shadow-md);}
-.plan-card-name{font-size:16px;font-weight:700;color:var(--text-primary);}
+.plan-card-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);}
+.plan-card-name{font-size:16px;font-weight:700;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;}
 .plan-card-duration{font-size:12px;color:var(--text-tertiary);margin-top:3px;}
 .plan-card-price{font-size:28px;font-weight:700;color:var(--brand-text);margin:12px 0;letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;}
 .plan-card-price span{font-size:13px;color:var(--text-tertiary);font-weight:400;}

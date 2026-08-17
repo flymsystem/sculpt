@@ -26,12 +26,16 @@ export function renderLogin(router) {
 
       <form class="login-card" id="login-form" novalidate autocomplete="on">
         <div class="login-logo">
-          <img src="/icon-192.png" alt="D Sculpt Fitness" width="72" height="72"
-            style="border-radius:14px;display:block;margin:0 auto;">
+          <!-- logo-*.png is the bare circular mark on transparency,
+               trimmed to its own bounding box. The icon-*.png assets are
+               NOT used here: those carry an opaque #050507 plate for the
+               PWA/favicon and would show as a black square on the card. -->
+          <img src="/logo-256.png" alt="D Sculpt Fitness" width="120" height="120"
+            style="display:block;margin:0 auto;">
         </div>
 
-        <h1 class="login-title">Welcome to D Sculpt Fitness</h1>
-        <div class="login-sub">Sign in with your credentials</div>
+        <h1 class="login-title">Welcome back</h1>
+        <div class="login-sub">Sign in to manage D Sculpt Fitness</div>
 
         <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
 
@@ -241,15 +245,30 @@ function injectLoginStyles() {
       pointer-events: none;
     }
     .login-card {
-      position: relative; z-index: 2; width: 420px; max-width: 100%;
+      position: relative; z-index: 2; width: 440px; max-width: 100%;
       background: var(--panel2); border: 1px solid var(--border);
-      border-radius: var(--radius-md); padding: 44px 40px;
+      border-radius: var(--radius-lg); padding: 48px 40px 40px;
+      box-shadow: var(--shadow-lg);
       animation: fadeUp 0.45s ease both;
       display: block;
     }
-    .login-logo   { display: flex; justify-content: center; margin-bottom: 28px; }
-    .login-title  { font-family: var(--font-head); font-size: 22px; font-weight: 700; text-align: center; margin: 0 0 6px; color: var(--text-primary); }
-    .login-sub    { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 28px; }
+    /* The badge is the brand's strongest asset and the only thing on this
+       screen that says whose product it is — it gets the top of the card
+       and enough size to read, not a token-sized app icon. */
+    .login-logo   { display: flex; justify-content: center; margin-bottom: 24px; }
+    .login-logo img { width: 120px; height: 120px; }
+    .login-title  { font-family: var(--font-head); font-size: var(--text-3xl); font-weight: var(--font-bold); letter-spacing: var(--tracking-tight); text-align: center; margin: 0 0 6px; color: var(--text-primary); }
+    .login-sub    { font-size: var(--text-md); color: var(--text-tertiary); text-align: center; margin-bottom: 30px; }
+
+    /* Inputs get a real focus ring rather than the browser default, so a
+       keyboard user can see which field is live on a dark card. */
+    #page-login .form-input { height: 46px; border-radius: var(--radius-md); }
+    #page-login .form-input:focus-visible,
+    #page-login .form-input:focus {
+      outline: none; border-color: var(--border-focus);
+      box-shadow: var(--shadow-focus);
+    }
+    #login-submit[disabled] { opacity: 0.7; }
 
     .login-error {
       display: none; background: rgba(255,77,77,0.08);
@@ -264,7 +283,9 @@ function injectLoginStyles() {
     .login-back button:hover { color: var(--white); }
 
     @media (max-width: 480px) {
-      .login-card { padding: 32px 22px; }
+      .login-card { padding: 36px 22px 28px; }
+      .login-logo img { width: 96px; height: 96px; }
+      .login-logo { margin-bottom: 20px; }
     }
   `;
   document.head.appendChild(style);
