@@ -466,7 +466,13 @@ function injectLandingStyles() {
 }
 
 /* NAV */
-.sc-nav{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:20px;
+/* z-index sits ABOVE #sc-intro (9999) on purpose: the intro plate is a
+   decorative overlay, not a modal, and it used to swallow a visitor's
+   first tap — someone landing on the page and immediately tapping a menu
+   link got nothing but the logo animation, because the plate ate the
+   click instead of forwarding it to the nav underneath. The nav stays
+   interactive through the intro so that first tap actually navigates. */
+.sc-nav{position:sticky;top:0;z-index:10000;display:flex;align-items:center;gap:20px;
   padding-block:12px;background:rgba(5,5,7,0);
   border-bottom:1px solid transparent;transition:background .25s ease,border-color .25s ease;}
 .sc-nav.is-stuck{background:rgba(5,5,7,0.92);backdrop-filter:blur(10px);

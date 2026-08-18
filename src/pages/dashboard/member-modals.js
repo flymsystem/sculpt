@@ -12,6 +12,7 @@ import { removeMemberPhoto, saveAadharPhoto, removeAadharPhoto } from './photo.j
 import { generateInvoicePdfBlob } from '../../lib/invoice-pdf.js';
 import { uploadInvoicePdf } from '../../lib/invoices.js';
 import { hasAccess } from '../../lib/permissions.js';
+import { buildInvoiceDocument } from './invoice-template.js';
 
 let _nav, _saveMemberPhoto;
 export function setNavHandler(fn) { _nav = fn; }
@@ -1738,211 +1739,7 @@ function openWAModal(id) {
 // INVOICE MODAL  — NEW FEATURE
 // ════════════════════════════════════════════════════════════════
 function buildInvoiceHTML(m, gymName, invoiceNo) {
-  const exp     = expiryDate(m);
-  const expStr  = exp ? exp.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
-  invoiceNo = invoiceNo || genInvoiceNo();
-  const _now = new Date();
-  const dateStr = String(_now.getDate()).padStart(2,'0') + '/' + String(_now.getMonth()+1).padStart(2,'0') + '/' + _now.getFullYear();
-  const joinStr = m.join_date ? new Date(m.join_date).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
-
-  const memberAddons = parseMemberAddons(m);
-  const basePlan = S.plans.find(p => m.plan_id ? String(p.id)===String(m.plan_id) : p.name===(m.plan_name||m.plan));
-  const basePlanPrice = basePlan ? parseFloat(basePlan.price) : (parseFloat(m.plan_price) || 0);
-  const addonTotal = memberAddons.reduce((s,a) => s + (parseFloat(a.price)||0), 0);
-  const totalPrice = basePlanPrice + addonTotal;
-
-  const discount   = parseFloat(m.discount_amount) || 0;
-  const netTotal   = Math.max(0, totalPrice - discount);
-  const balanceDue = parseFloat(m.balance_due) || 0;
-  const amountPaid = Math.max(0, netTotal - balanceDue);
-  const gstOn = !!S.gym?.gst_enabled;
-
-  const gstPct   = gstOn ? (parseFloat(S.gym?.gst_percentage) || 18) : 0;
-  const halfPct  = gstPct / 2;
-  const fmtNum   = (v) => Number(v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-  // Build item rows (plan + addons)
-  let rowNum = 0;
-  const planDesc = (m.plan_name||m.plan||'Membership').toUpperCase();
-  const planDateRange = (joinStr && expStr) ? `${joinStr} – ${expStr}` : '';
-
-  // For each line item, compute taxable + GST
-  const computeRow = (rate) => {
-    if (gstOn) {
-      const taxable = rate / (1 + gstPct / 100);
-      const gst = rate - taxable;
-      return { taxable, gst, amount: rate };
-    }
-    return { taxable: rate, gst: 0, amount: rate };
-  };
-
-  const planCalc = computeRow(basePlanPrice);
-  rowNum++;
-  let itemRowsHTML = `<tr>
-    <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">${rowNum}</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">
-      <div style="font-weight:600;">${escHtml(planDesc)}</div>
-      ${planDateRange ? `<div style="font-size:11px;color:#888;margin-top:2px;">${planDateRange}</div>` : ''}
-    </td>
-    <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;vertical-align:top;">1</td>
-    <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;vertical-align:top;">₹${fmtNum(basePlanPrice)}</td>
-    ${gstOn ? `<td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;vertical-align:top;">₹${fmtNum(planCalc.taxable)}</td>` : ''}
-    ${gstOn ? `<td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;vertical-align:top;">₹${fmtNum(planCalc.gst)}</td>` : ''}
-    <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;vertical-align:top;font-weight:700;">₹${fmtNum(planCalc.amount)}</td>
-  </tr>`;
-
-  memberAddons.forEach(a => {
-    rowNum++;
-    const aC = computeRow(parseFloat(a.price)||0);
-    itemRowsHTML += `<tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;">${rowNum}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;">${escHtml(a.name)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;">1</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;">₹${fmtNum(parseFloat(a.price)||0)}</td>
-      ${gstOn ? `<td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;">₹${fmtNum(aC.taxable)}</td>` : ''}
-      ${gstOn ? `<td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;">₹${fmtNum(aC.gst)}</td>` : ''}
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">₹${fmtNum(aC.amount)}</td>
-    </tr>`;
-  });
-
-  // Summary calculations
-  const taxableAmount = gstOn ? (netTotal / (1 + gstPct / 100)) : netTotal;
-  const totalGST = gstOn ? (netTotal - taxableAmount) : 0;
-  const halfGST = totalGST / 2;
-
-  const payStatus = balanceDue > 0 ? (amountPaid > 0 ? 'PARTIAL' : 'DUE') : 'PAID';
-  const statusColor = payStatus === 'PAID' ? '#16a34a' : payStatus === 'PARTIAL' ? '#d97706' : '#dc2626';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Invoice ${invoiceNo} — ${escHtml(m.full_name||m.name)}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#222;background:#fff;}
-    .page{max-width:620px;margin:0 auto;padding:36px 40px;}
-    @media print{body{padding:0;}.page{padding:22px 26px;max-width:100%;}}
-  </style>
-</head>
-<body>
-<div class="page">
-
-  <!-- HEADER -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
-    <div style="display:flex;align-items:flex-start;gap:14px;flex:1;">
-      ${S.gym?.logo_url ? `<img src="${escHtml(S.gym.logo_url)}" alt="" style="max-width:80px;max-height:60px;object-fit:contain;">` : ''}
-      <div>
-        <div style="font-size:18px;font-weight:700;color:#111;">${escHtml(gymName)}</div>
-        ${S.gym?.address ? `<div style="font-size:11px;color:#666;margin-top:3px;line-height:1.5;max-width:320px;">${escHtml(S.gym.address)}${S.gym?.city ? ', '+escHtml(S.gym.city) : ''}</div>` : ''}
-        ${gstOn && S.gym?.gstin ? `<div style="font-size:11px;color:#666;margin-top:2px;">GSTIN: ${escHtml(S.gym.gstin)}</div>` : ''}
-      </div>
-    </div>
-    <div style="text-align:right;">
-      <div style="font-size:20px;font-weight:700;color:#333;letter-spacing:0.05em;">INVOICE</div>
-      <div style="display:inline-block;margin-top:6px;padding:3px 14px;border:2px solid ${statusColor};border-radius:4px;font-size:12px;font-weight:700;color:${statusColor};letter-spacing:0.05em;">${payStatus}</div>
-    </div>
-  </div>
-
-  <!-- BILL TO + INVOICE DETAILS -->
-  <div style="display:flex;gap:16px;margin-bottom:24px;">
-    <div style="flex:1;border:1px solid #ddd;border-radius:6px;padding:14px 16px;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:8px;">Bill To</div>
-      <div style="font-size:15px;font-weight:700;color:#111;">${escHtml(m.full_name||m.name)}</div>
-      ${m.phone ? `<div style="font-size:12px;color:#555;margin-top:3px;">${escHtml(m.phone)}</div>` : ''}
-      ${m.email ? `<div style="font-size:12px;color:#555;margin-top:2px;">${escHtml(m.email)}</div>` : ''}
-    </div>
-    <div style="flex:1;border:1px solid #ddd;border-radius:6px;padding:14px 16px;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:8px;">Invoice Details</div>
-      <div style="font-size:12px;color:#333;line-height:1.8;">
-        <div><strong>Bill No:</strong> ${invoiceNo}</div>
-        <div><strong>Date:</strong> ${dateStr}</div>
-        ${gstOn ? `<div><strong>SAC:</strong> 999723</div>` : ''}
-        <div><strong>Type:</strong> ${gstOn ? 'B2C' : ''} — Membership</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ITEMS TABLE -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
-    <thead>
-      <tr style="border-bottom:2px solid #222;">
-        <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">#</th>
-        <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">Description</th>
-        <th style="padding:8px 12px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">Qty</th>
-        <th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">Rate</th>
-        ${gstOn ? `<th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">Taxable Amt</th>` : ''}
-        ${gstOn ? `<th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">GST (${gstPct}%)</th>` : ''}
-        <th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#999;font-weight:600;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>${itemRowsHTML}</tbody>
-  </table>
-
-  <!-- SUMMARY -->
-  <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
-    <div style="width:280px;">
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#444;">
-        <span>Sub-Total</span><span>₹${fmtNum(totalPrice)}</span>
-      </div>
-      ${discount > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#dc2626;">
-        <span>Discount</span><span>–₹${fmtNum(discount)}</span>
-      </div>` : ''}
-      ${gstOn ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#444;">
-        <span>Taxable Amount</span><span>₹${fmtNum(taxableAmount)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#444;">
-        <span>CGST @ ${halfPct}%</span><span>₹${fmtNum(halfGST)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#444;">
-        <span>SGST @ ${halfPct}%</span><span>₹${fmtNum(halfGST)}</span>
-      </div>` : ''}
-      <div style="display:flex;justify-content:space-between;padding:12px 14px;margin-top:6px;background:#f0f7ff;border:1px solid #d0e3f7;border-radius:6px;">
-        <span style="font-size:15px;font-weight:700;color:#111;">Grand Total</span>
-        <span style="font-size:15px;font-weight:700;color:#2A8FFF;">₹${fmtNum(netTotal)}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- PAYMENT / STATUS ROW -->
-  <div style="display:flex;gap:0;margin-bottom:22px;border:1px solid #eee;border-radius:6px;overflow:hidden;">
-    <div style="flex:1;padding:12px 16px;border-right:1px solid #eee;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:4px;">Payment Mode</div>
-      <div style="font-size:14px;font-weight:600;color:#222;">${escHtml(m.payment_mode||m.payMode||'—')}</div>
-    </div>
-    <div style="flex:1;padding:12px 16px;border-right:1px solid #eee;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:4px;">Amount Paid</div>
-      <div style="font-size:14px;font-weight:600;color:#222;">₹${fmtNum(amountPaid)}</div>
-    </div>
-    <div style="flex:1;padding:12px 16px;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:4px;">Status</div>
-      <div style="font-size:14px;font-weight:700;color:${statusColor};">${payStatus}</div>
-    </div>
-  </div>
-
-  <!-- TERMS -->
-  <div style="margin-bottom:24px;padding:14px 16px;border:1px solid #eee;border-radius:6px;">
-    <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;">Terms &amp; Conditions</div>
-    <div style="font-size:11px;color:#888;line-height:1.8;">
-    ${S.gym?.invoice_terms
-      ? S.gym.invoice_terms.split('\n').filter(l => l.trim()).map(l => `<div>• ${escHtml(l.trim())}</div>`).join('')
-      : `<div>• This receipt is issued on payment and is non-refundable.</div>
-    <div>• Please retain this receipt for any future reference or dispute.</div>
-    <div>• Membership is subject to the gym’s rules and conditions displayed on the premises.</div>
-    <div>• No cash refunds will be provided for unused membership days.</div>
-    <div>• The gym is not responsible for personal belongings left on the premises.</div>`}
-    </div>
-  </div>
-
-  <!-- FOOTER -->
-  <div style="text-align:center;padding-top:18px;border-top:1px solid #eee;color:#888;font-size:12px;line-height:1.8;">
-    <div>Thank you for choosing <strong style="color:#333;">${escHtml(gymName)}</strong></div>
-    <div style="color:#aaa;margin-top:2px;">We appreciate your trust in us. Stay fit, stay healthy!</div>
-  </div>
-
-</div>
-</body>
-</html>`;
+  return buildInvoiceDocument(m, gymName, invoiceNo);
 }
 
 function buildWhatsAppText(m, gymName) {
@@ -1989,7 +1786,9 @@ function openInvoiceModal(id) {
         showToast('Invoice copied!','green');
       });
       document.getElementById('inv-print').addEventListener('click', () => {
-        showPrintPreview('Receipt Preview', buildInvoiceHTML(m, gym));
+        // 692px = the 660px A4 sheet plus its surround; the preview scales
+        // that down to fit rather than reflowing the printable document.
+        showPrintPreview('Invoice Preview', buildInvoiceHTML(m, gym), { sheetWidth: 692 });
       });
       document.getElementById('inv-wa').addEventListener('click', async () => {
         const phone = m.phone?.replace(/\D/g,'');

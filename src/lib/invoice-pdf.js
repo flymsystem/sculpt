@@ -37,7 +37,7 @@ async function generateInvoicePdfBlob(html) {
   container.style.position = 'fixed';
   container.style.left = '0';
   container.style.top = '0';
-  container.style.width = '620px'; // matches .page max-width in the invoice HTML
+  container.style.width = '660px'; // must match .page width in invoice-template.js
   container.style.background = '#fff';
   container.style.zIndex = '-9999';
   container.style.opacity = '0';
@@ -48,6 +48,11 @@ async function generateInvoicePdfBlob(html) {
   try {
     // Render just the receipt card, not the full synthetic <html>/<body> wrapper
     const target = container.querySelector('.page') || container;
+    // The invoice stylesheet scales the sheet down on narrow screens so the
+    // in-app preview never squashes it. Those media queries evaluate against
+    // the real viewport here, so on a phone the export would inherit a 0.6x
+    // zoom. The PDF is always rendered at the full 660px sheet width.
+    target.style.zoom = '1';
     const blob = await html2pdf()
       .set({
         margin: 0,
@@ -56,10 +61,15 @@ async function generateInvoicePdfBlob(html) {
           scale: 3,
           backgroundColor: '#ffffff',
           useCORS: true,
-          windowWidth: 620,
+          windowWidth: 660,
           logging: false,
         },
         jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        // A membership invoice fits one A4 page; a long one (GST plus several
+        // add-ons) runs to two. Honour the sheet's own `break-inside: avoid`
+        // so the overflow carries whole sections instead of slicing a table
+        // row or the footer in half.
+        pagebreak: { mode: ['css', 'legacy'] },
       })
       .from(target)
       .outputPdf('blob');

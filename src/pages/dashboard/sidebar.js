@@ -182,12 +182,14 @@ function buildSidebar(gymName, gymCode, logoUrl) {
            lettering was unreadable and it read as an app icon rather than
            the brand. logo-128 is the bare mark on transparency — the
            icon-*.png assets carry an opaque plate for the PWA and would
-           show as a black square against the sidebar. -->
-      <img src="/logo-128.png" alt="D Sculpt Fitness" width="56" height="56"
-        style="display:block;">
+           show as a black square against the sidebar. Only shown when the
+           gym hasn't uploaded its own branding in Gym Settings — otherwise
+           this default mark duplicates the branded logo below it. -->
+      ${!logoUrl ? `<img src="/logo-128.png" alt="D Sculpt Fitness" width="56" height="56"
+        style="display:block;">` : ''}
     </div>
     <div class="sidebar-identity">
-      ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="" style="max-width:180px;max-height:60px;width:auto;height:auto;object-fit:contain;object-position:left center;margin-bottom:10px;display:block;">` : ''}
+      ${logoUrl ? `<img src="${escHtml(logoUrl)}" alt="" style="max-width:220px;max-height:88px;width:auto;height:auto;object-fit:contain;object-position:left center;margin-bottom:10px;display:block;">` : ''}
       <div class="sidebar-identity-label">Active Gym</div>
       <div class="sidebar-identity-name">${escHtml(gymName)}</div>
       ${gymCode ? `<div class="sidebar-identity-code">${escHtml(gymCode)}</div>` : ''}
