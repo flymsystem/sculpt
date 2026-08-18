@@ -50,6 +50,14 @@ Read from it; don't thread it through parameters.
   engine. Lazy loading is guarded by a test.
 - Use `.is-open` classes, never the `hidden` attribute, on anything you also
   style with `display:`.
+- **The `popstate` handler in `src/app.js` must no-op when the resolved
+  page equals `router.current`.** Chromium fires `popstate` — not just
+  `hashchange` — for a plain same-page anchor click (`<a href="#why">`),
+  and `router.go()` has no "already on this page" guard of its own. Remove
+  that check and every landing-page nav link (Why us, Training,
+  Membership, About, Contact) tears the whole page down and rebuilds it on
+  click, replaying the intro animation every time instead of letting the
+  browser scroll to the section.
 
 ## Invoices and printable documents
 

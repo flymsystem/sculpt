@@ -24,7 +24,8 @@ npm run preview      # serve the built output on :4173
 ```
 
 Hard-refresh a deep route such as `/dashboard/finance` in the preview
-before shipping, then upload `dist/` to Cloudflare Pages.
+before shipping, then push to the `sculpt-whitelabel` branch on GitHub —
+Vercel auto-deploys from it (see [HANDOVER.md](HANDOVER.md) §3).
 
 ## Checks
 

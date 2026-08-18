@@ -11,7 +11,7 @@ A gym management app for **D Sculpt Fitness**, plus its public website.
 
 | Piece | Where it runs |
 |---|---|
-| Website + dashboard | Static files you upload to Cloudflare Pages |
+| Website + dashboard | Vercel, auto-deployed from the `sculpt-whitelabel` branch on GitHub (`github.com/flymsystem/sculpt`) |
 | Database, logins, storage | Supabase |
 
 **Stack:** plain JavaScript (no framework) built by Vite, Supabase for the
@@ -39,13 +39,43 @@ website and is protected by row-level security, not secrecy. The
 **service_role key** is the dangerous one: it bypasses all security. Never
 put it in `.env.local` or any file under `src/`.
 
+> **`.env.local` is not tracked in git.** It was accidentally committed at
+> the project baseline and has since been removed from tracking
+> (`git rm --cached`) — `.gitignore` excludes `.env.local` and `.env*`.
+> Running `vercel link` or `vercel env pull` writes a live
+> `VERCEL_OIDC_TOKEN` into this file; that must never end up in a commit.
+> If `git status` ever shows `.env.local` as a tracked change, stop and
+> untrack it again before committing anything.
+
 ---
 
 ## 3. Deploying
 
-There is no automatic deploy. You build on your machine and upload.
+**Deploys are automatic.** Vercel is connected to the GitHub repo
+(`github.com/flymsystem/sculpt`) and watches the `sculpt-whitelabel`
+branch — every `git push` to that branch triggers a new production
+deployment. There is nothing to upload by hand.
 
-In the VS Code terminal, in this folder:
+```
+git push origin sculpt-whitelabel
+```
+
+That's the whole deploy. Vercel runs `npm run build` (pinned in
+`vercel.json`, output directory `dist`) and aliases the result to
+**https://sculp-fitness.vercel.app** within about a minute.
+
+To deploy from your own machine without waiting on a push (useful for
+checking a fix before committing), the Vercel CLI does the same build:
+
+```
+npx vercel --prod
+```
+
+The CLI needs the same certificate workaround as `vercel login` on a
+machine running Kaspersky (or any TLS-inspecting antivirus) — see the
+PowerShell notes below.
+
+**Before pushing**, build and smoke-test locally the same way as before:
 
 ```
 npm run build
@@ -56,10 +86,25 @@ Open http://localhost:4173, then **hard-refresh** (Ctrl+Shift+R) on a deep
 page like `/dashboard/finance`. If it loads, the build is good. If it goes
 blank, stop — see "Things that will break it" below.
 
-Then upload the whole **`dist`** folder to Cloudflare Pages.
+**Environment variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+live in the Vercel project settings
+(`vercel.com/flymsystems-projects/sculp-fitness/settings/environment-variables`),
+scoped to Production, Preview and Development. They are not read from
+`.env.local` in the deployed build — that file only matters for
+`npm run dev` on your own machine. To change them:
 
-After uploading, if the site looks stale, visit `/unstick/` on the live
-site. That clears the old cached version.
+```
+npx vercel env add VITE_SUPABASE_URL production
+```
+
+(re-run once per environment you want to update; the CLI prompts for the
+new value rather than taking it as an argument, so it never appears in
+your shell history).
+
+If the site looks stale after a deploy, it's almost always the **service
+worker** caching the previous build in the visitor's browser, not a bad
+deploy — a hard refresh (or a second normal refresh) clears it. `/unstick/`
+still exists as a manual fallback that clears the old cached version.
 
 ---
 
@@ -198,12 +243,29 @@ built from.
 - **Pages and the PDF engine load on demand.** The PDF engine is ~935 kB
   and must only download when someone actually makes a PDF. A test guards
   this too.
+- **The landing page's `popstate` listener must check `page ===
+  router.current` before re-rendering.** Chromium fires `popstate` — not
+  just `hashchange` — when a visitor clicks a same-page anchor link like
+  `<a href="#why">`, even though the route hasn't actually changed.
+  `router.go()` has no "already on this page" early-out, so without that
+  guard, clicking any landing-page nav link (Why us, Training, Membership,
+  About, Contact) tore the whole page down and rebuilt it — replaying the
+  intro logo animation on every single menu click instead of just letting
+  the browser scroll to the section. See the guard at the top of the
+  `popstate` handler in `src/app.js`.
 
 ### PowerShell notes (your terminal)
 
 - `curl` is not real curl. Use `curl.exe`, and add `--ssl-no-revoke` on
   your university network.
 - `&&` chaining and `$(...)` are bash syntax and will not work.
+- **`npx vercel login` (and any Vercel CLI command) fails with
+  `TypeError: fetch failed` / `UNABLE_TO_VERIFY_LEAF_SIGNATURE` on a
+  machine running Kaspersky** (or another antivirus that scans HTTPS
+  traffic). Node doesn't trust the antivirus's re-signed certificate by
+  default. Fix: `$env:NODE_OPTIONS="--use-system-ca"` in the terminal
+  before running any `vercel` command — that tells Node to use Windows'
+  own certificate store, which does trust it.
 
 ---
 
@@ -255,19 +317,22 @@ Stated plainly rather than hidden:
 ## 9. Where things are
 
 ```
-src/app.js                  routing
-src/lib/                    database access
-  members.js                members, payments, revenue (the money code)
-  auth.js                   login and profile loading
-  permissions.js            who can see what (owner vs staff)
-src/pages/landing.js        the public website  <- placeholders live here
-src/pages/login.js          login screen
-src/pages/dashboard/        the app itself, one file per section
-src/styles/tokens.css       all colours, fonts and spacing
-scripts/generate-icons.mjs  rebuilds app icons from sculp-logo.png
-scripts/verify-schema.mjs   checks the database matches the code
-supabase/migrations/        database history, applied in filename order
-tests/                      automated checks
+src/app.js                        routing
+src/lib/                          database access
+  members.js                      members, payments, revenue (the money code)
+  auth.js                         login and profile loading
+  permissions.js                  who can see what (owner vs staff)
+  invoice-pdf.js                  renders the invoice to a PDF blob
+src/pages/landing.js              the public website  <- placeholders live here
+src/pages/login.js                login screen
+src/pages/dashboard/              the app itself, one file per section
+  invoice-template.js             the invoice/receipt HTML — shared by the preview, print and PDF paths
+src/styles/tokens.css             all colours, fonts and spacing
+scripts/generate-icons.mjs        rebuilds app icons from sculp-logo.png
+scripts/verify-schema.mjs         checks the database matches the code
+supabase/migrations/              database history, applied in filename order
+tests/                            automated checks
+vercel.json                       Vercel build + SPA routing config (see §3)
 ```
 
 **Fonts:** Barlow Condensed for big website headlines, Manrope everywhere
