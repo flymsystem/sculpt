@@ -307,6 +307,16 @@ window.addEventListener('popstate', (e) => {
     ? e.state.page
     : pageFromPath(window.location.pathname);
 
+  // Chromium fires popstate not just for back/forward, but also when a
+  // same-document fragment link (<a href="#why">) is clicked — even
+  // though the route hasn't changed, only window.location.hash has. router.go()
+  // has no early-out for "already on this page", so without this guard
+  // every click on a landing-page nav link (#why, #programmes, ...) tore
+  // the whole page down and rebuilt it, replaying the intro animation on
+  // every menu click instead of just letting the browser scroll to the
+  // anchor.
+  if (page === router.current && page !== 'gym') return;
+
   if (!page) {
     router.go('landing', { _fromPopState: true });
     return;

@@ -7,3 +7,6 @@ test-results/
 .claude/settings.local.json
 *.doctor-backup
 .playwright-mcp/
+
+.vercel
+.env*
