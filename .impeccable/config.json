@@ -11,6 +11,30 @@
         ],
         "createdAt": "2026-08-16T09:07:32.547Z",
         "reason": "Claude: both hits (L266, L777) are inside exportPDF's A4 print HTML (@page size:A4, background:#fff). A border-left callout on a summary block is standard printed-report design, not a screen-UI tell; project rules state print-context hardcoded styling is correct. grep confirms backup.js has no screen-context border-left accents."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "quotation/dsculpt-agreement.html"
+        ],
+        "createdAt": "2026-08-18T16:59:07.555Z",
+        "reason": "Matches the left-accent-bar callout style used throughout Flym's own Founders' Agreement reference document"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-08-18T16:59:18.638Z",
+        "reason": "Matches the sans typeface family used in Flym's own Founders' Agreement reference document"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/pages/dashboard/checkin-display.js"
+        ],
+        "createdAt": "2026-08-21T10:19:50.950Z",
+        "reason": "checkin-qr-img src is set asynchronously by refreshCode() after the first token/QR fetch completes — not a placeholder"
       }
     ]
   }
