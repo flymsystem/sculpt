@@ -31,15 +31,20 @@ for (const vp of VIEWPORTS) {
     expect(overflow, 'The landing page scrolls horizontally').toBeLessThanOrEqual(1);
   });
 
-  test(`landing shows the brand and a login CTA at ${vp.name}`, async ({ page }) => {
+  test(`landing shows the brand and a burger menu with both logins at ${vp.name}`, async ({ page }) => {
+    // Both logins moved into the burger drawer at every width (2026-08) —
+    // the top bar is deliberately just the logo + burger now, so "a login
+    // CTA" means the burger opens to reveal one, not that one sits bare
+    // in the bar. See the reversal comment in src/pages/landing.js.
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/', { waitUntil: 'load' });
 
     await expect(page.getByText(/D Sculpt Fitness/i).first()).toBeVisible();
+    await expect(page.locator('#sc-burger')).toBeVisible();
 
-    const cta = page.getByRole('button', { name: /member login|log ?in|sign ?in/i })
-      .or(page.getByRole('link', { name: /member login|log ?in|sign ?in/i }));
-    await expect(cta.first()).toBeVisible();
+    await page.locator('#sc-burger').click();
+    await expect(page.locator('#sc-nav-member-login')).toBeVisible();
+    await expect(page.locator('#sc-nav-staff-login')).toBeVisible();
   });
 }
 
@@ -78,14 +83,34 @@ test('landing contact is links, not a form', async ({ page }) => {
   ).toBe(0);
 });
 
-test('the login CTA reaches the login page', async ({ page }) => {
+test('the Member Login drawer entry reaches the member login screen, not the staff one', async ({ page }) => {
+  // This used to point at the same /login screen as staff/owner — a
+  // member typing their application number into an email+password form
+  // is exactly the confusion the two-entry drawer exists to prevent.
   await page.goto('/', { waitUntil: 'load' });
   await expect(page.locator('#root')).not.toBeEmpty();
 
-  await page.getByRole('button', { name: /member login/i }).first().click();
-  await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
-  // Assert the login screen actually rendered and is branded, without
-  // pinning the exact headline wording.
+  await page.locator('#sc-burger').click();
+  await page.locator('#sc-nav-member-login').click();
+  await expect(page).toHaveURL(/\/member\/login/, { timeout: 10_000 });
+  await expect(page.locator('#member-login-form')).toBeVisible();
+  await expect(page.locator('#member-appnum')).toBeVisible();
+});
+
+test('the Staff & Owner Login drawer entry reaches the staff/owner login screen', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'load' });
+  await expect(page.locator('#root')).not.toBeEmpty();
+
+  await page.locator('#sc-burger').click();
+  await page.locator('#sc-nav-staff-login').click();
+  await expect(page).toHaveURL(/\/login$/, { timeout: 10_000 });
   await expect(page.locator('#login-form')).toBeVisible();
   await expect(page.getByText(/D Sculpt Fitness/i).first()).toBeVisible();
+});
+
+test('the footer Staff & owner login link still works as a secondary path', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'load' });
+  await page.locator('#sc-foot-login').click();
+  await expect(page).toHaveURL(/\/login$/, { timeout: 10_000 });
+  await expect(page.locator('#login-form')).toBeVisible();
 });

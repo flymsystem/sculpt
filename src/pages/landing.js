@@ -139,8 +139,10 @@ export function renderLanding(router) {
         <a href="#membership" class="sc-nav-membership" hidden>Membership</a>
         <a href="#about">About</a>
         <a href="#contact">Contact</a>
+        <div class="sc-nav-divider" role="separator" aria-hidden="true"></div>
+        <button class="sc-nav-login-member" id="sc-nav-member-login" type="button">Member Login</button>
+        <button class="sc-nav-login-staff" id="sc-nav-staff-login" type="button">Staff &amp; Owner Login</button>
       </nav>
-      <button class="sc-btn sc-nav-cta" id="sc-nav-login" type="button">Member Login</button>
       <button class="sc-burger" id="sc-burger" type="button"
         aria-label="Open menu" aria-expanded="false" aria-controls="sc-nav-links">
         <span></span><span></span><span></span>
@@ -300,12 +302,16 @@ export function renderLanding(router) {
 
   // ── Wiring ──────────────────────────────────────────────────────
   const toLogin = () => router.go('login');
-  document.getElementById('sc-nav-login')?.addEventListener('click', toLogin);
+  const toMemberLogin = () => router.go('member-login');
+  document.getElementById('sc-nav-member-login')?.addEventListener('click', toMemberLogin);
+  document.getElementById('sc-nav-staff-login')?.addEventListener('click', toLogin);
   document.getElementById('sc-foot-login')?.addEventListener('click', toLogin);
 
   playIntro();
 
-  // Mobile menu
+  // Burger menu — the single navigation entry point at every width now
+  // (see the comment on .sc-burger below for why). Section links AND
+  // both logins live in the same drawer, closing on any link/button tap.
   const burger = document.getElementById('sc-burger');
   const links = document.getElementById('sc-nav-links');
   const closeMenu = () => {
@@ -318,7 +324,7 @@ export function renderLanding(router) {
     burger.setAttribute('aria-expanded', String(!!open));
     burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   });
-  links?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+  links?.querySelectorAll('a, button').forEach(el => el.addEventListener('click', closeMenu));
 
   // Sticky-nav shade
   const nav = document.querySelector('.sc-nav');
@@ -482,11 +488,31 @@ function injectLandingStyles() {
    duplicate HTML text beside it. */
 .sc-nav-brand{display:flex;align-items:center;text-decoration:none;line-height:0;}
 .sc-nav-brand img{width:76px;height:76px;display:block;}
-.sc-nav-links{display:flex;gap:28px;margin-left:auto;}
-.sc-nav-links a{color:${CHROME};text-decoration:none;font-size:14px;font-weight:500;
-  padding:6px 0;transition:color .18s ease;}
+/* The drawer, not an inline bar — see the .sc-burger comment for why
+   this changed from an always-inline nav to a burger-triggered one at
+   every width. */
+.sc-nav-links{position:absolute;top:100%;left:0;right:0;display:none;
+  flex-direction:column;gap:0;background:rgba(5,5,7,0.98);backdrop-filter:blur(10px);
+  border-bottom:1px solid rgba(200,205,214,0.12);padding:8px var(--sc-gut) 16px;}
+.sc-nav-links.is-open{display:flex;}
+.sc-nav-links a{color:${CHROME};text-decoration:none;font-size:16px;font-weight:500;
+  padding:14px 0;border-bottom:1px solid rgba(200,205,214,0.07);transition:color .18s ease;}
 .sc-nav-links a:hover,.sc-nav-links a:focus-visible{color:#fff;}
-.sc-burger{display:none;margin-left:auto;background:none;border:0;cursor:pointer;
+/* Visual separation between "browse the site" and "sign in" — a member
+   must never land on the staff/owner login by accident. The divider
+   plus two deliberately different button treatments (filled brand pill
+   vs. plain muted text) are the two cues that do that. */
+.sc-nav-divider{height:1px;background:rgba(200,205,214,0.12);margin:10px 0;}
+.sc-nav-login-member,.sc-nav-login-staff{display:block;width:100%;text-align:left;
+  background:none;border:none;font-family:var(--font-sans);cursor:pointer;padding:12px 0;}
+.sc-nav-login-member{color:${BLUE_LIGHT};font-size:16px;font-weight:700;}
+.sc-nav-login-member:hover,.sc-nav-login-member:focus-visible{color:#fff;}
+.sc-nav-login-staff{color:#6B727E;font-size:13.5px;font-weight:500;
+  text-decoration:underline;text-underline-offset:4px;}
+.sc-nav-login-staff:hover,.sc-nav-login-staff:focus-visible{color:${CHROME};}
+/* Always visible, at every width — the top bar's only job now is the
+   logo and this one entry point. See the .sc-nav-links comment. */
+.sc-burger{display:flex;margin-left:auto;background:none;border:0;cursor:pointer;
   width:44px;height:44px;padding:10px;flex-direction:column;justify-content:space-between;}
 .sc-burger span{display:block;height:2px;background:#F2F4F8;border-radius:2px;}
 
@@ -502,12 +528,15 @@ function injectLandingStyles() {
 .sc-btn-lg{padding:16px 32px;font-size:16px;}
 .sc-btn-ghost{background:transparent;color:#F2F4F8;border-color:rgba(200,205,214,0.32);}
 .sc-btn-ghost:hover{background:rgba(200,205,214,0.09);border-color:${CHROME};}
-/* The nav login is a utility action, not the page's primary CTA — that is
-   "Contact us" in the hero. It is sized down so it stops competing with the
-   headline, and it stays in the bar at every width rather than being hidden
-   behind the burger, because signed-up members arrive looking for exactly it.
-   Declared after the size modifiers so it is the single source of its size. */
-.sc-nav-cta{flex-shrink:0;padding:8px 18px;font-size:13px;min-height:36px;letter-spacing:0.01em;}
+/* 2026-08 REVERSAL, recorded rather than deleted per this codebase's own
+   convention: this used to keep a "Member Login" pill inline in the bar
+   at every width, deliberately out of the burger drawer, on the reasoning
+   that "signed-up members arrive looking for exactly it." That was correct
+   when there was one login for everyone. Now there are two — member and
+   staff/owner — and a member landing on the wrong one by habit is worse
+   than one extra tap, so the client asked for both to move into the
+   drawer and the top bar to go back to just the logo. See .sc-nav-links /
+   .sc-nav-login-member / .sc-nav-login-staff below for where they live now. */
 .sc-land :focus-visible{outline:3px solid ${BLUE_LIGHT};outline-offset:3px;border-radius:8px;}
 
 /* HERO — reference geometry: 791px tall, text low-left, photo bleeding
@@ -655,19 +684,12 @@ function injectLandingStyles() {
 .sc-reveal.is-in{opacity:1;transform:none;}
 
 @media (max-width:860px){
-  /* The login stays on the bar and the burger sits after it. Hiding the
-     login inside the drawer put the one thing an existing member came for
-     two taps away, behind an icon. */
+  /* Nav bar/drawer rules used to live here, gated to this width — since
+     the 2026-08 reversal above they're universal (see .sc-nav-links /
+     .sc-burger), so only the logo shrink stays width-specific. */
   .sc-nav{gap:10px;}
   .sc-nav-brand img{width:60px;height:60px;}
-  .sc-nav-cta{margin-left:auto;padding:7px 14px;font-size:12px;min-height:34px;}
-  .sc-burger{display:flex;margin-left:0;width:40px;height:40px;padding:9px;}
-  .sc-nav-links{position:absolute;top:100%;left:0;right:0;display:none;
-    flex-direction:column;gap:0;background:rgba(5,5,7,0.98);backdrop-filter:blur(10px);
-    border-bottom:1px solid rgba(200,205,214,0.12);padding:8px var(--sc-gut) 16px;}
-  .sc-nav-links.is-open{display:flex;}
-  .sc-nav-links a{padding:14px 0;font-size:16px;
-    border-bottom:1px solid rgba(200,205,214,0.07);}
+  .sc-burger{margin-left:0;width:40px;height:40px;padding:9px;}
   /* STACKED, NOT OVERLAID.
      On a phone there is no room to run the headline beside the subject,
      and laying it over him either buries the photo under a scrim or
