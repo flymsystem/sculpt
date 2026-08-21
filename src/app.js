@@ -14,6 +14,7 @@ import './styles/components.css';
 // Lazily importing dashboard/index.js also breaks the static import
 // cycle it had with this file via pushDashboardSection().
 import { getAuthUser, getMyProfile, onAuthStateChange } from './lib/auth.js';
+import { getMyMembership } from './lib/member-auth.js';
 import { ensureFreshSession } from './lib/supabase.js';
 
 const APP_BASE = new URL(import.meta.env.BASE_URL || '/', window.location.origin);
@@ -26,6 +27,7 @@ function appPath(path) {
 onAuthStateChange((event) => {
   if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
     window.__sculptSession = null;
+    window.__sculptMemberSession = false;
     router.go('landing');
   }
 });
@@ -51,13 +53,18 @@ document.addEventListener('visibilitychange', async () => {
   _lastVisibilityCheck = now;
 
   // If we think we're logged in, verify the session is still fresh
-  if (window.__sculptSession) {
+  if (window.__sculptSession || window.__sculptMemberSession) {
     const ok = await ensureFreshSession();
     if (!ok) {
-      // Session expired while backgrounded — go to login cleanly
+      // Session expired while backgrounded — go to the right login
+      // screen cleanly (a member session lost mid-background must not
+      // land on the owner/staff email+password screen).
+      const wasMember = !!window.__sculptMemberSession;
       window.__sculptSession = null;
-      if (router.current !== 'landing' && router.current !== 'login') {
-        router.go('login');
+      window.__sculptMemberSession = false;
+      const dest = wasMember ? 'member-login' : 'login';
+      if (router.current !== 'landing' && router.current !== dest) {
+        router.go(dest);
       }
     }
   }
@@ -65,11 +72,13 @@ document.addEventListener('visibilitychange', async () => {
 
 // Also handle bfcache restore (Safari back/forward)
 window.addEventListener('pageshow', async (e) => {
-  if (e.persisted && window.__sculptSession) {
+  if (e.persisted && (window.__sculptSession || window.__sculptMemberSession)) {
     const ok = await ensureFreshSession();
     if (!ok) {
+      const wasMember = !!window.__sculptMemberSession;
       window.__sculptSession = null;
-      router.go('login');
+      window.__sculptMemberSession = false;
+      router.go(wasMember ? 'member-login' : 'login');
     }
   }
 });
@@ -99,11 +108,15 @@ const PAGE_TO_PATH = {
   landing: '/',
   login:   '/login',
   gym:     '/dashboard',
+  'member-login': '/member/login',
+  member:  '/member',
 };
 const PATH_TO_PAGE = {
-  '/':          'landing',
-  '/login':     'login',
-  '/dashboard': 'gym',
+  '/':             'landing',
+  '/login':        'login',
+  '/dashboard':    'gym',
+  '/member/login': 'member-login',
+  '/member':       'member',
 };
 
 function pageFromPath(path) {
@@ -261,6 +274,8 @@ export const router = {
       landing: lazyRoute(() => import('./pages/landing.js'),          m => m.renderLanding(router)),
       login:   lazyRoute(() => import('./pages/login.js'),            m => m.renderLogin(router)),
       gym:     lazyRoute(() => import('./pages/dashboard/index.js'),  m => m.renderGymDashboard(router)),
+      'member-login': lazyRoute(() => import('./pages/member/login.js'), m => m.renderMemberLogin(router)),
+      member:  lazyRoute(() => import('./pages/member/index.js'),     m => m.renderMemberPortal(router)),
     };
 
     const render = routes[page];
@@ -355,14 +370,9 @@ async function boot() {
   }
 
   if (user) {
+    let profile;
     try {
-      const { role, gym, branches } = await getMyProfile(user.id);
-      Object.defineProperty(window, '__sculptSession', {
-        value: { role, gym, branches: branches || [] },
-        writable: true, enumerable: false, configurable: true,
-      });
-      router.go('gym');
-      return;
+      profile = await getMyProfile(user.id);
     } catch (err) {
       // Profile fetch failure with a valid session — show soft error, do NOT
       // silently sign the user out. Landing page is a bad fallback here.
@@ -384,12 +394,53 @@ async function boot() {
       }
       return;
     }
+
+    if (profile) {
+      const { role, gym, branches } = profile;
+      Object.defineProperty(window, '__sculptSession', {
+        value: { role, gym, branches: branches || [] },
+        writable: true, enumerable: false, configurable: true,
+      });
+      router.go('gym');
+      return;
+    }
+
+    // No gym_users row — this is the normal shape for a member account
+    // (see getMyProfile in lib/auth.js). Check for a member row before
+    // treating it as a genuinely unconfigured login.
+    let membership = null;
+    try {
+      membership = await getMyMembership();
+    } catch (err) {
+      console.warn('[Sculpt boot] getMyMembership failed:', err?.message);
+    }
+
+    if (membership) {
+      window.__sculptMemberSession = true;
+      router.go('member');
+      return;
+    }
+
+    // Neither a gym_users row nor a member row — a real "not configured"
+    // account. This is reachable from either login screen, so route back
+    // to whichever one the URL suggests rather than guessing.
+    window.__sculptSession = null;
+    window.__sculptMemberSession = false;
+    if (startPage === 'member' || startPage === 'member-login') {
+      router.go('member-login');
+    } else {
+      router.go('login');
+    }
+    return;
   }
 
   // Not authenticated
   window.__sculptSession = null;
+  window.__sculptMemberSession = false;
   if (startPage === 'gym' || startPage === 'login') {
     router.go('login');
+  } else if (startPage === 'member' || startPage === 'member-login') {
+    router.go('member-login');
   } else {
     router.go('landing');
   }

@@ -18,6 +18,8 @@
 DROP FUNCTION IF EXISTS sculpt_my_membership();
 CREATE FUNCTION sculpt_my_membership()
 RETURNS TABLE (
+  member_id          uuid,
+  gym_id             uuid,
   gym_name           text,
   gym_logo_url       text,
   member_name        text,
@@ -36,7 +38,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
   SELECT
-    g.name, g.logo_url,
+    m.id, m.gym_id, g.name, g.logo_url,
     m.full_name, m.application_number, m.plan_name, m.join_date, m.expiry_date,
     CASE WHEN m.expiry_date IS NOT NULL THEN (m.expiry_date - CURRENT_DATE) ELSE NULL END,
     m.balance_due, m.payment_status,

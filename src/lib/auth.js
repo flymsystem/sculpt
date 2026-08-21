@@ -33,6 +33,17 @@ export async function signIn(email, password) {
   }
 
   const profile = await getMyProfile(authData.user.id);
+  if (!profile) {
+    // The dashboard login screen is owner/staff only — a null profile
+    // here means this account has no gym_users row at all, which
+    // shouldn't be reachable from this screen (members sign in through
+    // their own login, not this one), but fail loudly rather than
+    // silently spreading undefined into the caller.
+    throw new Error(
+      'Account not configured. Your login exists but is not linked to a gym. ' +
+      'Contact the gym owner.'
+    );
+  }
   return { user: authData.user, ...profile };
 }
 
@@ -104,10 +115,13 @@ export async function getMyProfile(userId) {
   }
 
   if (!gymUsers || gymUsers.length === 0) {
-    throw new Error(
-      'Account not configured. Your login exists but is not linked to a gym. ' +
-      'Contact the gym owner.'
-    );
+    // Not necessarily an error any more: since the member portal shipped,
+    // a session with no gym_users row is the NORMAL shape for a member
+    // account, not a broken staff/owner one. Returning null (rather than
+    // throwing) lets app.js's boot() try the member portal next instead
+    // of every member login flashing a "could not load your profile"
+    // error page before redirecting.
+    return null;
   }
 
   // ── Staff users — single gym, no branches ──
