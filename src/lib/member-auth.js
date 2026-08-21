@@ -84,3 +84,13 @@ export async function getMyReceipts() {
   if (error) throw error;
   return data || [];
 }
+
+// Test-only hooks, same convention as window.__sculptCheckin in
+// lib/checkin.js — Playwright drives the built preview server, which
+// has hashed filenames and can't `import()` a /src/... path directly.
+// __sculptSupabase is the raw client, used by tests/security.spec.js to
+// exercise RLS directly (e.g. "can a member session SELECT from gyms").
+if (typeof window !== 'undefined') {
+  window.__sculptMemberAuth = { memberSignIn, memberSignOut, getMyMembership, getMyVisits, getMyReceipts };
+  window.__sculptSupabase = supabase;
+}

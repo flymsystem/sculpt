@@ -834,3 +834,10 @@ export async function getGymActivity(gymId, limit = 20) {
   if (error) throw error;
   return data || [];
 }
+
+// Test-only hook, same convention as window.__sculptCheckin in
+// lib/checkin.js — lets tests/security.spec.js create/remove disposable
+// members against the built preview server without a UI form.
+if (typeof window !== 'undefined') {
+  window.__sculptMembers = { addMember, deleteMember };
+}
