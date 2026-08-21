@@ -76,6 +76,7 @@ function isNavVisible(sectionId) {
     analytics:       'analytics',
     'checkin-display': 'attendance',
     'checkin-scan':    'attendance',
+    checkins:          'attendance',
   };
 
   const perm = permMap[sectionId];
@@ -155,11 +156,12 @@ function buildSidebar(gymName, gymCode, logoUrl) {
   }
 
   // Check-in section
-  const checkinVisible = ['checkin-scan','checkin-display'].filter(isNavVisible);
+  const checkinVisible = ['checkin-scan','checkin-display','checkins'].filter(isNavVisible);
   if (checkinVisible.length > 0) {
     navItems.push(`<div class="nav-section-label">Check-in</div>`);
     if (isNavVisible('checkin-scan'))    navItems.push(`<div class="nav-item" data-id="checkin-scan" role="button" tabindex="0">${navIco('check')}Check In</div>`);
     if (isNavVisible('checkin-display')) navItems.push(`<div class="nav-item" data-id="checkin-display" role="button" tabindex="0">${navIco('grid')}Desk Display</div>`);
+    if (isNavVisible('checkins'))        navItems.push(`<div class="nav-item" data-id="checkins" role="button" tabindex="0">${navIco('clock')}Check-ins</div>`);
   }
 
   // Showcase section

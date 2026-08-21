@@ -1,4 +1,4 @@
-import { S, DEFAULT_WA_TEMPLATE } from './state.js';
+import { S, DEFAULT_WA_TEMPLATE, DEFAULT_CREDENTIALS_WA_TEMPLATE, DEFAULT_FOLLOWUP_WA_TEMPLATE } from './state.js';
 import { escHtml, escAttr } from './helpers.js';
 import { supabase } from '../../lib/supabase.js';
 import { getAddonTemplates, addAddonTemplate, updateAddonTemplate, deleteAddonTemplate } from '../../lib/addon-templates.js';
@@ -26,6 +26,7 @@ function renderGymConfig(c) {
   const g    = S.gym || {};
   const tpl  = g.wa_template   || DEFAULT_WA_TEMPLATE;
   const days = g.reminder_days ?? 7;
+  const followupDays = g.checkin_followup_days ?? 21;
 
   const gstPct = parseFloat(g.gst_percentage) || 18;
   const discountEnabled = !!g.discount_enabled;
@@ -244,6 +245,39 @@ function renderGymConfig(c) {
           <button class="btn btn-primary btn-full" id="btn-save-extra-wa">Save Templates</button>
         </div>
 
+        <!-- Check-in Messages -->
+        <div class="settings-card">
+          <div class="settings-card-title">Check-in Messages</div>
+          <div class="form-group"><label class="form-label" for="wa-credentials">Login Details (sent when a member is added)</label>
+            <textarea class="form-input wa-textarea" id="wa-credentials" rows="6">${escHtml(g.credentials_wa_template || DEFAULT_CREDENTIALS_WA_TEMPLATE)}</textarea>
+          </div>
+          <div class="wa-vars">
+            <span class="wa-vars-label">Insert</span>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-credentials" data-var="{name}">{name}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-credentials" data-var="{appnum}">{appnum}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-credentials" data-var="{gym}">{gym}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-credentials" data-var="{link}">{link}</button>
+          </div>
+          <div class="form-group" style="margin-top:14px;"><label class="form-label" for="wa-followup">Not-Seen-Recently Nudge</label>
+            <textarea class="form-input wa-textarea" id="wa-followup" rows="5">${escHtml(g.followup_wa_template || DEFAULT_FOLLOWUP_WA_TEMPLATE)}</textarea>
+          </div>
+          <div class="wa-vars">
+            <span class="wa-vars-label">Insert</span>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-followup" data-var="{name}">{name}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-followup" data-var="{days}">{days}</button>
+            <button type="button" class="wa-var-btn wa-var" data-var-target="wa-followup" data-var="{gym}">{gym}</button>
+          </div>
+          <div class="form-group" style="margin-top:14px;"><label class="form-label" for="cfg-followup-days">Not Seen Threshold</label>
+            <select class="form-input" id="cfg-followup-days">
+              <option value="7"  ${followupDays===7 ?'selected':''}>7 days</option>
+              <option value="14" ${followupDays===14?'selected':''}>14 days</option>
+              <option value="21" ${followupDays===21?'selected':''}>21 days (default)</option>
+              <option value="30" ${followupDays===30?'selected':''}>30 days</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-save-checkin-wa">Save Check-in Settings</button>
+        </div>
+
       </div>
     </div>
     </div>
@@ -390,7 +424,7 @@ function renderGymConfig(c) {
   // ── Variable autocomplete for WA template ────────────────────
   document.querySelectorAll('.wa-var-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const textarea = document.getElementById('wa-template');
+      const textarea = document.getElementById(btn.dataset.varTarget || 'wa-template');
       if (!textarea) return;
       const v = btn.dataset.var;
       const start = textarea.selectionStart;
@@ -398,7 +432,7 @@ function renderGymConfig(c) {
       textarea.value = textarea.value.substring(0, start) + v + textarea.value.substring(end);
       textarea.selectionStart = textarea.selectionEnd = start + v.length;
       textarea.focus();
-      updateWAPreview();
+      if (textarea.id === 'wa-template') updateWAPreview();
     });
   });
 
@@ -680,6 +714,26 @@ function renderGymConfig(c) {
       showToast('Templates saved!', 'green');
     } catch(err) { showToast(err.message || 'Save failed', 'red'); }
     finally { btn.disabled = false; btn.textContent = 'Save Templates'; }
+  });
+
+  document.getElementById('btn-save-checkin-wa')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const updates = {
+        credentials_wa_template: document.getElementById('wa-credentials')?.value.trim() || null,
+        followup_wa_template:    document.getElementById('wa-followup')?.value.trim() || null,
+        checkin_followup_days:   parseInt(document.getElementById('cfg-followup-days')?.value, 10) || 21,
+      };
+      if (S.gym?.id) {
+        const { error } = await supabase.from('gyms').update(updates).eq('id', S.gym.id);
+        if (error) throw error;
+      }
+      S.gym = { ...S.gym, ...updates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...updates };
+      showToast('Check-in settings saved!', 'green');
+    } catch (err) { showToast(err.message || 'Save failed', 'red'); }
+    finally { btn.disabled = false; btn.textContent = 'Save Check-in Settings'; }
   });
 
   document.getElementById('addon-tpl-add')?.addEventListener('click', () => openAddonTplModal());

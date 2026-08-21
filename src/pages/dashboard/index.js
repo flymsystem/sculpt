@@ -26,6 +26,7 @@ import { renderStaff, setStaffNav } from './staff.js';
 import { renderAnalytics } from './analytics.js';
 import { renderCheckinDisplay, stopCheckinDisplay } from './checkin-display.js';
 import { renderCheckinScan, stopCheckinScan } from './checkin-scan.js';
+import { renderCheckins, stopCheckinsRealtime } from './checkins.js';
 import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload } from './sidebar.js';
 import { saveMemberPhoto } from './photo.js';
 
@@ -241,7 +242,7 @@ function renderAccessDenied(c, sectionName) {
 const VALID_SECTIONS = new Set([
   'overview','members','enquiries','alerts','staff',
   'finance','expenses','plans','plans-showcase','gymconfig',
-  'backup','analytics','checkin-display','checkin-scan'
+  'backup','analytics','checkin-display','checkin-scan','checkins'
 ]);
 
 // ── Navigation ───────────────────────────────────────
@@ -260,6 +261,7 @@ function nav(id, opts = {}) {
   // camera stays on / the token keeps rotating in the background.
   if (id !== 'checkin-display') stopCheckinDisplay();
   if (id !== 'checkin-scan') stopCheckinScan();
+  if (id !== 'checkins') stopCheckinsRealtime();
 
   // Push URL for this section (skip if triggered by browser back/forward)
   if (!opts._fromPopState) {
@@ -271,7 +273,7 @@ function nav(id, opts = {}) {
     staff:'Staff', finance:'Finance', expenses:'Expenses', plans:'Plan Settings',
     'plans-showcase':'Plans Showcase', gymconfig:'Gym Settings',
     backup:'Data & Backup', analytics:'Analytics',
-    'checkin-display':'Desk Display', 'checkin-scan':'Check In' };
+    'checkin-display':'Desk Display', 'checkin-scan':'Check In', checkins:'Check-ins' };
   const tb = document.getElementById('topbar-title');
   if (tb) tb.textContent = titles[id] || 'Dashboard';
 
@@ -309,7 +311,8 @@ function nav(id, opts = {}) {
      backup:renderBackup,
      analytics:renderAnalytics,
      'checkin-display':renderCheckinDisplay,
-     'checkin-scan':renderCheckinScan }[id] || renderOverview)(c);
+     'checkin-scan':renderCheckinScan,
+     checkins:renderCheckins }[id] || renderOverview)(c);
 
   // Update FAB context
   updateFAB(id);

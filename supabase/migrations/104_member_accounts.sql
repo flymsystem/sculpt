@@ -43,6 +43,10 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS added_by_name text;
 -- no second factor on the member login besides phone number.
 ALTER TABLE gyms ADD COLUMN IF NOT EXISTS next_application_seq int NOT NULL DEFAULT 0;
 
+-- Editable in Gym Settings, alongside wa_template — see
+-- DEFAULT_CREDENTIALS_WA_TEMPLATE in src/pages/dashboard/state.js.
+ALTER TABLE gyms ADD COLUMN IF NOT EXISTS credentials_wa_template text;
+
 -- ── 4. Login attempt log (rate limiting) ────────────────────────
 -- Written only by the member-signin Edge Function via the service
 -- role. RLS is enabled with no policies at all — not even owner/staff

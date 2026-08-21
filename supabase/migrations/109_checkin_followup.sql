@@ -12,6 +12,10 @@ COMMENT ON COLUMN gyms.checkin_followup_days IS
   'Days since last check-in (or since join_date, for a member who has '
   'never checked in) before they appear on the follow-up call list.';
 
+-- Editable in Gym Settings — see DEFAULT_FOLLOWUP_WA_TEMPLATE in
+-- src/pages/dashboard/state.js.
+ALTER TABLE gyms ADD COLUMN IF NOT EXISTS followup_wa_template text;
+
 -- Not SECURITY DEFINER on purpose: it queries members and member_checkins
 -- directly under the caller's own RLS, so an owner or staff account only
 -- ever gets rows for their own gym even if p_gym_id is spoofed — the
