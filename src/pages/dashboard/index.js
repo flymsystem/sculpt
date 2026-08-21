@@ -24,6 +24,8 @@ import { renderExpenses } from './expenses-page.js';
 import { renderEnquiries } from './enquiries.js';
 import { renderStaff, setStaffNav } from './staff.js';
 import { renderAnalytics } from './analytics.js';
+import { renderCheckinDisplay, stopCheckinDisplay } from './checkin-display.js';
+import { renderCheckinScan, stopCheckinScan } from './checkin-scan.js';
 import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload } from './sidebar.js';
 import { saveMemberPhoto } from './photo.js';
 
@@ -239,7 +241,7 @@ function renderAccessDenied(c, sectionName) {
 const VALID_SECTIONS = new Set([
   'overview','members','enquiries','alerts','staff',
   'finance','expenses','plans','plans-showcase','gymconfig',
-  'backup','analytics'
+  'backup','analytics','checkin-display','checkin-scan'
 ]);
 
 // ── Navigation ───────────────────────────────────────
@@ -253,6 +255,12 @@ function nav(id, opts = {}) {
 
   S.section = id;
 
+  // Both check-in pages hold a resource (rotation timer / camera
+  // stream) that must die the instant the user navigates away, or the
+  // camera stays on / the token keeps rotating in the background.
+  if (id !== 'checkin-display') stopCheckinDisplay();
+  if (id !== 'checkin-scan') stopCheckinScan();
+
   // Push URL for this section (skip if triggered by browser back/forward)
   if (!opts._fromPopState) {
     pushDashboardSection(id);
@@ -262,7 +270,8 @@ function nav(id, opts = {}) {
   const titles = { overview:'Dashboard', members:'All Members', enquiries:'Enquiries', alerts:'Member Alerts',
     staff:'Staff', finance:'Finance', expenses:'Expenses', plans:'Plan Settings',
     'plans-showcase':'Plans Showcase', gymconfig:'Gym Settings',
-    backup:'Data & Backup', analytics:'Analytics' };
+    backup:'Data & Backup', analytics:'Analytics',
+    'checkin-display':'Desk Display', 'checkin-scan':'Check In' };
   const tb = document.getElementById('topbar-title');
   if (tb) tb.textContent = titles[id] || 'Dashboard';
 
@@ -298,7 +307,9 @@ function nav(id, opts = {}) {
      staff:renderStaff, finance:renderFinance, expenses:renderExpenses, plans:renderPlans,
      'plans-showcase':renderPlansShowcase, gymconfig:renderGymConfig,
      backup:renderBackup,
-     analytics:renderAnalytics }[id] || renderOverview)(c);
+     analytics:renderAnalytics,
+     'checkin-display':renderCheckinDisplay,
+     'checkin-scan':renderCheckinScan }[id] || renderOverview)(c);
 
   // Update FAB context
   updateFAB(id);
