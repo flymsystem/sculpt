@@ -47,6 +47,15 @@ confirm it).
 Anything numbered **033 and above is new and has not been applied.** See
 `HANDOVER.md` in the repo root for the exact list and the order to run them in.
 
+**QR check-in feature — not yet applied, run in this order:**
+
+- `103_gym_timezone.sql` — adds `gyms.timezone` (default `Asia/Kolkata`)
+- `105_checkin_tokens.sql` — rotating token table + `sculpt_issue_checkin_token()`
+- `106_staff_checkin.sql` — `sculpt_staff_checkin()`, upserts `staff_attendance`
+
+`104` and `107` are reserved for the member-accounts phase (row-level
+security + member portal readers) and are not part of this batch.
+
 ## Rules
 
 - **Never edit an applied migration.** Write a new one.

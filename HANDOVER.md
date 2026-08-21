@@ -243,6 +243,24 @@ built from.
 - **Pages and the PDF engine load on demand.** The PDF engine is ~935 kB
   and must only download when someone actually makes a PDF. A test guards
   this too.
+- **The desk check-in tablet loses its QR rotation the instant it goes
+  offline** — `checkin-display.js` shows a visible "Offline" banner
+  rather than letting a stale (and by then guessable) code sit on
+  screen. Staff fall back to checking a member in from the members
+  list while the tablet is down.
+- **A member must never get a row in `gym_users`.** That table is what
+  `get_my_gym_id()` reads, and a member appearing in it inherits
+  gym-wide read access to the entire business — every other member's
+  phone, Aadhaar photo and payment history.
+- **Never add a member SELECT policy on `gyms`.** That table holds
+  `owner_password` in plaintext (migration 022, kept per client
+  agreement). The member portal reads gym name/logo through a narrow
+  `SECURITY DEFINER` function instead, the same pattern as
+  `public_gym_plans()` in migration 102.
+- **Check-in RPCs (`sculpt_staff_checkin`, and the member equivalent)
+  must RETURN a status, never RAISE.** A raised exception rolls back
+  the transaction and takes the denied-attempt row with it — see
+  `CLAUDE.md`'s "Conventions" section for the full rationale.
 - **The landing page's `popstate` listener must check `page ===
   router.current` before re-rendering.** Chromium fires `popstate` — not
   just `hashchange` — when a visitor clicks a same-page anchor link like
@@ -323,10 +341,14 @@ src/lib/                          database access
   auth.js                         login and profile loading
   permissions.js                  who can see what (owner vs staff)
   invoice-pdf.js                  renders the invoice to a PDF blob
+  checkin.js                      rotating-token issue + staff check-in RPC wrappers
+  qr.js                           lazy QR encode/decode — never statically imported
 src/pages/landing.js              the public website  <- placeholders live here
 src/pages/login.js                login screen
 src/pages/dashboard/              the app itself, one file per section
   invoice-template.js             the invoice/receipt HTML — shared by the preview, print and PDF paths
+  checkin-display.js              full-screen desk kiosk QR screen
+  checkin-scan.js                 staff/trainer in-app camera scan
 src/styles/tokens.css             all colours, fonts and spacing
 scripts/generate-icons.mjs        rebuilds app icons from sculp-logo.png
 scripts/verify-schema.mjs         checks the database matches the code

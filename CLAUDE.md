@@ -42,6 +42,22 @@ Read from it; don't thread it through parameters.
   bug that motivated it. Keep that voice; don't strip those comments.
 - **Every user-typed string goes through `escHtml()`** before reaching the
   DOM. Member names are attacker-controlled.
+- **Check-in timestamps are computed in the gym's timezone, never UTC.**
+  `gyms.timezone` (migration 103) holds an IANA name, default
+  `'Asia/Kolkata'`. Any function that writes a check-in date/time must
+  compute it as `(now() AT TIME ZONE g.timezone)`, never `CURRENT_DATE` or
+  `now()::date` — the server runs UTC, so a 6am IST check-in would
+  otherwise land on the previous day's row. See `sculpt_staff_checkin` in
+  `106_staff_checkin.sql` for the pattern.
+- **Check-in functions RETURN a status, never RAISE.**
+  `sculpt_staff_checkin` (and the member equivalent landing in a later
+  migration) always returns `(status, message)`, even for a rejected
+  scan. A `RAISE EXCEPTION` rolls back the whole transaction — for the
+  member version that would delete the denied-attempt record along with
+  everything else, silently destroying the owner's renewal call list.
+  Same convention as the money functions never raising mid-transaction,
+  just for a different reason (rollback-destroys-evidence vs.
+  partial-completion).
 - **Money and membership logic lives in Postgres functions**
   (`sculpt_add_member`, `sculpt_renew_member`, `sculpt_clear_balance`) and is
   atomic on purpose. Do not split them into steps or reimplement their
