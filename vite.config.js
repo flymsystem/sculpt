@@ -47,6 +47,13 @@ export default defineConfig({
               id.includes('rgbcolor') || id.includes('core-js')) {
             return 'vendor-pdf';
           }
+          // QR encode (desk display) and decode (staff/member scan) are
+          // both dynamic imports off lib/qr.js — see the guard test in
+          // tests/build-integrity.spec.js. Kept out of 'vendor' so a
+          // routine deploy doesn't force everyone to re-download them.
+          if (id.includes('qrcode') || id.includes('jsqr')) {
+            return 'vendor-qr';
+          }
           return 'vendor';
         },
       },
