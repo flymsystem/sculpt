@@ -102,3 +102,24 @@ test('the PDF engine is NOT downloaded on a normal page load', async ({ page }) 
     'should be a dynamic import() became a static import.'
   ).toBeUndefined();
 });
+
+test('the QR encode/decode chunk is NOT downloaded on a normal page load', async ({ page }) => {
+  // vendor-qr holds qrcode + jsqr. It must only download on the desk
+  // display or staff/member scan pages. If a future change statically
+  // imports lib/qr.js from somewhere reached at boot, every visitor
+  // pays for a camera-decoding library they'll likely never use.
+  const loadedChunks = [];
+  page.on('response', (res) => {
+    if (res.url().endsWith('.js')) loadedChunks.push(res.url());
+  });
+
+  await page.goto('/login', { waitUntil: 'load' });
+  await expect(page.locator('#root')).not.toBeEmpty();
+
+  const qrChunk = loadedChunks.find((u) => u.includes('vendor-qr'));
+  expect(
+    qrChunk,
+    'vendor-qr loaded on a page with no QR encode/decode — something that ' +
+    'should be a dynamic import() became a static import.'
+  ).toBeUndefined();
+});
