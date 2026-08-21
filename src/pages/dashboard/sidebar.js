@@ -254,7 +254,11 @@ function bindSidebar(router) {
   if (window.__sculptTouchStart) document.removeEventListener('touchstart', window.__sculptTouchStart);
   if (window.__sculptTouchEnd) document.removeEventListener('touchend', window.__sculptTouchEnd);
   let _tsX = 0, _tsY = 0, _blocked = false;
-  const isModalOpen = () => !!document.getElementById('sculpt-modal-overlay');
+  // The kiosk display hides the sidebar with display:none (dashboard.css),
+  // but the swipe-open gesture is bound at document level regardless — this
+  // stops it from flipping .sidebar-open underneath the kiosk, which would
+  // otherwise leave the sidebar open the moment someone exits the display.
+  const isModalOpen = () => !!document.getElementById('sculpt-modal-overlay') || !!document.getElementById('checkin-kiosk');
   const startedInHScroller = (target) => { let el = target; while (el && el !== document.body) { const style = getComputedStyle(el); if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true; el = el.parentElement; } return false; };
   window.__sculptTouchStart = (e) => { if (!e.touches?.[0]) return; _tsX = e.touches[0].clientX; _tsY = e.touches[0].clientY; _blocked = isModalOpen() || startedInHScroller(e.target); };
   window.__sculptTouchEnd = (e) => { if (_blocked || isModalOpen() || !e.changedTouches?.[0]) return; const dx = e.changedTouches[0].clientX - _tsX; const dy = Math.abs(e.changedTouches[0].clientY - _tsY); const isSidebarOpen = sidebar?.classList.contains('sidebar-open'); if (Math.abs(dx) < 40 || dy > Math.abs(dx)) return; if (dx > 60 && _tsX < 30 && !isSidebarOpen) { sidebar?.classList.add('sidebar-open'); overlay?.classList.add('active'); hamburger?.classList.add('open'); } else if (dx < -60 && isSidebarOpen) closeMobileSidebar(); };

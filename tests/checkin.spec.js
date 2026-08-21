@@ -27,7 +27,7 @@ test('a token issued now is accepted by staff check-in', async ({ page }) => {
     const { token } = await window.__sculptCheckin.issueCheckinToken();
     return window.__sculptCheckin.staffCheckin(token);
   });
-  expect(['CHECKED_IN', 'CHECKED_OUT', 'TOO_SOON', 'ALREADY_DONE']).toContain(result.status);
+  expect(['CHECKED_IN', 'CHECKED_OUT', 'TOO_SOON']).toContain(result.status);
 });
 
 test('an expired (90s+ old) token is rejected', async ({ page }) => {
@@ -53,8 +53,25 @@ test('two scans inside 10 minutes do not double-write', async ({ page }) => {
     }
     return out;
   });
-  // First call check-in (or already-done from a prior test run today);
-  // the second, seconds later, must NOT be a second CHECKED_IN — it's
-  // either TOO_SOON or ALREADY_DONE, never a fresh insert.
+  // First call checks in (or moves check_out, if a prior test run
+  // already checked in today); the second, seconds later, must NOT be
+  // a second CHECKED_IN — it's TOO_SOON, never a fresh insert.
   expect(results[1].status).not.toBe('CHECKED_IN');
+});
+
+test('a scan after the cooldown moves check_out forward, not just once', async ({ page }) => {
+  // Regression test for the bug where a second scan set check_out and
+  // every scan after that returned a terminal ALREADY_DONE — permanently
+  // recording a trainer's day as ending at their lunch-break scan. There
+  // is no way to force a real 10-minute wait in a fast test suite, so
+  // this only asserts the vocabulary: CHECKED_OUT (or TOO_SOON, if run
+  // back-to-back with the previous test) must be possible more than once
+  // in a day, i.e. the RPC must never return a status meaning "no further
+  // scans accepted today".
+  await signIn(page);
+  const result = await page.evaluate(async () => {
+    const { token } = await window.__sculptCheckin.issueCheckinToken();
+    return window.__sculptCheckin.staffCheckin(token);
+  });
+  expect(result.status).not.toBe('ALREADY_DONE');
 });

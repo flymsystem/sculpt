@@ -5,6 +5,14 @@ body{width:100%;overflow-x:hidden;position:relative;}
 #root{width:100%;overflow-x:hidden;}
 .app-layout{display:flex;width:100%;min-height:100vh;overflow-x:hidden;position:relative;}
 
+/* KIOSK MODE — the desk check-in display hides the real dashboard nav
+   entirely rather than just visually covering it (checkin-kiosk's own
+   z-index would do that alone). display:none also makes the sidebar
+   and topbar unfocusable and un-swipe-openable while the kiosk is up —
+   see the comment in checkin-display.js for why that matters. */
+.app-layout.checkin-kiosk-active #gym-sidebar,
+.app-layout.checkin-kiosk-active .topbar{display:none;}
+
 /* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;flex-shrink:0;}
 .sidebar-logo{padding:20px 20px 18px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;flex-shrink:0;}
