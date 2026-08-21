@@ -1,6 +1,6 @@
-import { S, DEFAULT_WA_TEMPLATE } from './state.js';
+import { S, DEFAULT_WA_TEMPLATE, DEFAULT_CREDENTIALS_WA_TEMPLATE } from './state.js';
 import { expiryDate, daysLeft, memberStatus, escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, parseMemberAddons, planTotalPrice, genInvoiceNo, memberTotal, parsePlanData, todayLocalISO } from './helpers.js';
-import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById } from '../../lib/members.js';
+import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById, regenerateApplicationNumber } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { supabase } from '../../lib/supabase.js';
@@ -171,8 +171,11 @@ function openAddModal() {
             inputmode="numeric">
         </div>
         <div class="form-group">
-          <label class="form-label">Application No. <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
-          <input class="form-input" id="m-appnum" placeholder="e.g. 001, A-101">
+          <label class="form-label">Added By <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
+          <select class="form-input filter-select" id="m-addedby" style="width:100%;color:var(--white);">
+            <option value="">-- Not specified --</option>
+            ${(S.staff||[]).map(s => `<option value="${escHtml(s.id)}" data-name="${escHtml(s.full_name)}">${escHtml(s.full_name)}</option>`).join('')}
+          </select>
         </div>
       </div>
       <div class="form-group">
@@ -450,7 +453,8 @@ async function submitAdd(mType) {
     trialDays,
     memberAddons:     memberAddons.length ? JSON.stringify(memberAddons) : null,
     notes:            document.getElementById('m-notes')?.value.trim()||null,
-    applicationNumber: document.getElementById('m-appnum')?.value.trim()||null,
+    addedByStaffId:   document.getElementById('m-addedby')?.value||null,
+    addedByName:      document.getElementById('m-addedby')?.selectedOptions?.[0]?.dataset?.name||null,
     aadharNumber:     document.getElementById('m-aadhar')?.value.replace(/\s/g,'')||null,
     discountAmount:   discount,
     balanceDue:       mType==='Trial' ? 0 : balanceDue,
@@ -516,6 +520,7 @@ async function submitAdd(mType) {
     } else {
       showToast(`${name} added as ${mType} member!`, 'green');
     }
+    if (saved.application_number) openAddSuccessModal(saved);
   } catch (err) {
     // ── Orphan detection ──────────────────────────────────────────
     // If the error is a network timeout, the member may have been
@@ -543,6 +548,38 @@ async function submitAdd(mType) {
     show(err.message || 'Something went wrong. Please check your connection and try again.');
     btn.disabled=false; btn.textContent='Add Member →';
   }
+}
+
+// Shown once, right after Add Member succeeds — the application number
+// is generated server-side and never typed, so this is the first and
+// most reliable moment to hand it to staff for the WhatsApp send.
+function openAddSuccessModal(m) {
+  openModal({
+    title: 'Member Added',
+    mobileCompact: true,
+    body: `
+      <div style="text-align:center;padding:6px 0 4px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Application Number</div>
+        <div style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--brand-text);
+          background:var(--brand-fade);padding:12px 20px;border-radius:10px;display:inline-block;letter-spacing:0.06em;">
+          ${escHtml(m.application_number)}
+        </div>
+        <div style="margin-top:16px;font-size:13px;color:var(--text-tertiary);line-height:1.6;">
+          ${m.phone ? `${escHtml(m.full_name||'')} can log in to the member app with this number and their phone.`
+                    : 'No phone number was entered — add one before sending login details.'}
+        </div>
+      </div>
+    `,
+    footer: `<button class="btn btn-ghost" id="modal-cancel">Done</button>
+      ${m.phone ? `<button class="btn" id="add-success-wa" style="background:rgba(0,230,118,0.15);color:var(--green);border:1px solid rgba(0,230,118,0.3);">📱 Send Login Details</button>` : ''}`,
+    onOpen: () => {
+      bindModalCancel();
+      document.getElementById('add-success-wa')?.addEventListener('click', () => {
+        closeModal();
+        openCredentialsWAModal(m);
+      });
+    }
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -683,8 +720,13 @@ function openEditModal(id) {
             oninput="let d=this.value.replace(/\D/g,'').slice(0,12);this.value=d.replace(/(\d{4})(?=\d)/g,'$1 ');"
             inputmode="numeric"
             value="${escHtml(m.aadhar_number ? m.aadhar_number.replace(/(\d{4})(?=\d)/g,'$1 ') : '')}"></div>
-        <div class="form-group"><label class="form-label">Application No. <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
-          <input class="form-input" id="e-appnum" value="${escHtml(m.application_number||'')}"></div>
+        <div class="form-group"><label class="form-label">Application No.</label>
+          <div style="display:flex;gap:6px;">
+            <input class="form-input" id="e-appnum" value="${escHtml(m.application_number||'')}" readonly
+              style="font-family:var(--font-mono);letter-spacing:0.04em;background:var(--surface-2);color:var(--text-tertiary);flex:1;">
+            <button type="button" class="btn btn-ghost btn-sm" id="e-appnum-regen" style="flex-shrink:0;white-space:nowrap;" title="Issue a new application number — the old one stops working immediately">Regenerate</button>
+          </div>
+        </div>
       </div>
       <div class="form-group"><label class="form-label">Notes</label>
         <input class="form-input" id="e-notes" value="${escHtml(m.notes||'')}"></div>
@@ -813,6 +855,32 @@ function openEditModal(id) {
       });
 
       bindModalCancel();
+
+      document.getElementById('e-appnum-regen')?.addEventListener('click', async () => {
+        const regenBtn = document.getElementById('e-appnum-regen');
+        const appEl = document.getElementById('e-appnum');
+        if (!S.gym?.id || regenBtn?.disabled) return;
+        const ok = await showConfirm({
+          title: 'Regenerate Application Number?',
+          message: `${m.full_name||''}'s current application number (${m.application_number||'—'}) will stop working immediately. Anyone with the old WhatsApp message will need a new one.`,
+          confirmLabel: 'Regenerate', confirmVariant: 'danger',
+        });
+        if (!ok) return;
+        regenBtn.disabled = true; regenBtn.textContent = 'Regenerating…';
+        try {
+          const newNumber = await regenerateApplicationNumber(id, S.gym.id);
+          if (appEl) appEl.value = newNumber;
+          m.application_number = newNumber;
+          const idx = S.members.findIndex(x => String(x.id) === String(id));
+          if (idx >= 0) S.members[idx].application_number = newNumber;
+          showToast('Application number regenerated', 'green');
+        } catch (err) {
+          showToast(err.message || 'Could not regenerate application number', 'red');
+        } finally {
+          regenBtn.disabled = false; regenBtn.textContent = 'Regenerate';
+        }
+      });
+
       document.getElementById('btn-edit-submit').addEventListener('click', async () => {
         const name     = document.getElementById('e-name')?.value.trim();
         const rawPhone = document.getElementById('e-phone')?.value.replace(/\D/g,'').slice(0,10);
@@ -1329,7 +1397,8 @@ function openMemberDetailModal(memberId) {
         ${m.gender ? mRow('Gender', escHtml(m.gender)) : ''}
         ${dobStr   ? mRow('Date of Birth', dobStr) : ''}
         ${m.aadhar_number ? mRow('Aadhar ID', `<span style="font-family:var(--font-mono);color:var(--text-primary);letter-spacing:0.05em;font-size:12px;">${escHtml(m.aadhar_number.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`) : ''}
-        ${m.application_number ? mRow('App No.', `<span style="font-family:var(--font-mono);color:var(--brand-text);background:var(--brand-fade);padding:2px 6px;border-radius:3px;font-size:12px;">#${escHtml(m.application_number)}</span>`) : ''}
+        ${m.application_number ? mRow('App No.', `<span style="font-family:var(--font-mono);color:var(--brand-text);background:var(--brand-fade);padding:2px 6px;border-radius:3px;font-size:12px;">#${escHtml(m.application_number)}</span> <button type="button" id="md-cred-btn" style="background:none;border:none;color:var(--brand-text);font-size:11px;font-weight:600;cursor:pointer;padding:0 0 0 8px;text-decoration:underline;">Send Login</button>`) : ''}
+        ${m.added_by_name ? mRow('Added By', escHtml(m.added_by_name)) : ''}
       </div>
 
       <!-- Aadhaar Card — the upload control stays hidden until "+ Add" is tapped -->
@@ -1505,6 +1574,7 @@ function openMemberDetailModal(memberId) {
       document.getElementById('md-renew-btn')?.addEventListener('click', () => { closeModal(); openRenewModal(memberId); });
       document.getElementById('md-bal-btn')?.addEventListener('click',  () => { closeModal(); openClearBalanceModal(memberId); });
       document.getElementById('md-wa-btn')?.addEventListener('click',   () => { closeModal(); openWAModal(memberId); });
+      document.getElementById('md-cred-btn')?.addEventListener('click', () => { closeModal(); openCredentialsWAModal(m); });
       document.getElementById('md-inv-btn')?.addEventListener('click',  () => { closeModal(); openInvoiceModal(memberId); });
       document.getElementById('md-del-btn')?.addEventListener('click',  () => { closeModal(); confirmDelete(memberId); });
 
@@ -1736,6 +1806,52 @@ function openWAModal(id) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// SEND LOGIN DETAILS (WHATSAPP)
+// ════════════════════════════════════════════════════════════════
+// Mirrors openWAModal's wa.me pattern exactly (same escaping, same
+// window.open call) — see CHECKIN-PLAN delta spec point 4. Reachable
+// right after Add Member, and again later from the member's detail
+// view (the "Send Login" link next to their App No.) for when they
+// lose the original message.
+function openCredentialsWAModal(m) {
+  if (!m) return;
+  const gym = S.gym?.name || 'our gym';
+  const loginLink = `${window.location.origin}/member/login`;
+  const tpl = S.gym?.credentials_wa_template || DEFAULT_CREDENTIALS_WA_TEMPLATE;
+  const msg = tpl
+    .replace(/\{name\}/g,   m.full_name || m.name || '')
+    .replace(/\{appnum\}/g, m.application_number || '')
+    .replace(/\{gym\}/g,    gym)
+    .replace(/\{link\}/g,   loginLink);
+
+  openModal({
+    title: 'Send Login Details',
+    mobileCompact: true,
+    body: `
+      <div class="form-group"><label class="form-label">Member</label>
+        <input class="form-input" value="${escHtml(m.full_name||m.name||'')}" readonly></div>
+      <div class="form-group"><label class="form-label">Phone</label>
+        <input class="form-input" id="cred-wa-phone" value="${escHtml(m.phone||'')}"></div>
+      <div class="form-group"><label class="form-label">Message</label>
+        <textarea class="form-input" id="cred-wa-msg" rows="7" style="resize:vertical;">${escHtml(msg)}</textarea></div>
+    `,
+    footer: `<button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+      <button class="btn" id="cred-wa-send" style="background:rgba(0,230,118,0.15);color:var(--green);
+        border:1px solid rgba(0,230,118,0.3);">📱 Open WhatsApp</button>`,
+    onOpen: () => {
+      bindModalCancel();
+      document.getElementById('cred-wa-send').addEventListener('click', () => {
+        const phone = document.getElementById('cred-wa-phone').value.replace(/\D/g,'');
+        const text  = document.getElementById('cred-wa-msg').value;
+        if (!phone) { showToast('Enter phone number','red'); return; }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+        closeModal(); showToast('WhatsApp opened!','green');
+      });
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
 // INVOICE MODAL  — NEW FEATURE
 // ════════════════════════════════════════════════════════════════
 function buildInvoiceHTML(m, gymName, invoiceNo) {
@@ -1827,4 +1943,4 @@ function openInvoiceModal(id) {
 }
 
 
-export { openAddModal, submitAdd, openEditModal, confirmDelete, confirmCancelMembership, openRenewModal, openMemberDetailModal, openWAModal, buildInvoiceHTML, buildWhatsAppText, openInvoiceModal, openClearBalanceModal };
+export { openAddModal, submitAdd, openEditModal, confirmDelete, confirmCancelMembership, openRenewModal, openMemberDetailModal, openWAModal, openCredentialsWAModal, buildInvoiceHTML, buildWhatsAppText, openInvoiceModal, openClearBalanceModal };

@@ -125,6 +125,11 @@ function renderMembers(c) {
       </select>
       <label class="sr-only" for="sf-joindate">Filter by join date</label>
       <input type="date" class="form-input mf-date" id="sf-joindate" title="Filter by join date">
+      <label class="sr-only" for="sf-addedby">Filter by who added them</label>
+      <select class="form-input" id="sf-addedby">
+        <option value="">Added By: Anyone</option>
+        ${[...new Set(S.members.map(m => m.added_by_name).filter(Boolean))].sort().map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
+      </select>
     </div>
 
     <div class="members-table-wrap" id="members-table-wrap">
@@ -157,6 +162,7 @@ function renderMembers(c) {
   document.getElementById('sf-status').addEventListener('change', () => { setMemberPage(1); filterTable(); });
   document.getElementById('sf-plan').addEventListener('change', () => { setMemberPage(1); filterTable(); });
   document.getElementById('sf-joindate').addEventListener('change', () => { setMemberPage(1); filterTable(); });
+  document.getElementById('sf-addedby')?.addEventListener('change', () => { setMemberPage(1); filterTable(); });
 
   const tableWrap = document.getElementById('members-table-wrap');
   if (tableWrap) {
@@ -476,6 +482,7 @@ function filterTable() {
   const sf = document.getElementById('sf-status')?.value||'';
   const pf = document.getElementById('sf-plan')?.value||'';
   const jd = document.getElementById('sf-joindate')?.value||'';
+  const ab = document.getElementById('sf-addedby')?.value||'';
 
   fillTable(S.members.filter(m => {
     const st    = memberStatus(m);
@@ -505,7 +512,8 @@ function filterTable() {
       }
     }
     const matchJd = !jd || m.join_date === jd;
-    return matchQ && matchSt && matchPf && matchJd;
+    const matchAb = !ab || m.added_by_name === ab;
+    return matchQ && matchSt && matchPf && matchJd && matchAb;
   }));
 }
 

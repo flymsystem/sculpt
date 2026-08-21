@@ -210,10 +210,16 @@ export async function addMember(gymId, d) {
     payment_status:       txt(d.paymentStatus) || 'Paid',
     member_type:          txt(d.memberType)    || 'Paid',
     notes:                txt(d.notes),
-    application_number:   txt(d.applicationNumber),
+    // Application numbers are auto-generated server-side inside
+    // sculpt_add_member now — never typed. This column is kept on the
+    // payload only for the pre-033 fallback insert below; the RPC call
+    // ignores whatever's in p_application_number.
+    application_number:   null,
     aadhar_number:        txt(d.aadharNumber),
     discount_amount:      num(d.discountAmount) || 0,
     balance_due:          num(d.balanceDue) || 0,
+    added_by_staff_id:    txt(d.addedByStaffId),
+    added_by_name:        txt(d.addedByName),
   };
 
   const amountPaidNow = d.amountPaidNow != null ? (num(d.amountPaidNow) || 0) : (payload.plan_price || 0);
@@ -249,6 +255,8 @@ export async function addMember(gymId, d) {
     p_amount_paid:          amountPaidNow,
     p_paid_at:              toPaidAtTimestamp(payload.join_date),
     p_payment_notes:        paymentNotes,
+    p_added_by_staff_id:    payload.added_by_staff_id,
+    p_added_by_name:        payload.added_by_name,
   });
 
   if (!rpc.error) {
@@ -629,6 +637,21 @@ export async function reactivateMembership(memberId, gymId) {
   if (error && error.code !== 'PGRST116') throw error;
   safeLog(gymId, 'membership_reactivated', `Membership reactivated (ID: ${memberId})`);
   return data || { id: memberId, gym_id: gymId, cancelled_at: null };
+}
+
+/**
+ * Reissues a member's application number (sculpt_regenerate_application_number,
+ * migration 104). Deliberate action, not something that happens silently —
+ * a stale WhatsApp message with the old number stops working the moment
+ * this runs.
+ */
+export async function regenerateApplicationNumber(memberId, gymId) {
+  const { data, error } = await supabase.rpc('sculpt_regenerate_application_number', {
+    p_member_id: memberId,
+    p_gym_id: gymId,
+  });
+  if (error) throw new Error(error.message || 'Could not regenerate the application number.');
+  return data;
 }
 
 export async function logReminder(gymId, memberId, message) {
