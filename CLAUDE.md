@@ -49,6 +49,26 @@ Read from it; don't thread it through parameters.
   `now()::date` — the server runs UTC, so a 6am IST check-in would
   otherwise land on the previous day's row. See `sculpt_staff_checkin` in
   `106_staff_checkin.sql` for the pattern.
+- **In a `LANGUAGE plpgsql` function, `RETURNS TABLE (col1 type1, ...)`
+  implicitly declares `col1`, etc. as ordinary PL/pgSQL variables for the
+  whole function body** — not just documentation of the output shape. If
+  the body also touches a table with a same-named column, any bare
+  reference to that name is ambiguous and Postgres raises `42702`
+  ("column reference is ambiguous... could refer to either a PL/pgSQL
+  variable or a table column") the moment that line actually runs —
+  which won't be caught by `CREATE FUNCTION` succeeding, only by calling
+  it. `sculpt_issue_checkin_token()`, `sculpt_member_checkin()` and
+  `sculpt_manual_checkin()` all shipped broken this way (`token`/
+  `expires_at` vs. `checkin_tokens`, `status` vs. `member_checkins`) —
+  see `111_fix_returns_table_column_shadowing.sql` for the fix and the
+  full audit. Rule going forward: if a `plpgsql` function's body
+  references a table sharing a column name with one of its own
+  `RETURNS TABLE` outputs, qualify every reference to that table (an
+  alias like `mc.status` is enough) — don't rely on bare column names
+  once both a variable and a column could answer to it. `LANGUAGE sql`
+  functions are not affected (no PL/pgSQL variable layer to shadow with),
+  and an INSERT's column-list (`INSERT INTO t (status, ...)`) is not an
+  ambiguity site either — only expressions are.
 - **Check-in functions RETURN a status, never RAISE.**
   `sculpt_staff_checkin` (and the member equivalent landing in a later
   migration) always returns `(status, message)`, even for a rejected
