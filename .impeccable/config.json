@@ -35,6 +35,15 @@
         ],
         "createdAt": "2026-08-21T10:19:50.950Z",
         "reason": "checkin-qr-img src is set asynchronously by refreshCode() after the first token/QR fetch completes — not a placeholder"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "margin-left var(--duration-slow) var(--ease-out),width var(--duration-slow) var(--ease-out)",
+        "files": [
+          "src/styles/dashboard.css"
+        ],
+        "createdAt": "2026-08-21T11:19:46.773Z",
+        "reason": "documented non-issue in CLAUDE.md: sidebar collapse animates width on purpose, .app-main margin/width animate in lockstep; pre-existing code, not touched this session"
       }
     ]
   }
