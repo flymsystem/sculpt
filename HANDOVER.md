@@ -257,10 +257,35 @@ built from.
   agreement). The member portal reads gym name/logo through a narrow
   `SECURITY DEFINER` function instead, the same pattern as
   `public_gym_plans()` in migration 102.
-- **Check-in RPCs (`sculpt_staff_checkin`, and the member equivalent)
-  must RETURN a status, never RAISE.** A raised exception rolls back
-  the transaction and takes the denied-attempt row with it — see
-  `CLAUDE.md`'s "Conventions" section for the full rationale.
+- **Check-in RPCs (`sculpt_staff_checkin`, `sculpt_member_checkin`,
+  `sculpt_manual_checkin`) must RETURN a status, never RAISE.** A raised
+  exception rolls back the transaction and takes the denied-attempt row
+  with it — see `CLAUDE.md`'s "Conventions" section for the full
+  rationale.
+- **The kiosk display's exit requires a 3-second hold, not a tap**, and
+  hides the real sidebar/topbar entirely (`.checkin-kiosk-active` in
+  `dashboard.css`) rather than just visually covering them — the tablet
+  it runs on sits unattended in a public area, signed into an account
+  that can see member phone numbers, Aadhaar photos and collect
+  payments. Don't turn that back into a single-tap Exit button.
+- **The member login has no password, PIN or OTP.** Application number +
+  phone number, verified entirely inside the `member-signin` Edge
+  Function, is the whole security boundary. It rate-limits by IP and by
+  application number, and returns the identical error whether the number
+  or the phone was wrong — never make those two cases distinguishable
+  from the response, or the endpoint becomes a tool for enumerating
+  valid application numbers.
+- **`supabase/functions/member-signin` must never actually send email.**
+  It uses `admin.generateLink()` + `verifyOtp()` specifically because
+  that path only returns link data — `signInWithOtp`,
+  `inviteUserByEmail` and `resetPasswordForEmail` all dispatch real mail
+  to the synthetic `member-<uuid>@members.internal` address, which
+  doesn't exist and would bounce.
+- **Application numbers are never typed, only generated**
+  (`sculpt_generate_application_number`, format `SC-####-XXX`). The
+  regenerate action in the edit-member modal is deliberate and rare —
+  it immediately invalidates the old number, so anyone still holding
+  the previous WhatsApp message is locked out until sent a new one.
 - **The landing page's `popstate` listener must check `page ===
   router.current` before re-rendering.** Chromium fires `popstate` — not
   just `hashchange` — when a visitor clicks a same-page anchor link like
@@ -341,14 +366,23 @@ src/lib/                          database access
   auth.js                         login and profile loading
   permissions.js                  who can see what (owner vs staff)
   invoice-pdf.js                  renders the invoice to a PDF blob
-  checkin.js                      rotating-token issue + staff check-in RPC wrappers
+  checkin.js                      rotating-token issue, staff/member check-in RPC wrappers,
+                                     attendance log + follow-up queries, realtime subscribe
   qr.js                           lazy QR encode/decode — never statically imported
+  member-auth.js                  member sign-in (Edge Function call), portal data readers
 src/pages/landing.js              the public website  <- placeholders live here
-src/pages/login.js                login screen
+src/pages/login.js                login screen (owner/staff)
+src/pages/member/                 the member portal — a second, much smaller app
+  login.js                        application number + phone, no password
+  index.js                        portal shell: Check In / My Plan / My Receipts / My Visits
+  receipts.js                     payment history + any already-generated PDFs
 src/pages/dashboard/              the app itself, one file per section
   invoice-template.js             the invoice/receipt HTML — shared by the preview, print and PDF paths
-  checkin-display.js              full-screen desk kiosk QR screen
+  checkin-display.js              full-screen desk kiosk QR screen (hold-to-exit)
   checkin-scan.js                 staff/trainer in-app camera scan
+  checkins.js                     Check-ins section: attendance log + not-seen-recently list
+supabase/functions/
+  member-signin/index.ts          the entire member auth security boundary — see CLAUDE.md
 src/styles/tokens.css             all colours, fonts and spacing
 scripts/generate-icons.mjs        rebuilds app icons from sculp-logo.png
 scripts/verify-schema.mjs         checks the database matches the code

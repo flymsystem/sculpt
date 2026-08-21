@@ -47,14 +47,27 @@ confirm it).
 Anything numbered **033 and above is new and has not been applied.** See
 `HANDOVER.md` in the repo root for the exact list and the order to run them in.
 
-**QR check-in feature — not yet applied, run in this order:**
+**QR check-in feature.**
+
+Applied to production (run by hand in the SQL editor, verified):
 
 - `103_gym_timezone.sql` — adds `gyms.timezone` (default `Asia/Kolkata`)
 - `105_checkin_tokens.sql` — rotating token table + `sculpt_issue_checkin_token()`
 - `106_staff_checkin.sql` — `sculpt_staff_checkin()`, upserts `staff_attendance`
 
-`104` and `107` are reserved for the member-accounts phase (row-level
-security + member portal readers) and are not part of this batch.
+**Not yet applied — run in this order:**
+
+- `104_member_accounts.sql` — member auth link, auto-generated application
+  numbers, added-by attribution, member RLS on `members`/`payment_history`
+- `107_member_checkins.sql` — `member_checkins` table, `sculpt_member_checkin()`,
+  `sculpt_manual_checkin()` (offline-tablet fallback)
+- `108_member_portal_readers.sql` — `sculpt_my_membership()`, `sculpt_my_visits()`,
+  `sculpt_my_receipts()`
+- `109_checkin_followup.sql` — `gyms.checkin_followup_days`, `sculpt_checkin_followup()`,
+  adds `member_checkins` to the realtime publication
+- `110_invoices_private.sql` — flips the `invoices` storage bucket private,
+  adds the member-scoped read policy (run this one last — `src/lib/invoices.js`
+  already assumes it's landed and uses signed URLs)
 
 ## Rules
 

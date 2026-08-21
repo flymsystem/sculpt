@@ -58,6 +58,37 @@ Read from it; don't thread it through parameters.
   Same convention as the money functions never raising mid-transaction,
   just for a different reason (rollback-destroys-evidence vs.
   partial-completion).
+- **The member RLS boundary is `get_my_member_id()`, never a caller-
+  supplied id.** Every member-facing function (`sculpt_member_checkin`,
+  `sculpt_my_membership`, `sculpt_my_visits`, `sculpt_my_receipts`)
+  resolves `auth.uid()` to a member row itself and ignores anything the
+  client passes for "which member" — a member session must never be able
+  to ask for someone else's data by changing an argument. `members` and
+  `payment_history` also carry an additive `member_read_own_row` /
+  `member_read_own_payments` RLS policy (migration 104) scoped the same
+  way — every existing owner/staff policy stays untouched.
+- **Members are never rows in `gym_users`, and `gyms` never gets a member
+  SELECT policy.** See HANDOVER.md §6 for why — this is the one rule in
+  the whole feature that would quietly undo the RLS boundary above if
+  broken.
+- **Application numbers are generated server-side, inside
+  `sculpt_add_member` / `sculpt_regenerate_application_number`
+  (`sculpt_generate_application_number`, migration 104), never typed by
+  staff and never derived client-side.** Format `SC-####-XXX` — a
+  sequence (`gyms.next_application_seq`, advanced by a row-locking
+  `UPDATE`) plus a 3-character random suffix. There is no PIN or
+  password on the member login, so a guessable number plus a phone
+  number half the neighbourhood knows would be a login system with no
+  real second factor — the random suffix is what prevents that.
+- **Member login has no password.** `supabase/functions/member-signin`
+  verifies application number + phone against `members`, rate-limits by
+  IP and by application number (`member_login_attempts`, migration 104)
+  *before* doing the lookup, and returns the identical error for a wrong
+  number vs. a wrong phone — diverging that message is a member-
+  enumeration oracle, not a UX nicety. It mints a session via
+  `admin.generateLink()` + `verifyOtp()`, never `signInWithOtp` or any
+  path that actually sends mail — the synthetic `member-<uuid>@members.internal`
+  addresses don't exist and would bounce.
 - **Money and membership logic lives in Postgres functions**
   (`sculpt_add_member`, `sculpt_renew_member`, `sculpt_clear_balance`) and is
   atomic on purpose. Do not split them into steps or reimplement their
