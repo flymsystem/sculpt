@@ -30,17 +30,19 @@ export function renderMemberLogin(router) {
           <label class="form-label" for="member-appnum">Application Number</label>
           <input type="text" class="form-input" id="member-appnum" name="applicationNumber"
             placeholder="SC-0001-A2B" autocomplete="off" autocapitalize="characters"
-            autocorrect="off" spellcheck="false" required aria-required="true"
+            autocorrect="off" spellcheck="false" required aria-required="true" maxlength="11"
             style="text-transform:uppercase;letter-spacing:0.04em;font-family:var(--font-mono);">
+          <div class="form-hint" id="member-appnum-hint"></div>
         </div>
         <div class="form-group">
           <label class="form-label" for="member-phone">Phone Number</label>
           <input type="tel" class="form-input" id="member-phone" name="phone"
-            placeholder="98765 43210" autocomplete="tel" inputmode="tel"
+            placeholder="98765 43210" autocomplete="tel" inputmode="numeric" maxlength="10"
             required aria-required="true">
+          <div class="form-hint" id="member-phone-hint"></div>
         </div>
 
-        <button class="btn btn-primary btn-full" id="member-login-submit" type="submit" style="margin-top:6px;height:46px;">
+        <button class="btn btn-primary btn-full" id="member-login-submit" type="submit" disabled style="margin-top:6px;height:46px;">
           <span id="member-login-btn-text">Check In →</span>
           <span id="member-login-spinner" class="spinner" aria-hidden="true"
             style="display:none;width:16px;height:16px;border-width:2px;"></span>
@@ -63,7 +65,50 @@ export function renderMemberLogin(router) {
   form.addEventListener('submit', (e) => { e.preventDefault(); doMemberLogin(router); });
   document.getElementById('member-back-home').addEventListener('click', () => router.go('landing'));
 
+  document.getElementById('member-phone').addEventListener('input', onPhoneInput);
+  document.getElementById('member-appnum').addEventListener('input', onAppNumInput);
+  updateSubmitState();
+
   setTimeout(() => document.getElementById('member-appnum')?.focus(), 100);
+}
+
+// People paste from Contacts — a pasted "+91 98765 43210" or "091-98765-43210"
+// must resolve to the same 10 digits as typing them, so this keeps the LAST
+// 10 digits of whatever's in the field rather than rejecting the paste or
+// truncating from the front (which would keep the country code instead).
+function onPhoneInput(e) {
+  const digits = e.target.value.replace(/\D/g, '').slice(-10);
+  if (digits !== e.target.value) e.target.value = digits;
+  updateSubmitState();
+}
+
+// SC-####-XXX: letters/digits/hyphens only, force uppercase as they type.
+function onAppNumInput(e) {
+  const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 11);
+  if (clean !== e.target.value) e.target.value = clean;
+  updateSubmitState();
+}
+
+const APPNUM_RE = /^SC-\d{4}-[A-Z0-9]{3}$/;
+
+function updateSubmitState() {
+  const phone = document.getElementById('member-phone')?.value || '';
+  const appNum = document.getElementById('member-appnum')?.value || '';
+  const phoneHint = document.getElementById('member-phone-hint');
+  const appNumHint = document.getElementById('member-appnum-hint');
+  const btn = document.getElementById('member-login-submit');
+
+  if (phoneHint) {
+    phoneHint.textContent = phone.length === 0 ? '' :
+      phone.length < 10 ? `${10 - phone.length} more digit${10 - phone.length === 1 ? '' : 's'}` : '';
+  }
+  if (appNumHint) {
+    appNumHint.textContent = appNum.length === 0 || APPNUM_RE.test(appNum)
+      ? '' : 'Format: SC-0001-A2B';
+  }
+
+  const ready = phone.length === 10 && APPNUM_RE.test(appNum);
+  if (btn) btn.disabled = !ready;
 }
 
 async function doMemberLogin(router) {
@@ -182,7 +227,11 @@ function injectMemberLoginStyles() {
       outline: none; border-color: var(--border-focus);
       box-shadow: var(--shadow-focus);
     }
-    #member-login-submit[disabled] { opacity: 0.7; }
+    #member-login-submit[disabled] { opacity: 0.55; cursor: not-allowed; }
+    .form-hint {
+      min-height: 15px; font-size: 11px; color: var(--text-tertiary);
+      margin-top: 4px; line-height: 1.4;
+    }
     .login-error {
       display: none; background: rgba(255,77,77,0.08);
       border: 1px solid rgba(255,77,77,0.3); color: var(--red);

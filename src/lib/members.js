@@ -264,64 +264,17 @@ export async function addMember(gymId, d) {
     // Atomic path — if we got here the payment row is committed too.
     return { ...(rpc.data || { id: memberId, ...payload }), _paymentRecorded: true };
   }
-  if (!isMissingFunction(rpc.error)) throw new Error(rpc.error.message || 'Could not save this member.');
 
-  // ── Fallback: pre-033 databases. Two writes, not atomic. ────────
-  const { data, error } = await supabase
-    .from('members')
-    .insert(payload)
-    .select()
-    .single();
-
-  // PGRST116 = insert succeeded but RLS blocked the SELECT-back
-  if (error && error.code !== 'PGRST116') throw error;
-
-  // If PGRST116 (data is null), re-query by our known UUID instead of
-  // falling back to a fake 'local_...' id. The fake id broke the
-  // payment_history FK insert because it's not a valid UUID.
-  let saved = data;
-  if (!saved) {
-    try {
-      const { data: refetched } = await supabase
-        .from('members')
-        .select('*')
-        .eq('id', memberId)
-        .eq('gym_id', gymId)
-        .single();
-      saved = refetched;
-    } catch (_) { /* fall through to synthetic */ }
-  }
-  if (!saved) {
-    // Last resort: use the known UUID (not a fake local_ id)
-    saved = { id: memberId, ...payload, is_active: true, created_at: new Date().toISOString() };
-  }
-
-  safeLog(gymId, 'member_added', `New member added: ${payload.full_name}`);
-
-  // Record only the amount actually collected now (may be partial — balance_due tracks the rest)
-  // HARDENED: await insert + flag result so UI can warn on failure
-  saved._paymentRecorded = true; // default true (no payment needed = success)
-  if (amountPaidNow > 0 && d.memberType !== 'Trial') {
-    try {
-      const { error: phErr } = await supabase.from('payment_history').insert({
-        gym_id: gymId, member_id: saved.id,
-        amount: amountPaidNow,
-        payment_mode: payload.payment_mode,
-        plan_id: payload.plan_id, plan_name: payload.plan_name,
-        paid_at: toPaidAtTimestamp(payload.join_date),
-        notes: paymentNotes,
-      });
-      if (phErr) {
-        console.error('[Sculpt] CRITICAL: payment_history insert failed for', payload.full_name, ':', phErr.message);
-        saved._paymentRecorded = false;
-      }
-    } catch (err) {
-      console.error('[Sculpt] CRITICAL: payment_history insert threw for', payload.full_name, ':', err.message);
-      saved._paymentRecorded = false;
-    }
-  }
-
-  return saved;
+  // sculpt_add_member is what generates the application number a member
+  // needs to log in — there is no safe degraded path here any more.
+  // A raw insert would silently produce a member with
+  // application_number = null who can never sign in, and nothing in the
+  // UI would tell staff that happened. Fail loudly instead.
+  throw new Error(
+    isMissingFunction(rpc.error)
+      ? 'Could not save this member: the sculpt_add_member database function is missing. Contact support before adding members.'
+      : (rpc.error.message || 'Could not save this member.')
+  );
 }
 
 export async function updateMember(memberId, gymId, u, opts = {}) {

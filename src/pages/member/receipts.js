@@ -9,16 +9,28 @@ import { getMyReceipts } from '../../lib/member-auth.js';
 import { listMemberInvoices } from '../../lib/invoices.js';
 import { escHtml, fmtDate } from '../dashboard/helpers.js';
 
-export async function renderMemberReceipts(container, membership) {
-  container.innerHTML = `<div class="loading-inline"><div class="spinner"></div></div>`;
-
-  const [payments, files] = await Promise.all([
-    getMyReceipts().catch((err) => { console.error('[Sculpt] getMyReceipts failed:', err.message); return []; }),
-    listMemberInvoices(membership.gym_id, membership.member_id).catch(() => []),
-  ]);
+// `fixture` (optional { payments, files }) lets a test render every state
+// deterministically without a live session — see the window.__sculptMemberPortal
+// hook in ./index.js, same convention as window.__sculptCheckin.
+export async function renderMemberReceipts(container, membership, fixture) {
+  let payments, files;
+  if (fixture) {
+    ({ payments = [], files = [] } = fixture);
+  } else {
+    container.innerHTML = `<div class="loading-inline"><div class="spinner"></div></div>`;
+    [payments, files] = await Promise.all([
+      getMyReceipts().catch((err) => { console.error('[Sculpt] getMyReceipts failed:', err.message); return []; }),
+      listMemberInvoices(membership.gym_id, membership.member_id).catch(() => []),
+    ]);
+  }
 
   if (!payments.length) {
-    container.innerHTML = `<div class="mp-empty">No payments recorded yet.</div>`;
+    container.innerHTML = `
+      <div class="mp-empty">
+        <div class="mp-empty-icon">🧾</div>
+        <div class="mp-empty-title">No receipts yet</div>
+        <div class="mp-empty-sub">Your payment history will appear here once your first payment is recorded.</div>
+      </div>`;
     return;
   }
 
@@ -38,9 +50,9 @@ export async function renderMemberReceipts(container, membership) {
         <div class="mp-visit-row">
           <div>
             <div class="mp-visit-date">${escHtml(fmtDate(p.paid_at))}</div>
-            <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(p.plan_name || p.notes || 'Payment')}</div>
+            <div class="mp-visit-sub">${escHtml(p.plan_name || p.notes || 'Payment')}</div>
           </div>
-          <div style="font-weight:700;color:var(--text-primary);">₹${Number(p.amount || 0).toLocaleString('en-IN')}</div>
+          <div class="mp-visit-amount">₹${Number(p.amount || 0).toLocaleString('en-IN')}</div>
         </div>`).join('')}
     </div>`;
 }

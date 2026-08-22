@@ -54,9 +54,6 @@ Applied to production (run by hand in the SQL editor, verified):
 - `103_gym_timezone.sql` — adds `gyms.timezone` (default `Asia/Kolkata`)
 - `105_checkin_tokens.sql` — rotating token table + `sculpt_issue_checkin_token()`
 - `106_staff_checkin.sql` — `sculpt_staff_checkin()`, upserts `staff_attendance`
-
-**Not yet applied — run in this order:**
-
 - `104_member_accounts.sql` — member auth link, auto-generated application
   numbers, added-by attribution, member RLS on `members`/`payment_history`
 - `107_member_checkins.sql` — `member_checkins` table, `sculpt_member_checkin()`,
@@ -66,8 +63,18 @@ Applied to production (run by hand in the SQL editor, verified):
 - `109_checkin_followup.sql` — `gyms.checkin_followup_days`, `sculpt_checkin_followup()`,
   adds `member_checkins` to the realtime publication
 - `110_invoices_private.sql` — flips the `invoices` storage bucket private,
-  adds the member-scoped read policy (run this one last — `src/lib/invoices.js`
-  already assumes it's landed and uses signed URLs)
+  adds the member-scoped read policy
+- `111_fix_returns_table_column_shadowing.sql` — fixes the `RETURNS TABLE`
+  column-shadowing bug in `sculpt_issue_checkin_token` / `sculpt_member_checkin` /
+  `sculpt_manual_checkin`. Applied; partially confirmed (2 of 4 `checkin.spec.js`
+  failures cleared) — see HANDOVER.md's "In-progress debugging" note before
+  assuming this is fully resolved.
+
+**Not yet applied:**
+
+- `112_backfill_application_numbers.sql` — backfills `application_number` on
+  active members added before this feature existed. Safe to run whenever;
+  does NOT touch the generation path itself (see HANDOVER.md note).
 
 ## Rules
 
