@@ -270,11 +270,33 @@ export async function addMember(gymId, d) {
   // A raw insert would silently produce a member with
   // application_number = null who can never sign in, and nothing in the
   // UI would tell staff that happened. Fail loudly instead.
-  throw new Error(
-    isMissingFunction(rpc.error)
-      ? 'Could not save this member: the sculpt_add_member database function is missing. Contact support before adding members.'
-      : (rpc.error.message || 'Could not save this member.')
-  );
+  //
+  // IMPORTANT: PGRST202 does NOT mean "the function doesn't exist" —
+  // PostgREST returns the exact same code when the function exists but
+  // no overload matches the named arguments this call sent (a renamed,
+  // added or removed parameter). Asserting "missing, contact support"
+  // here previously sent two sessions chasing a phantom missing
+  // function when the real bug was a client/server signature drift —
+  // see CLAUDE.md. Only Postgres's own 42883 genuinely means "does not
+  // exist"; for PGRST202, print what this file actually sent alongside
+  // the server's own message (which names the signature it searched
+  // for) so the two can be diffed directly instead of guessed at.
+  if (rpc.error.code === '42883') {
+    throw new Error(`Could not save this member: the sculpt_add_member database function does not exist. Server said: ${rpc.error.message}`);
+  }
+  if (rpc.error.code === 'PGRST202') {
+    const attempted = ['p_id', 'p_gym_id', 'p_full_name', 'p_phone', 'p_email', 'p_date_of_birth',
+      'p_gender', 'p_join_date', 'p_plan_id', 'p_plan_name', 'p_plan_price', 'p_plan_duration_months',
+      'p_member_addons', 'p_expiry_date', 'p_payment_mode', 'p_payment_status', 'p_member_type',
+      'p_notes', 'p_application_number', 'p_aadhar_number', 'p_discount_amount', 'p_balance_due',
+      'p_amount_paid', 'p_paid_at', 'p_payment_notes', 'p_added_by_staff_id', 'p_added_by_name'].join(', ');
+    throw new Error(
+      `Could not save this member: sculpt_add_member did not accept this call (PGRST202) — ` +
+      `this usually means the deployed function's parameters no longer match what this file sends, ` +
+      `not that the function is missing. Attempted signature: (${attempted}). Server said: ${rpc.error.message}`
+    );
+  }
+  throw new Error(rpc.error.message || 'Could not save this member.');
 }
 
 export async function updateMember(memberId, gymId, u, opts = {}) {

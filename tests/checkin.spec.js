@@ -14,6 +14,12 @@ async function signIn(page) {
   await page.locator('#login-pass').fill(PASSWORD);
   await page.locator('#login-submit').click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  // window._navTo is assigned as a side effect of dashboard/index.js's
+  // dynamic import finishing evaluation — the URL can already read
+  // /dashboard (the router updates it optimistically) before that import
+  // resolves. Calling window._navTo before it exists throws
+  // "window._navTo is not a function"; wait for it instead of racing it.
+  await page.waitForFunction(() => typeof window._navTo === 'function');
   // lib/checkin.js is only imported by the two check-in pages, and it's
   // the module that exposes window.__sculptCheckin for tests to reach —
   // see the comment in lib/checkin.js. Navigate to one to load it.

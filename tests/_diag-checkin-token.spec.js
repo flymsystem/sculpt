@@ -37,6 +37,7 @@ test('diag: capture the real sculpt_issue_checkin_token / sculpt_staff_checkin r
   await page.locator('#login-submit').click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 
+  await page.waitForFunction(() => typeof window._navTo === 'function');
   await page.evaluate(() => window._navTo('checkin-scan'));
   await page.waitForFunction(() => !!window.__sculptCheckin);
 
@@ -98,6 +99,7 @@ test('diag: capture the real sculpt_add_member response and returned application
   await page.locator('#login-submit').click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 
+  await page.waitForFunction(() => typeof window._navTo === 'function');
   await page.evaluate(() => window._navTo('members'));
   await page.waitForFunction(() => !!window.__sculptMembers);
 
