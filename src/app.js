@@ -396,9 +396,16 @@ async function boot() {
     }
 
     if (profile) {
-      const { role, gym, branches } = profile;
+      const { role, gym, branches, staffRecord } = profile;
       Object.defineProperty(window, '__sculptSession', {
-        value: { role, gym, branches: branches || [] },
+        // staffRecord was dropped here — getMyProfile() has returned it
+        // for staff users since it was added (see lib/auth.js's v3
+        // changelog), but this destructure never picked it up, so
+        // S.staffRecord (dashboard/index.js) was null for every staff
+        // session, in every browser, since that feature shipped. The
+        // gym-switch path in sidebar.js already forwarded it correctly —
+        // this was the only place that didn't.
+        value: { role, gym, branches: branches || [], staffRecord: staffRecord || null },
         writable: true, enumerable: false, configurable: true,
       });
       router.go('gym');

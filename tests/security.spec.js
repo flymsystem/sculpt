@@ -21,11 +21,29 @@ function randomPhone() {
 }
 
 async function signInOwner(page) {
+  // Every test in this file that hands the session to a member and then
+  // switches back must NOT leave that member session active — boot()
+  // (src/app.js) runs on every navigation including /login, and if a
+  // member auth session is still persisted it redirects straight to
+  // /member without ever rendering the login form, so #login-email
+  // never appears and this hangs until the test times out. This was the
+  // real cause of HANDOVER.md's "security.spec.js serial-mode cascade
+  // behind its first failure" — the finally blocks called signInOwner
+  // right after a real member sign-in with no sign-out in between.
+  await page.evaluate(() => window.__sculptSupabase?.auth.signOut()).catch(() => {});
   await page.goto('/login', { waitUntil: 'load' });
   await page.locator('#login-email').fill(EMAIL);
   await page.locator('#login-pass').fill(PASSWORD);
   await page.locator('#login-submit').click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  // See tests/checkin.spec.js for why this wait is needed — window._navTo
+  // is assigned when dashboard/index.js's dynamic import finishes, which
+  // can race the URL already reading /dashboard.
+  await page.waitForFunction(() => typeof window._navTo === 'function');
+  // See tests/add-member.spec.js: the dashboard's own initial nav can
+  // stomp a nav triggered before loadData() resolves. Wait for the first
+  // real render so these calls are the last ones, not a race.
+  await page.waitForFunction(() => !!document.querySelector('#gym-content .content-inner'));
   await page.evaluate(() => window._navTo('members'));
   await page.evaluate(() => window._navTo('checkin-scan'));
   await page.waitForFunction(() => !!window.__sculptMembers && !!window.__sculptCheckin);

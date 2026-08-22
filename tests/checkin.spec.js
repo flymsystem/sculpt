@@ -1,12 +1,21 @@
 // tests/checkin.spec.js — token lifecycle + staff check-in idempotency.
-// Needs SCULPT_TEST_EMAIL / SCULPT_TEST_PASSWORD (staff or owner login)
-// and --workers=1, same as the rest of the credentialed suite.
+// Needs SCULPT_STAFF_EMAIL / SCULPT_STAFF_PASSWORD (a real staff login,
+// not the owner) and --workers=1, same as the rest of the credentialed
+// suite.
+//
+// WHY STAFF CREDENTIALS, NOT OWNER: sculpt_staff_checkin() resolves the
+// caller via staff.user_id = auth.uid(). The owner has no staff row, so
+// every call from an owner session legitimately returns NOT_STAFF —
+// these tests would either fail for the wrong reason or (with a loose
+// enough assertion) silently pass without ever exercising the real
+// check-in mechanism. See HANDOVER.md's now-resolved "in-progress
+// debugging" note for how that confusion cost a session.
 import { test, expect } from '@playwright/test';
 
-const EMAIL = process.env.SCULPT_TEST_EMAIL;
-const PASSWORD = process.env.SCULPT_TEST_PASSWORD;
+const EMAIL = process.env.SCULPT_STAFF_EMAIL;
+const PASSWORD = process.env.SCULPT_STAFF_PASSWORD;
 
-test.skip(!EMAIL || !PASSWORD, 'Needs SCULPT_TEST_EMAIL/SCULPT_TEST_PASSWORD');
+test.skip(!EMAIL || !PASSWORD, 'Needs SCULPT_STAFF_EMAIL/SCULPT_STAFF_PASSWORD (a staff login, not the owner)');
 
 async function signIn(page) {
   await page.goto('/login', { waitUntil: 'load' });
@@ -20,11 +29,22 @@ async function signIn(page) {
   // resolves. Calling window._navTo before it exists throws
   // "window._navTo is not a function"; wait for it instead of racing it.
   await page.waitForFunction(() => typeof window._navTo === 'function');
+  // The dashboard's own initial nav (fired once loadData() resolves, after
+  // window._navTo already exists) can stomp a nav we trigger before it —
+  // see the longer comment in tests/add-member.spec.js. Wait for the
+  // first real render so ours is the last one, not a race.
+  await page.waitForFunction(() => !!document.querySelector('#gym-content .content-inner'));
   // lib/checkin.js is only imported by the two check-in pages, and it's
   // the module that exposes window.__sculptCheckin for tests to reach —
   // see the comment in lib/checkin.js. Navigate to one to load it.
   await page.evaluate(() => window._navTo('checkin-scan'));
   await page.waitForFunction(() => !!window.__sculptCheckin);
+
+  // Fail loudly, not silently, if these credentials aren't actually a
+  // staff login — a NOT_STAFF result below would otherwise look
+  // identical to a passing "not too soon" assertion.
+  const staffId = await page.evaluate(() => window.__sculptSession?.staffRecord?.id || null);
+  if (!staffId) throw new Error('SCULPT_STAFF_EMAIL is not a staff login (no staffRecord on the session) — these tests need a real staff account, not the owner.');
 }
 
 test('a token issued now is accepted by staff check-in', async ({ page }) => {
@@ -33,6 +53,7 @@ test('a token issued now is accepted by staff check-in', async ({ page }) => {
     const { token } = await window.__sculptCheckin.issueCheckinToken();
     return window.__sculptCheckin.staffCheckin(token);
   });
+  expect(result.status, 'A real staff login got NOT_STAFF back').not.toBe('NOT_STAFF');
   expect(['CHECKED_IN', 'CHECKED_OUT', 'TOO_SOON']).toContain(result.status);
 });
 
@@ -59,10 +80,11 @@ test('two scans inside 10 minutes do not double-write', async ({ page }) => {
     }
     return out;
   });
+  expect(results[0].status, 'A real staff login got NOT_STAFF back').not.toBe('NOT_STAFF');
   // First call checks in (or moves check_out, if a prior test run
   // already checked in today); the second, seconds later, must NOT be
   // a second CHECKED_IN — it's TOO_SOON, never a fresh insert.
-  expect(results[1].status).not.toBe('CHECKED_IN');
+  expect(results[1].status).toBe('TOO_SOON');
 });
 
 test('a scan after the cooldown moves check_out forward, not just once', async ({ page }) => {
@@ -79,5 +101,6 @@ test('a scan after the cooldown moves check_out forward, not just once', async (
     const { token } = await window.__sculptCheckin.issueCheckinToken();
     return window.__sculptCheckin.staffCheckin(token);
   });
+  expect(result.status, 'A real staff login got NOT_STAFF back').not.toBe('NOT_STAFF');
   expect(result.status).not.toBe('ALREADY_DONE');
 });

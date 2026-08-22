@@ -147,64 +147,36 @@ SCULPT_TEST_EMAIL=sculptfit@gmail.com SCULPT_TEST_PASSWORD=... node scripts/qa-d
 
 ---
 
-## ⚠️ IN-PROGRESS DEBUGGING — check-in feature (delete this section once resolved)
+## ⚠️ Migrations 114–116 need running, and two Edge Functions redeploying
 
-Session state as of the last handoff, so the next session doesn't re-derive
-it. Real pass/fail counts from the last full credentialed run
-(`npx playwright test --workers=1`): **39 passed, 3 failed, 8 did not run**
-(the 8 are the `security.spec.js` serial-mode cascade behind its first
-failure).
+As of 2026-08-22: `114_fix_add_member_stale_helper_call.sql`,
+`115_staff_login_revocation.sql` and `116_staff_login_metadata.sql` exist as
+files but have not been applied to production yet — run them in the SQL
+editor, in that order. `create-staff-user` and the new `manage-staff-login`
+Edge Function also need `supabase functions deploy`. See
+`supabase/migrations/README.md` for what each one does. Confirmed live
+against production (built preview, not dev server) via Playwright before
+these were applied: adding a member fails with `flym_assert_payment_mode
+does not exist` (now correctly attributed by the client instead of blaming
+`sculpt_add_member`) exactly as expected pre-114.
 
-**Confirmed and fixed:**
-- `sculpt_issue_checkin_token` / `sculpt_member_checkin` / `sculpt_manual_checkin`
-  all had a `RETURNS TABLE` column-shadowing bug (Postgres 42702) — see
-  CLAUDE.md's Conventions section and `111_fix_returns_table_column_shadowing.sql`.
-  Confirmed via the Management API against production, not inferred. Migration
-  `111` is applied; it cleared 2 of the original 4 `checkin.spec.js` failures
-  (`:46` and `:62` now pass).
+Separately, unrelated to this session's changes: the `manoj.sculpt@gmail.com`
+staff test account has `staff.user_id` / `login_enabled = true` set from an
+earlier attempt but no matching `gym_users` row — it currently cannot sign
+in as staff at all. A one-off corrective `INSERT` (not a migration, this is
+account-specific data) was proposed and is the client's call to run.
 
-**Still open, needs real evidence before touching code:**
-- `checkin.spec.js:24` and `:33` still fail after `111`. Leading
-  **unconfirmed hypothesis**: `sculpt_staff_checkin` resolves the caller via
-  `staff.user_id = auth.uid()`, and if `SCULPT_TEST_EMAIL` is the *owner*
-  account rather than a staff login, every call legitimately returns
-  `NOT_STAFF` — which explains all four original failures' pass/fail pattern
-  (`:24`/`:33` assert a specific status and fail; `:46`/`:62` only assert
-  `not.toBe(specific-other-status)` and pass either way, so they're weak
-  evidence). This needs the actual `message` field back from a real call to
-  confirm or kill — `tests/_diag-checkin-token.spec.js` (temporary, delete
-  once this is resolved) captures exactly that. Needs `SCULPT_TEST_EMAIL`/
-  `SCULPT_TEST_PASSWORD` to run.
-- Desk display (`/dashboard/checkin-display`) QR status after `111` — last
-  known state was still showing the offline banner; owner was hard-refreshing
-  production to re-check when this session ended. If it's still broken,
-  **compare the deployed function body against the migration file** (e.g.
-  `SELECT pg_get_functiondef('sculpt_issue_checkin_token'::regproc)` via the
-  Management API) rather than assuming `111` applied cleanly — don't guess.
-- **Real bug, not yet fixed:** `addMember()` in `src/lib/members.js` has a
-  fallback path (`isMissingFunction()` check) that silently falls through to
-  a raw `.from('members').insert(payload)` if the `sculpt_add_member` RPC
-  looks like it's missing — and that fallback hardcodes
-  `application_number: null`. A fallback that silently degrades a feature
-  the app now depends on for login shouldn't exist. Not yet fixed because
-  it hasn't been confirmed as the actual cause of anything live — see next
-  point.
-- **Ruled out, don't re-investigate without new evidence:** every existing
-  member having `application_number IS NULL` is NOT evidence of a live bug —
-  confirmed with the client that all of those members were added *before*
-  this feature existed, and no member has been added through the app since.
-  `112_backfill_application_numbers.sql` is written (backfills existing NULLs)
-  but intentionally does not touch the generation path — that only gets
-  "fixed" once a member is actually added post-deploy and still comes back
-  NULL, with the real RPC response captured via the same diagnostic test.
-
-**What the next session needs to make progress:** either a Supabase personal
-access token (for direct Management API queries — the project ref is
-`acigxzbbchhisaymklld`; port 5432 is firewalled on this machine, port 6543
-needs a DB password nobody has, so the Management API over HTTPS is the only
-path that's worked) or `SCULPT_TEST_EMAIL`/`SCULPT_TEST_PASSWORD` (for
-`_diag-checkin-token.spec.js`, which prints the real RPC status/body instead
-of guessing).
+The check-in feature itself (`111_fix_returns_table_column_shadowing.sql`
+onward) is confirmed working — `sculpt_issue_checkin_token` /
+`sculpt_member_checkin` / `sculpt_manual_checkin` all fixed and applied. The
+`checkin.spec.js:24`/`:33` failures from an earlier session were real but
+were a test-authoring bug, not a product bug: those tests signed in as the
+*owner*, who has no `staff` row, so `sculpt_staff_checkin` legitimately
+returned `NOT_STAFF` every time. `tests/checkin.spec.js` now requires
+`SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` (a real staff login) and fails
+loudly if the account it's given isn't actually staff, instead of silently
+testing nothing. `tests/_diag-checkin-token.spec.js` (the temporary
+diagnostic that first proved this) has been deleted.
 
 ---
 
@@ -357,6 +329,20 @@ built from.
   intro logo animation on every single menu click instead of just letting
   the browser scroll to the section. See the guard at the top of the
   `popstate` handler in `src/app.js`.
+- **A feature that adds a new `gym_users.role` value must also widen the
+  `gym_users_role_check` constraint that gates it.** `001_initial_schema.sql`
+  defines `role TEXT NOT NULL CHECK (role IN ('owner', 'admin'))`.
+  `030_staff_login_tiers.sql` built the entire staff-login feature around
+  `role = 'staff'` — `get_my_gym_id_as_staff()` queries for it,
+  `supabase/functions/create-staff-user` inserts it — but never widened the
+  constraint. Every attempt to create a staff login failed at the
+  `gym_users` insert with `violates check constraint
+  "gym_users_role_check"`, silently, because nobody had ever tried to
+  create one until this was caught. `113_widen_gym_users_role_check.sql`
+  fixes it. The general rule: adding a role/status/enum value to code that
+  reads or writes a column is only half the change — grep for the CHECK
+  constraint on that column and widen it in the same migration, not a
+  later one.
 
 ### PowerShell notes (your terminal)
 

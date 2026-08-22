@@ -10,7 +10,7 @@ import { pickPhoto } from '../../components/photo-picker.js';
 import { openPhotoLightbox } from '../../components/photo-lightbox.js';
 import { saveStaffPhoto, removeStaffPhoto } from './photo.js';
 import { supabase } from '../../lib/supabase.js';
-import { createStaffLogin } from '../../lib/auth.js';
+import { createStaffLogin, resetStaffPassword, disableStaffLogin, enableStaffLogin, removeStaffLogin, changeStaffLoginEmail } from '../../lib/auth.js';
 import { hasAccess } from '../../lib/permissions.js';
 
 let _nav;
@@ -146,7 +146,9 @@ function renderRoster(c) {
     const delBtn = e.target.closest('[data-staff-del]');
     const photoBtn = e.target.closest('[data-staff-photo]');
     const uploadBtn = e.target.closest('[data-staff-upload]');
+    const manageLoginBtn = e.target.closest('[data-staff-manage-login]');
     if (loginBtn) { e.stopPropagation(); openCreateLoginModal(loginBtn.dataset.staffLogin); return; }
+    if (manageLoginBtn) { e.stopPropagation(); openManageLoginModal(manageLoginBtn.dataset.staffManageLogin); return; }
     if (editBtn) { e.stopPropagation(); openEditStaffModal(editBtn.dataset.staffEdit); return; }
     if (delBtn) { e.stopPropagation(); confirmDeleteStaff(delBtn.dataset.staffDel); return; }
     if (photoBtn) { e.stopPropagation(); openPhotoLightbox(photoBtn.dataset.staffPhoto); return; }
@@ -180,11 +182,20 @@ function staffRow(s) {
     : '\u2014';
 
   const isOwner = (S.role || 'owner') === 'owner';
-  const loginBadge = s.login_enabled
-    ? `<span class="badge badge-green" style="font-size:9px;margin-left:6px;">Login</span>`
+  const hasLogin = !!s.user_id;
+  const loginBadge = hasLogin
+    ? (s.login_enabled
+        ? `<span class="badge badge-green" style="font-size:9px;margin-left:6px;">Login</span>`
+        : `<span class="badge badge-amber" style="font-size:9px;margin-left:6px;">Login off</span>`)
     : '';
-  const loginBtn = isOwner && !s.login_enabled
-    ? `<button class="btn btn-sm" data-staff-login="${escHtml(String(s.id))}" title="Create Login" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>`
+  // No login yet: a single obvious action, not a blank cell — see
+  // CLAUDE.md's "Staff with no login shows an obvious Create login
+  // action" requirement.
+  const loginBtn = isOwner && !hasLogin
+    ? `<button class="btn btn-sm" data-staff-login="${escHtml(String(s.id))}" title="Create Login" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> <span class="hide-mobile">Create login</span></button>`
+    : '';
+  const manageLoginBtn = isOwner && hasLogin
+    ? `<button class="btn btn-sm btn-ghost" data-staff-manage-login="${escHtml(String(s.id))}" title="Manage Login"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`
     : '';
 
   return `<tr>
@@ -204,6 +215,7 @@ function staffRow(s) {
     <td>
       <div class="action-btns" style="gap:4px;justify-content:flex-end;">
         ${loginBtn}
+        ${manageLoginBtn}
         ${isOwner ? `<button class="btn btn-sm btn-ghost" data-staff-upload="${escHtml(String(s.id))}" title="Upload Photo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>` : ''}
         ${isOwner ? `<button class="btn btn-sm btn-ghost" data-staff-edit="${escHtml(String(s.id))}" title="Edit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : ''}
         ${isOwner ? `<button class="btn btn-sm" data-staff-del="${escHtml(String(s.id))}" style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;" title="Remove"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>` : ''}
@@ -771,7 +783,7 @@ async function confirmDeleteStaff(id) {
   if (!s) return;
   const ok = await showConfirm({
     title: 'Remove Staff?',
-    message: `Remove ${s.full_name} from your staff? Their attendance and payment records are preserved.`,
+    message: `Remove ${s.full_name} from your staff? Their attendance and payment records are preserved.${s.user_id ? ' Their login access is revoked immediately as part of this.' : ''}`,
     confirmLabel: 'Remove',
     confirmVariant: 'danger',
   });
@@ -1001,6 +1013,8 @@ function openCreateLoginModal(staffId) {
           if (idx > -1) {
             S.staff[idx].login_enabled = true;
             S.staff[idx].user_id = result.userId;
+            S.staff[idx].login_email = result.email;
+            S.staff[idx].login_created_at = new Date().toISOString();
           }
 
           renderStaffTab();
@@ -1010,6 +1024,185 @@ function openCreateLoginModal(staffId) {
           errEl.style.display = 'block';
           btn.disabled = false;
           btn.textContent = 'Create Login';
+        }
+      });
+    }
+  });
+}
+
+// ── Manage Login Modal ────────────────────────────────────────────
+// One place for everything the owner can do to an existing staff
+// login — reset password, disable/enable, change email, remove
+// entirely — rather than five separate icon buttons crowding the
+// roster row. Reopens itself after an action so the status shown
+// stays in sync with what just happened.
+function openManageLoginModal(staffId) {
+  const staff = (S.staff || []).find(s => String(s.id) === String(staffId));
+  if (!staff || !staff.user_id) return;
+
+  const enabled = !!staff.login_enabled;
+  const createdStr = staff.login_created_at ? fmtDate(staff.login_created_at) : '—';
+
+  openModal({
+    title: `Login — ${escHtml(staff.full_name)}`,
+    size: 'sm',
+    body: `<div class="modal-form">
+      <div class="settings-card" style="padding:14px 16px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:12px;color:var(--text-tertiary);">Status</span>
+          <span class="badge ${enabled ? 'badge-green' : 'badge-amber'}">${enabled ? 'Enabled' : 'Disabled'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:12px;color:var(--text-tertiary);">Email</span>
+          <span style="font-size:13px;font-weight:500;color:var(--text-primary);word-break:break-all;text-align:right;">${escHtml(staff.login_email || '—')}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text-tertiary);">Created</span>
+          <span style="font-size:13px;color:var(--text-secondary);">${createdStr}</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-sm" id="ml-toggle" type="button" style="width:100%;justify-content:center;${enabled ? '' : 'background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);'}">
+          ${enabled ? 'Disable Login' : 'Enable Login'}
+        </button>
+        <button class="btn btn-sm btn-ghost" id="ml-reset" type="button" style="width:100%;justify-content:center;">Reset Password</button>
+        <button class="btn btn-sm btn-ghost" id="ml-email" type="button" style="width:100%;justify-content:center;">Change Login Email</button>
+        <button class="btn btn-sm" id="ml-remove" type="button" style="width:100%;justify-content:center;background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);">Remove Login</button>
+      </div>
+      <div id="ml-error" style="display:none;color:var(--red);font-size:13px;background:var(--red-fade);border:1px solid var(--red-strong);padding:10px 13px;border-radius:var(--radius-sm);margin-top:12px;"></div>
+    </div>`,
+    footer: `<button class="btn btn-ghost" data-modal-cancel style="width:100%;">Close</button>`,
+    onOpen: () => {
+      bindModalCancel();
+      const errEl = document.getElementById('ml-error');
+      const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+      document.getElementById('ml-toggle')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          if (enabled) await disableStaffLogin(staffId); else await enableStaffLogin(staffId);
+          const idx = (S.staff || []).findIndex(s => String(s.id) === String(staffId));
+          if (idx > -1) S.staff[idx].login_enabled = !enabled;
+          closeModal();
+          renderStaffTab();
+          showToast(`Login ${enabled ? 'disabled' : 'enabled'} for ${staff.full_name}`, 'green');
+        } catch (err) { btn.disabled = false; showErr(err.message || 'Action failed.'); }
+      });
+
+      document.getElementById('ml-reset')?.addEventListener('click', () => openResetPasswordModal(staffId));
+      document.getElementById('ml-email')?.addEventListener('click', () => openChangeLoginEmailModal(staffId));
+
+      document.getElementById('ml-remove')?.addEventListener('click', async () => {
+        const ok = await showConfirm({
+          title: 'Remove Login?',
+          message: `This permanently deletes ${staff.full_name}'s login account. Their staff record and attendance/salary history are kept. This cannot be undone from here — a new login can be created afterward.`,
+          confirmLabel: 'Remove Login',
+          confirmVariant: 'danger',
+        });
+        if (!ok) return;
+        try {
+          await removeStaffLogin(staffId);
+          const idx = (S.staff || []).findIndex(s => String(s.id) === String(staffId));
+          if (idx > -1) {
+            S.staff[idx].user_id = null;
+            S.staff[idx].login_enabled = false;
+            S.staff[idx].login_email = null;
+            S.staff[idx].login_created_at = null;
+          }
+          closeModal();
+          renderStaffTab();
+          showToast(`Login removed for ${staff.full_name}`, 'green');
+        } catch (err) { showErr(err.message || 'Failed to remove login.'); }
+      });
+    }
+  });
+}
+
+function openResetPasswordModal(staffId) {
+  const staff = (S.staff || []).find(s => String(s.id) === String(staffId));
+  if (!staff) return;
+  openModal({
+    title: `Reset Password — ${escHtml(staff.full_name)}`,
+    size: 'sm',
+    body: `<div class="modal-form">
+      <div class="form-group">
+        <label class="form-label">New Password * <span style="font-weight:400;color:var(--text-quaternary);font-size:11px;">(min 6 characters)</span></label>
+        <input class="form-input" id="rp-password" type="password" placeholder="New password" autocomplete="new-password" minlength="6">
+      </div>
+      <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5;">
+        ${escHtml(staff.full_name)} has no email access this app can rely on — give them the new password directly.
+      </div>
+      <div id="rp-error" style="display:none;color:var(--red);font-size:13px;background:var(--red-fade);border:1px solid var(--red-strong);padding:10px 13px;border-radius:var(--radius-sm);margin-top:10px;"></div>
+    </div>`,
+    footer: `<button class="btn btn-ghost" data-modal-cancel>Cancel</button>
+      <button class="btn btn-primary" id="rp-submit">Reset Password</button>`,
+    onOpen: () => {
+      bindModalCancel();
+      document.getElementById('rp-submit')?.addEventListener('click', async () => {
+        const password = document.getElementById('rp-password')?.value;
+        const errEl = document.getElementById('rp-error');
+        errEl.style.display = 'none';
+        if (!password || password.length < 6) {
+          errEl.textContent = 'Password must be at least 6 characters.';
+          errEl.style.display = 'block';
+          return;
+        }
+        const btn = document.getElementById('rp-submit');
+        btn.disabled = true; btn.textContent = 'Resetting…';
+        try {
+          await resetStaffPassword(staffId, password);
+          closeModal();
+          showToast(`Password reset for ${staff.full_name}`, 'green');
+        } catch (err) {
+          errEl.textContent = err.message || 'Failed to reset password.';
+          errEl.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Reset Password';
+        }
+      });
+    }
+  });
+}
+
+function openChangeLoginEmailModal(staffId) {
+  const staff = (S.staff || []).find(s => String(s.id) === String(staffId));
+  if (!staff) return;
+  openModal({
+    title: `Change Login Email — ${escHtml(staff.full_name)}`,
+    size: 'sm',
+    body: `<div class="modal-form">
+      <div class="form-group">
+        <label class="form-label">New Login Email *</label>
+        <input class="form-input" id="ce-email" type="email" placeholder="staff@email.com" autocomplete="off" value="${escHtml(staff.login_email || '')}">
+      </div>
+      <div id="ce-error" style="display:none;color:var(--red);font-size:13px;background:var(--red-fade);border:1px solid var(--red-strong);padding:10px 13px;border-radius:var(--radius-sm);margin-top:10px;"></div>
+    </div>`,
+    footer: `<button class="btn btn-ghost" data-modal-cancel>Cancel</button>
+      <button class="btn btn-primary" id="ce-submit">Save Email</button>`,
+    onOpen: () => {
+      bindModalCancel();
+      document.getElementById('ce-submit')?.addEventListener('click', async () => {
+        const email = document.getElementById('ce-email')?.value?.trim();
+        const errEl = document.getElementById('ce-error');
+        errEl.style.display = 'none';
+        if (!email || !email.includes('@')) {
+          errEl.textContent = 'Please enter a valid email address.';
+          errEl.style.display = 'block';
+          return;
+        }
+        const btn = document.getElementById('ce-submit');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          const result = await changeStaffLoginEmail(staffId, email);
+          const idx = (S.staff || []).findIndex(s => String(s.id) === String(staffId));
+          if (idx > -1) S.staff[idx].login_email = result.email || email;
+          closeModal();
+          showToast(`Login email updated for ${staff.full_name}`, 'green');
+        } catch (err) {
+          errEl.textContent = err.message || 'Failed to change email.';
+          errEl.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Save Email';
         }
       });
     }

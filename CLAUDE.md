@@ -125,6 +125,42 @@ Read from it; don't thread it through parameters.
   Membership, About, Contact) tears the whole page down and rebuilds it on
   click, replaying the intro animation every time instead of letting the
   browser scroll to the section.
+- **The session object that lands in `window.__sculptSession` is built in
+  two separate places** — `boot()` in `src/app.js` (page load/refresh) and
+  the login-form submit handler in `src/pages/login.js` (a fresh sign-in;
+  `boot()` doesn't run again for it) — plus a third, `switchGym()`'s
+  handler in `sidebar.js`. All three must forward every field
+  `getMyProfile()` returns, `staffRecord` included. `boot()` and
+  `login.js` both dropped it (destructured `{ role, gym, branches }` only)
+  from the day `getMyProfile()` started returning it — `S.staffRecord`
+  (`dashboard/index.js`) was silently `null` for every staff session, in
+  every browser, until this was caught by a Playwright test finally
+  signing in as a real staff account instead of the owner. `sidebar.js`
+  had it right the whole time. If `getMyProfile()` grows another field,
+  grep for all three call sites, not just one.
+- **A migration that `CREATE OR REPLACE`s or `DROP + CREATE`s a function
+  by copying an older version of that function's body can silently
+  reintroduce a bug an earlier migration already fixed in a *different*
+  copy of that body.** `104_member_accounts.sql` needed a new
+  `sculpt_add_member` signature (extra trailing params) and, per its own
+  comment, wrote the new body by copying the pre-`033`-rename source —
+  which turned out to also predate two fixes: `038`'s
+  `member_addons` text→jsonb cast, and (separately)
+  `100_sculpt_rename_identifiers.sql`'s helper rename meant one internal
+  call was left pointing at the pre-rename name. Both shipped broken and
+  both were only caught by actually calling the RPC end-to-end, not by
+  reading the migration. When copying a function body forward, diff it
+  against the CURRENT (most recently `CREATE OR REPLACE`d) version of
+  that same function, not just the version being extended.
+- **`get_my_gym_id_as_staff()` gates almost every staff-facing RLS policy
+  and RPC in this schema — it must check `staff.is_active` AND
+  `staff.login_enabled`, not just that a `gym_users` row with
+  `role = 'staff'` exists** (see `115_staff_login_revocation.sql`). Because
+  every staff permission check funnels through this one function,
+  fixing it here is what makes "disable this staff member's login" or
+  "remove this staff member" revoke access immediately and everywhere,
+  with no separate step to remember. Do not add a second, parallel way
+  to check staff authorization — route through this function.
 
 ## Invoices and printable documents
 

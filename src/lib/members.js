@@ -281,8 +281,20 @@ export async function addMember(gymId, d) {
   // exist"; for PGRST202, print what this file actually sent alongside
   // the server's own message (which names the signature it searched
   // for) so the two can be diffed directly instead of guessed at.
+  //
+  // 42883 ALSO doesn't necessarily mean sculpt_add_member is missing —
+  // Postgres raises the identical code when sculpt_add_member exists
+  // and runs, but calls a HELPER inside its own body that doesn't
+  // exist (this happened for real: migration 104's sculpt_add_member
+  // called flym_assert_payment_mode, a name migration 100 had already
+  // renamed away — see 114_fix_add_member_stale_helper_call.sql).
+  // rpc.error.message is Postgres's own text and already names the
+  // actual missing function; pull it out instead of hardcoding
+  // "sculpt_add_member" and asserting it's the culprit.
   if (rpc.error.code === '42883') {
-    throw new Error(`Could not save this member: the sculpt_add_member database function does not exist. Server said: ${rpc.error.message}`);
+    const missing = /function\s+(?:public\.)?"?([a-zA-Z0-9_]+)"?\(/i.exec(rpc.error.message || '')?.[1];
+    const what = missing ? `the ${missing} database function` : 'a database function this call depends on';
+    throw new Error(`Could not save this member: ${what} does not exist. Server said: ${rpc.error.message}`);
   }
   if (rpc.error.code === 'PGRST202') {
     const attempted = ['p_id', 'p_gym_id', 'p_full_name', 'p_phone', 'p_email', 'p_date_of_birth',
@@ -814,5 +826,5 @@ export async function getGymActivity(gymId, limit = 20) {
 // lib/checkin.js — lets tests/security.spec.js create/remove disposable
 // members against the built preview server without a UI form.
 if (typeof window !== 'undefined') {
-  window.__sculptMembers = { addMember, deleteMember };
+  window.__sculptMembers = { addMember, deleteMember, getMembers };
 }

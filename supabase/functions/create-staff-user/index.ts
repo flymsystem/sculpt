@@ -190,6 +190,8 @@ Deno.serve(async (req) => {
       .update({
         user_id: newUserId,
         login_enabled: true,
+        login_email: cleanEmail,
+        login_created_at: new Date().toISOString(),
       })
       .eq('id', staffId)
       .eq('gym_id', gymId);

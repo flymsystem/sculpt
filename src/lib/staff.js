@@ -208,6 +208,13 @@ export async function deleteSalaryPayment(paymentId, gymId) {
   if (error) throw error;
 }
 
+// Test-only hook, same convention as window.__sculptMembers in
+// lib/members.js — lets tests create/remove disposable staff rows
+// against the built preview server without a UI form.
+if (typeof window !== 'undefined') {
+  window.__sculptStaff = { getStaff, addStaff, deleteStaff };
+}
+
 /** Get total paid to a staff member in a given month (YYYY-MM) */
 export async function getStaffMonthlyPaid(gymId, staffId, month) {
   const startDate = month + '-01';

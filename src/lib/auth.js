@@ -141,11 +141,19 @@ export async function getMyProfile(userId) {
     // Fetch the linked staff record for this user
     let staffRecord = null;
     try {
+      // login_enabled is checked here too, not just is_active — a
+      // "Disable login" action (login_enabled=false, is_active stays
+      // true, for a suspension) must produce the same clean sign-out
+      // and message as a full removal, not silently land the staff
+      // member in a dashboard where every RLS-gated query comes back
+      // empty. See get_my_gym_id_as_staff() / 115_staff_login_revocation.sql
+      // for the same check enforced at the database layer.
       const { data: staffData } = await supabase
         .from('staff')
         .select('id, full_name, phone, role, photo_url, join_date')
         .eq('user_id', userId)
         .eq('is_active', true)
+        .eq('login_enabled', true)
         .limit(1)
         .single();
       staffRecord = staffData;
@@ -270,7 +278,87 @@ export async function createStaffLogin(staffId, email, password) {
   return result;
 }
 
+// ── Staff login management (owner only) ────────────────────────────
+// All five actions below share one Edge Function (manage-staff-login)
+// and one error-unwrapping strategy, same reasoning as createStaffLogin
+// above: supabase-js buries the server's JSON error body inside
+// error.context, so every failure otherwise surfaces as the same
+// unhelpful generic string.
+async function callManageStaffLogin(staffId, action, extra = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const res = await supabase.functions.invoke('manage-staff-login', {
+    body: { staffId, action, ...extra },
+  });
+
+  if (res.error) {
+    let serverMsg = '';
+    try {
+      const ctx = res.error.context;
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.clone().json();
+        serverMsg = body?.error || '';
+      }
+    } catch (_) { /* body wasn't JSON — fall through */ }
+
+    if (serverMsg) throw new Error(serverMsg);
+
+    const raw = res.error.message || '';
+    if (/failed to send a request/i.test(raw)) {
+      throw new Error(
+        'Could not reach the server. The manage-staff-login function may not be deployed. ' +
+        'Run: supabase functions deploy manage-staff-login'
+      );
+    }
+    throw new Error(raw || `Failed to ${action.replace('_', ' ')} login`);
+  }
+
+  const result = res.data;
+  if (result?.error) throw new Error(result.error);
+  return result;
+}
+
+/** Owner sets a new password directly for a staff login. */
+export function resetStaffPassword(staffId, newPassword) {
+  return callManageStaffLogin(staffId, 'reset_password', { newPassword });
+}
+
+/** Revokes access without deleting the account. Reversible. */
+export function disableStaffLogin(staffId) {
+  return callManageStaffLogin(staffId, 'disable');
+}
+
+/** Reverses disableStaffLogin. */
+export function enableStaffLogin(staffId) {
+  return callManageStaffLogin(staffId, 'enable');
+}
+
+/**
+ * Deletes the auth account and the gym_users row. Staff record and
+ * attendance/salary history are untouched — this removes access, not
+ * history.
+ */
+export function removeStaffLogin(staffId) {
+  return callManageStaffLogin(staffId, 'remove');
+}
+
+/** Fixes a typo'd login email at creation. */
+export function changeStaffLoginEmail(staffId, newEmail) {
+  return callManageStaffLogin(staffId, 'change_email', { newEmail });
+}
+
 /** Subscribe to auth state changes. */
 export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback);
+}
+
+// Test-only hook, same convention as window.__sculptMembers in
+// lib/members.js — lets tests drive staff login management against the
+// built preview server without a UI form.
+if (typeof window !== 'undefined') {
+  window.__sculptStaffAuth = {
+    createStaffLogin, resetStaffPassword, disableStaffLogin,
+    enableStaffLogin, removeStaffLogin, changeStaffLoginEmail,
+  };
 }

@@ -161,14 +161,18 @@ async function doLogin(router) {
       setTimeout(() => reject(new Error('__TIMEOUT__')), 30000)
     );
 
-    const { role, gym, branches } = await Promise.race([loginPromise, timeoutPromise]);
+    const { role, gym, branches, staffRecord } = await Promise.race([loginPromise, timeoutPromise]);
 
     // Reset rate limit on success
     _loginAttempts = 0;
     _lockoutUntil = 0;
 
+    // staffRecord was dropped here too — same bug as boot() in app.js
+    // (this is the code path an actual login-form submit takes; boot()
+    // only runs on page load/refresh with an already-persisted session).
+    // See app.js for the full explanation.
     Object.defineProperty(window, '__sculptSession', {
-      value: { role, gym, branches: branches || [] },
+      value: { role, gym, branches: branches || [], staffRecord: staffRecord || null },
       writable: true, enumerable: false, configurable: true,
     });
     setTimeout(() => router.go('gym'), 150);
