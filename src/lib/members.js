@@ -335,8 +335,10 @@ export async function updateMember(memberId, gymId, u, opts = {}) {
     discount_amount:      u.discountAmount !== undefined ? (num(u.discountAmount) || 0) : undefined,
     balance_due:          u.balanceDue     !== undefined ? (num(u.balanceDue)     || 0) : undefined,
   };
-  // For Trial: set explicit expiry; for Paid/Unpaid: DB trigger recalculates
-  if (u.memberType === 'Trial') payload.expiry_date = txt(u.expiryDate);
+  // Explicit expiry edit (migration 122 — set_member_expiry only
+  // auto-recomputes when join_date/plan_duration_months actually change,
+  // so this sticks for Paid/Unpaid too, not just Trial).
+  if (u.expiryDate !== undefined) payload.expiry_date = txt(u.expiryDate);
   // Remove undefined keys (member_addons may be undefined if not provided)
   Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
@@ -358,7 +360,12 @@ export async function updateMember(memberId, gymId, u, opts = {}) {
     .select()
     .single();
 
-  if (error && error.code !== 'PGRST116') throw error;
+  if (error && error.code !== 'PGRST116') {
+    if (error.code === '23505' && /ux_members_gym_phone_active/.test(error.message || '')) {
+      throw new Error('This phone number is already registered to another member at this gym.');
+    }
+    throw error;
+  }
 
   // ── Sync payment_history.paid_at when join_date changes ─────────
   // addMember() stamps paid_at to noon of join_date. If the gym owner
@@ -693,14 +700,17 @@ async function fetchAllPayments(buildQuery) {
 }
 
 export async function getPaymentHistory(gymId) {
-  // !inner = inner join — excludes payments whose member was soft-deleted
-  // (is_active=false). Without this, deleted members' payments still count
-  // in Finance revenue and Overview stats.
+  // Historical payments must survive a member being deleted (FIX-PROMPT.md
+  // item 12 — deletion is soft (is_active=false) and revenue reports must
+  // still reconcile against the gym's real lifetime total). This used to
+  // `!inner`-join and filter members.is_active=true, which silently
+  // dropped a deleted member's entire payment history from every revenue
+  // total the moment they were deleted. Left join instead — a payment row
+  // always has a member row (FK), active or not.
   return fetchAllPayments(() => supabase
     .from('payment_history')
-    .select('*, members!inner(full_name, phone)')
-    .eq('gym_id', gymId)
-    .eq('members.is_active', true));
+    .select('*, members(full_name, phone)')
+    .eq('gym_id', gymId));
 }
 
 /** Get payment history for a specific month (YYYY-MM) */
@@ -715,9 +725,8 @@ export async function getPaymentsByMonth(gymId, month) {
     String(last.getDate()).padStart(2, '0');
   return fetchAllPayments(() => supabase
     .from('payment_history')
-    .select('*, members!inner(full_name, phone)')
+    .select('*, members(full_name, phone)')
     .eq('gym_id', gymId)
-    .eq('members.is_active', true)
     .gte('paid_at', startDate + 'T00:00:00')
     .lte('paid_at', endDate + 'T23:59:59'));
 }

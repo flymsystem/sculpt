@@ -142,6 +142,29 @@ function expiryDate(m) {
 function daysLeft(m) { const e=expiryDate(m); if(!e) return null; return Math.ceil((e-new Date())/86400000); }
 
 /**
+ * The correct base date to renew a membership FROM (FIX-PROMPT.md item 11).
+ * A still-active membership must extend from its EXISTING expiry date, not
+ * from today — renewing an active member 10 days early must not throw
+ * those 10 days away. An already-expired (or cancelled) membership has no
+ * remaining time to preserve, so it renews from today instead.
+ *
+ * `todayISO` is passed in rather than computed here so callers reuse the
+ * same "today" they already have (todayLocalISO()) — this must never be
+ * computed from `new Date().toISOString()`, which reads UTC and would be
+ * wrong for part of every IST day (see CLAUDE.md's timezone convention).
+ *
+ * The one shared function every renewal-date computation (the renew
+ * modal's live preview AND the actual join_date sent to renewMember())
+ * must go through, so the two can never drift apart.
+ */
+function computeRenewalBase(member, todayISO) {
+  if (!member || member.cancelled_at) return todayISO;
+  const exp = member.expiry_date;
+  if (exp && exp >= todayISO) return exp;
+  return todayISO;
+}
+
+/**
  * Returns the member's lifecycle + payment status.
  *
  * Priority order:
@@ -390,6 +413,7 @@ export {
   bindDateInput, fmtDateInput, parseDateInput, todayLocalISO, localISO, isSameLocalDay,
   parsePlanData, parseMemberAddons, memberTotalPrice, planTotalPrice,
   expiryDate, daysLeft, memberStatus, outstandingAmount, isNewThisMonth, memberTotal,
+  computeRenewalBase,
   genInvoiceNo, escHtml, escAttr, fmtDate, fmtDateShort, fmtCurrency, fmtCurrencyShort,
   av2, timeAgo, ico,
   demoPlans, demoMembers, showSectionLoading, renderEmpty, renderError,

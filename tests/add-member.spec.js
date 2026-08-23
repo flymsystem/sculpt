@@ -39,6 +39,9 @@ test('adding a member through the dashboard saves it with an application number'
 
   const name = 'E2E AddMember ' + Math.random().toString(36).slice(2, 8);
   await page.locator('#m-name').fill(name);
+  // Phone is required (FIX-PROMPT.md item 1) — a random 10-digit number
+  // keeps this test independent of any real member's phone.
+  await page.locator('#m-phone').fill(String(9_000_000_000 + Math.floor(Math.random() * 99_999_999)).slice(0, 10));
   // Trial members skip plan selection and payment entirely — the
   // smallest surface that still exercises the real sculpt_add_member
   // RPC (join date, application-number generation, RLS as the owner).

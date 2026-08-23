@@ -1,5 +1,5 @@
 import { S, DEFAULT_WA_TEMPLATE, DEFAULT_CREDENTIALS_WA_TEMPLATE } from './state.js';
-import { expiryDate, daysLeft, memberStatus, escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, parseMemberAddons, planTotalPrice, genInvoiceNo, memberTotal, parsePlanData, todayLocalISO } from './helpers.js';
+import { expiryDate, daysLeft, memberStatus, escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, parseMemberAddons, planTotalPrice, genInvoiceNo, memberTotal, parsePlanData, todayLocalISO, computeRenewalBase } from './helpers.js';
 import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById, regenerateApplicationNumber } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
@@ -18,7 +18,14 @@ let _nav, _saveMemberPhoto;
 export function setNavHandler(fn) { _nav = fn; }
 export function setPhotoHandler(fn) { _saveMemberPhoto = fn; }
 
-function openAddModal() {
+// Set by openAddModal(opts) when called with an onSaved callback (e.g. the
+// Enquiry → Converted flow) and consumed once, right after a successful
+// save, by submitAdd().
+let _pendingAddOnSaved = null;
+
+function openAddModal(opts = {}) {
+  const { prefill, onSaved } = opts;
+  _pendingAddOnSaved = onSaved || null;
   const today = new Date().toISOString().split('T')[0];
   const planOpts = S.plans.map(p => {
     const total = planTotalPrice(p);
@@ -43,16 +50,17 @@ function openAddModal() {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Full Name *</label>
-          <input class="form-input" id="m-name" placeholder="e.g. Rahul Sharma">
+          <input class="form-input" id="m-name" placeholder="e.g. Rahul Sharma" value="${escHtml(prefill?.name||'')}">
         </div>
         <div class="form-group">
-          <label class="form-label">Phone <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
+          <label class="form-label">Phone *</label>
           <div style="display:flex;align-items:center;gap:0;">
             <span style="background:var(--panel2);border:1px solid var(--border);border-right:none;
               padding:0 12px;height:42px;display:flex;align-items:center;font-size:13px;
               color:var(--muted);border-radius:var(--radius-sm) 0 0 var(--radius-sm);
               white-space:nowrap;flex-shrink:0;">+91</span>
             <input class="form-input" id="m-phone" placeholder="9876543210" maxlength="10"
+              value="${escHtml((prefill?.phone||'').replace(/^\+?91/,'').replace(/\D/g,''))}"
               oninput="this.value=this.value.replace(/\D/g,'').slice(0,10);"
               style="border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-left:none;">
           </div>
@@ -370,7 +378,8 @@ async function submitAdd(mType) {
   errEl.style.display = 'none';
 
   if (!name)  { show('Full name is required.'); return; }
-  if (rawPhone && rawPhone.length !== 10) { show('Phone must be exactly 10 digits.'); return; }
+  if (!rawPhone) { show('Phone number is required.'); return; }
+  if (rawPhone.length !== 10) { show('Phone must be exactly 10 digits.'); return; }
   if (!join)  { show('Join date is required.'); return; }
 
   // ── Duplicate phone check (Feature 3) ──
@@ -416,6 +425,7 @@ async function submitAdd(mType) {
 
   // Discount + amount actually collected now (defaults to full amount due)
   const discount = mType==='Trial' ? 0 : (parseFloat(document.getElementById('m-discount')?.value) || 0);
+  if (discount > totalPlanPrice) { show(`Discount (₹${discount.toLocaleString('en-IN')}) cannot exceed the plan + add-on total (₹${totalPlanPrice.toLocaleString('en-IN')}).`); return; }
   const netDue = Math.max(0, totalPlanPrice - discount);
   let paidNow = document.getElementById('m-paid-now')?.value;
   paidNow = (paidNow !== '' && paidNow != null) ? parseFloat(paidNow) : netDue;
@@ -520,6 +530,11 @@ async function submitAdd(mType) {
     } else {
       showToast(`${name} added as ${mType} member!`, 'green');
     }
+    if (_pendingAddOnSaved) {
+      const cb = _pendingAddOnSaved;
+      _pendingAddOnSaved = null;
+      try { await cb(saved); } catch (e) { console.warn('[Sculpt] onSaved callback failed:', e.message); }
+    }
     if (saved.application_number) openAddSuccessModal(saved);
   } catch (err) {
     // ── Orphan detection ──────────────────────────────────────────
@@ -621,7 +636,7 @@ function openEditModal(id) {
       <div class="form-row">
         <div class="form-group"><label class="form-label">Full Name *</label>
           <input class="form-input" id="e-name" value="${escHtml(m.full_name||m.name||'')}"></div>
-        <div class="form-group"><label class="form-label">Phone <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
+        <div class="form-group"><label class="form-label">Phone *</label>
           <div style="display:flex;align-items:center;gap:0;">
             <span style="background:var(--panel2);border:1px solid var(--border);border-right:none;
               padding:0 12px;height:42px;display:flex;align-items:center;font-size:13px;
@@ -635,7 +650,7 @@ function openEditModal(id) {
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Email</label>
-          <input class="form-input" id="e-email" type="email" value="${m.email||''}"></div>
+          <input class="form-input" id="e-email" type="email" value="${escHtml(m.email||'')}"></div>
         <div class="form-group"><label class="form-label">Date of Birth</label>
           <input class="form-input date-input" id="e-dob" placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off" value="${m.date_of_birth ? fmtDateInput(m.date_of_birth) : ''}"></div>
       </div>
@@ -649,6 +664,10 @@ function openEditModal(id) {
             <option ${m.gender==='Female'?'selected':''}>Female</option>
             <option ${m.gender==='Other'?'selected':''}>Other</option>
           </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Expiry Date <span style="color:var(--muted);font-weight:400;font-size:11px;">(normally set by plan duration)</span></label>
+          <input class="form-input date-input" id="e-expiry" placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off" value="${m.expiry_date ? fmtDateInput(m.expiry_date) : ''}"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Plan</label>
@@ -889,7 +908,8 @@ function openEditModal(id) {
         const opt   = planEl?.options[planEl.selectedIndex];
         const errEl = document.getElementById('e-error');
         if (!name) { errEl.textContent='Full name is required.'; errEl.style.display='block'; return; }
-        if (rawPhone && rawPhone.length !== 10) { errEl.textContent='Phone must be exactly 10 digits.'; errEl.style.display='block'; return; }
+        if (!rawPhone) { errEl.textContent='Phone number is required.'; errEl.style.display='block'; return; }
+        if (rawPhone.length !== 10) { errEl.textContent='Phone must be exactly 10 digits.'; errEl.style.display='block'; return; }
 
         // ── Duplicate phone check on edit (Feature 3) ──
         // Only check if phone changed from the original
@@ -918,6 +938,12 @@ function openEditModal(id) {
         const addonTotal = editAddons.reduce((s, a) => s + a.price, 0);
         const editDiscount = parseFloat(document.getElementById('e-discount')?.value) || 0;
         const editBalance  = parseFloat(document.getElementById('e-balance')?.value) || 0;
+        const editPlanTotal = basePlanPrice + addonTotal;
+        if (editDiscount > editPlanTotal) {
+          errEl.textContent = `Discount (₹${editDiscount.toLocaleString('en-IN')}) cannot exceed the plan + add-on total (₹${editPlanTotal.toLocaleString('en-IN')}).`;
+          errEl.style.display = 'block';
+          return;
+        }
 
         const updates = {
           fullName:            name,
@@ -926,6 +952,7 @@ function openEditModal(id) {
           dateOfBirth:         parseDateInput(document.getElementById('e-dob')?.value)||null,
           gender:              document.getElementById('e-gender')?.value||null,
           joinDate:            parseDateInput(document.getElementById('e-join')?.value),
+          expiryDate:          parseDateInput(document.getElementById('e-expiry')?.value) || null,
           planId:              planEl?.value||null,
           planName:            opt?.dataset.name||m.plan_name||m.plan||null,
           planPrice:           Math.max(0, basePlanPrice + addonTotal - editDiscount),
@@ -946,6 +973,20 @@ function openEditModal(id) {
         try {
           if (S.gym?.id) {
             const saved = await updateMember(id, S.gym.id, updates);
+            // Save photo if a new one was picked — wait for it before closing.
+            // window.__pendingEditPhoto was wired up but never actually read
+            // here, so a photo picked in Edit Member silently never uploaded.
+            const editPhotoDataUrl = window.__pendingEditPhoto?.();
+            if (editPhotoDataUrl && S.gym?.id) {
+              btn.textContent = 'Saving photo…';
+              try {
+                const photoUrl = await _saveMemberPhoto(editPhotoDataUrl, S.gym.id, id);
+                if (photoUrl) saved.photo_url = photoUrl;
+              } catch (err) {
+                console.warn('[Sculpt] Photo upload failed:', err.message);
+                showToast('Member saved but photo upload failed — try again', 'amber');
+              }
+            }
             const idx = S.members.findIndex(x=>String(x.id)===String(id));
             if (idx>-1) S.members[idx]=saved;
           } else {
@@ -1134,6 +1175,9 @@ function openRenewModal(id) {
   const gymId = S.gym?.id;
   const today = new Date();
   const todayISO = todayLocalISO();
+  // Active-member renewal must extend the EXISTING expiry, not today's
+  // date — see computeRenewalBase() in helpers.js (FIX-PROMPT.md item 11).
+  const renewBaseISO = computeRenewalBase(m, todayISO);
 
   function computeExp(months, baseISO){
     const base = baseISO || todayISO;
@@ -1168,7 +1212,8 @@ function openRenewModal(id) {
       <div class="form-group"><label class="form-label">Plan</label>
         <select class="form-input" id="renew-plan">${planOpts}</select></div>
       <div class="form-group"><label class="form-label">Renewal Date <span style="color:var(--text-quaternary);font-weight:400;font-size:11px;">(starts from)</span></label>
-        <input type="date" class="form-input" id="renew-date" value="${todayISO}" max="${todayISO}"></div>
+        <input type="date" class="form-input" id="renew-date" value="${renewBaseISO}"></div>
+      ${renewBaseISO > todayISO ? `<div style="font-size:12px;color:var(--text-tertiary);margin:-10px 0 14px;">This membership is still active until ${fmtD(renewBaseISO)} — renewing now extends from that date, not today.</div>` : ''}
       <div class="form-group"><label class="form-label">Discount <span style="color:var(--text-quaternary);font-weight:400;font-size:11px;">(optional, ₹)</span></label>
         <input type="number" min="0" class="form-input" id="renew-discount" placeholder="0"></div>
       <div id="renew-summary" style="background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:16px;">
@@ -1177,7 +1222,7 @@ function openRenewModal(id) {
           <span id="renew-dur-label" style="font-weight:500;font-size:var(--text-sm);color:var(--text-primary);">${initDur} month${initDur>1?'s':''}</span></div>
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-subtle);margin-bottom:8px;">
           <span style="color:var(--text-secondary);font-size:var(--text-sm);">New expiry</span>
-          <span id="renew-exp-label" style="font-weight:500;font-size:var(--text-sm);color:var(--green);">${fmtD(computeExp(initDur, todayISO))}</span></div>
+          <span id="renew-exp-label" style="font-weight:500;font-size:var(--text-sm);color:var(--green);">${fmtD(computeExp(initDur, renewBaseISO))}</span></div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;">
           <span style="color:var(--text-secondary);font-size:var(--text-sm);">Total</span>
           <span id="renew-total-label" style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;">₹${initPrice.toLocaleString('en-IN')}</span></div>
@@ -1280,6 +1325,11 @@ function openRenewModal(id) {
         const baseP=parseFloat(selOpt?.dataset.price||0);const durN=parseInt(selOpt?.dataset.dur||1);
         const addonT=renewAddons.reduce((s,a)=>s+a.price,0);
         const discount=parseFloat(document.getElementById('renew-discount')?.value)||0;
+        const renewPlanTotal = baseP+addonT;
+        if (discount > renewPlanTotal) {
+          showToast(`Discount (₹${discount.toLocaleString('en-IN')}) cannot exceed the plan + add-on total (₹${renewPlanTotal.toLocaleString('en-IN')}).`, 'red');
+          return;
+        }
         const totalP=Math.max(0, baseP+addonT-discount);
         let paidNow=parseFloat(document.getElementById('renew-paid-now')?.value);
         if(isNaN(paidNow)||paidNow<0)paidNow=0;

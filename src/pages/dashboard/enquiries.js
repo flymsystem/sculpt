@@ -12,6 +12,7 @@ import { getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry, ENQUIRY_SOURCES
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { callBtn, normalizePhone, formatPhone } from '../../components/call-button.js';
+import { openAddModal } from './member-modals.js';
 
 const DEFAULT_FOLLOWUP_TEMPLATE =
   'Hi {name}! 👋\n\nThanks for visiting *{gym}*! We\'d love to have you as a member.\n\nWe have some great plans that might interest you. Would you like to know more?\n\nFeel free to reach out anytime! 💪';
@@ -143,6 +144,9 @@ async function renderEnquiries(c) {
               </div>
               <div class="action-btns" style="gap:4px;flex-shrink:0;flex-wrap:nowrap;">
                 ${callBtn(e.phone)}
+                ${e.status !== 'Converted' ? `<button class="btn btn-sm" data-enq-convert="${e.id}" title="Convert to member" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+                </button>` : ''}
                 <button class="btn btn-sm" data-enq-wa="${e.id}" title="Follow up on WhatsApp" ${waDisabled?'disabled':''} style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);padding:5px 8px;${waDisabled?'opacity:0.4;cursor:not-allowed;':''}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 </button>
@@ -174,12 +178,14 @@ async function renderEnquiries(c) {
     if (listEl) {
       listEl.addEventListener('click', (ev) => {
         if (ev.target.closest('[data-call]')) return;
-        const waBtn   = ev.target.closest('[data-enq-wa]');
-        const editBtn = ev.target.closest('[data-enq-edit]');
-        const delBtn  = ev.target.closest('[data-enq-del]');
-        if (waBtn)   { ev.stopPropagation(); openFollowUpWA(waBtn.dataset.enqWa);   return; }
-        if (editBtn) { ev.stopPropagation(); openEditEnquiryModal(editBtn.dataset.enqEdit); return; }
-        if (delBtn)  { ev.stopPropagation(); confirmDeleteEnquiry(delBtn.dataset.enqDel); return; }
+        const waBtn      = ev.target.closest('[data-enq-wa]');
+        const editBtn    = ev.target.closest('[data-enq-edit]');
+        const delBtn     = ev.target.closest('[data-enq-del]');
+        const convertBtn = ev.target.closest('[data-enq-convert]');
+        if (waBtn)      { ev.stopPropagation(); openFollowUpWA(waBtn.dataset.enqWa);   return; }
+        if (editBtn)    { ev.stopPropagation(); openEditEnquiryModal(editBtn.dataset.enqEdit); return; }
+        if (delBtn)     { ev.stopPropagation(); confirmDeleteEnquiry(delBtn.dataset.enqDel); return; }
+        if (convertBtn) { ev.stopPropagation(); convertToMember(convertBtn.dataset.enqConvert); return; }
       });
     }
   }
@@ -336,6 +342,27 @@ async function renderEnquiries(c) {
           }
         });
       }
+    });
+  }
+
+  // ── Convert to member (FIX-PROMPT.md item 20) ─────
+  // Opens Add Member pre-filled with the enquiry's name/phone; only
+  // marks the enquiry Converted once a member is actually created —
+  // cancelling the Add Member modal leaves the enquiry untouched.
+  function convertToMember(id) {
+    const e = (S.enquiries || []).find(x => String(x.id) === String(id));
+    if (!e) return;
+    openAddModal({
+      prefill: { name: e.name, phone: e.phone },
+      onSaved: async () => {
+        try {
+          const saved = await updateEnquiry(id, gymId, { status: 'Converted' });
+          const idx = S.enquiries.findIndex(x => String(x.id) === String(id));
+          if (idx > -1) S.enquiries[idx] = saved;
+        } catch (err) {
+          console.warn('[Sculpt] Could not mark enquiry converted:', err.message);
+        }
+      },
     });
   }
 

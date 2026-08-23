@@ -172,7 +172,7 @@ function openAddPlanModal() {
         if (!name) { errEl.textContent='Plan name is required.'; errEl.style.display='block'; return; }
         if (!dur)  { errEl.textContent='Duration is required.';  errEl.style.display='block'; return; }
         if (!price && price !== 0) { errEl.textContent='Base price is required.'; errEl.style.display='block'; return; }
-        if (price <= 0) { errEl.textContent='Price must be greater than ₹0.'; errEl.style.display='block'; return; }
+        if (price < 0) { errEl.textContent='Price cannot be negative.'; errEl.style.display='block'; return; }
         try {
           const data = { name, durationMonths:dur, price:price, features };
           const saved = S.gym?.id ? await addPlan(S.gym.id, data)
@@ -203,7 +203,8 @@ function openEditPlanModal(id) {
         errEl.style.display = 'none';
         if (!name) { errEl.textContent='Plan name is required.'; errEl.style.display='block'; return; }
         if (!dur)  { errEl.textContent='Duration is required.';  errEl.style.display='block'; return; }
-        if (!price || price <= 0) { errEl.textContent='Price must be greater than ₹0.'; errEl.style.display='block'; return; }
+        if (!price && price !== 0) { errEl.textContent='Base price is required.'; errEl.style.display='block'; return; }
+        if (price < 0) { errEl.textContent='Price cannot be negative.'; errEl.style.display='block'; return; }
         try {
           const data={name,durationMonths:dur,price:price,features};
           const saved=S.gym?.id?await updatePlan(id,S.gym.id,data):{...p,name,duration_months:dur,price:price,features};

@@ -178,7 +178,16 @@ async function removeMemberPhoto(gymId, memberId) {
 // AADHAAR CARD PHOTO — stored in aadhar-photos bucket
 // Path: {gymId}/{memberId}.jpg
 // DB column: members.aadhar_photo_url
+//
+// This bucket is PRIVATE (migration 101 — "government ID scans, served
+// through signed URLs only"), unlike member-photos. getPublicUrl()
+// against a private bucket returns a URL that 403s the moment anyone
+// opens it — the upload silently "succeeds" (the object really is
+// there) but the stored link never worked. Same fix as invoices.js:
+// a signed URL, generated at upload time.
 // ════════════════════════════════════════════════════════════════
+
+const AADHAR_SIGNED_URL_EXPIRY_SECONDS = 60 * 60 * 24 * 365; // 1 year, matches invoices.js
 
 async function saveAadharPhoto(dataUrl, gymId, memberId) {
   if (!dataUrl || !memberId || !gymId) return null;
@@ -204,9 +213,16 @@ async function saveAadharPhoto(dataUrl, gymId, memberId) {
     throw new Error(uploadErr.message);
   }
 
-  // 2. Get public URL
-  const { data: urlData } = supabase.storage.from('aadhar-photos').getPublicUrl(path);
-  const aadharUrl = urlData?.publicUrl + '?v=' + Date.now();
+  // 2. Get a signed URL (this bucket is private — getPublicUrl() would
+  //    hand back a link that never opens)
+  const { data: urlData, error: signErr } = await supabase.storage
+    .from('aadhar-photos')
+    .createSignedUrl(path, AADHAR_SIGNED_URL_EXPIRY_SECONDS);
+  if (signErr || !urlData?.signedUrl) {
+    showToast('Aadhaar photo uploaded but could not generate a viewable link: ' + (signErr?.message || 'unknown error'), 'amber');
+    throw new Error(signErr?.message || 'Could not create a signed URL for the Aadhaar photo.');
+  }
+  const aadharUrl = urlData.signedUrl;
 
   // 3. Save URL to member row
   const { error: dbErr } = await supabase
