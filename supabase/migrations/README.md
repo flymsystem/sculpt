@@ -107,6 +107,51 @@ Applied to production (run by hand in the SQL editor, verified):
   `manage-staff-login` (service role), read by the Staff page so the owner
   can see login status without an extra round trip per row.
 
+- `118_member_phone_unique.sql` — normalises `members.phone` to the
+  canonical `+91XXXXXXXXXX` form and adds a partial UNIQUE index
+  (`gym_id, phone` where `is_active = true`) so a duplicate active phone
+  number is rejected at the DB layer, not just by the client-side
+  pre-check. Skips creating the index (with a NOTICE naming how many
+  groups) if real duplicates already exist — resolve those by hand, then
+  re-run. Also gives `sculpt_add_member` a friendly error message on that
+  constraint instead of a raw Postgres error.
+- `119_fix_renew_clear_balance_stale_calls.sql` — **`sculpt_renew_member`
+  and `sculpt_clear_balance` have been failing on every call in
+  production**, same bug class as 114: both still call the pre-rename
+  `flym_assert_payment_mode` / `flym_addons_to_jsonb` (100 renamed those
+  to `sculpt_*` but never touched these two call sites). The client's
+  `isMissingFunction()` treats the resulting 42883 as "not migrated yet"
+  and silently falls back to the non-atomic legacy JS path, so renewals
+  and balance-clears still basically work today but without the
+  transaction/row-lock guarantee HANDOVER.md §6 calls load-bearing.
+  Also adds a 5-second duplicate-renewal guard (FIX-PROMPT item 18).
+- `120_storage_staff_access.sql` — the storage.objects policies from 101
+  keyed only on `get_my_gym_id()`, which returns NULL for a staff
+  session (it only matches `role = 'owner'`). Every staff photo/Aadhaar
+  upload, view and delete has been silently denied. Widens the four
+  policies to accept `get_my_gym_id_as_staff()` too.
+- `121_revenue_includes_deleted_members.sql` — `sculpt_revenue_summary` /
+  `_monthly` / `_rows` filtered to `members.is_active = true`, so
+  soft-deleting a member with payment history silently dropped their
+  entire history from every revenue total. Removes that filter — a
+  gym's lifetime revenue must not change just because someone was
+  deleted afterward.
+- `122_member_expiry_manual_override.sql` — `set_member_expiry()`
+  (the trigger behind `trg_member_expiry`) unconditionally recomputed
+  `expiry_date` on every UPDATE to a non-Trial member, silently
+  overwriting any manually-set value in the same statement — there was
+  no working way to hand-edit a member's expiry date. Now only
+  recomputes on INSERT, or when `join_date`/`plan_duration_months`
+  actually change.
+- `123_staff_rls_hardening.sql` — `staff_update_members` had no
+  `WITH CHECK`, so a direct API call could flip `is_active = false`
+  (soft-delete) even though the UI hides that button for staff. Adds a
+  `WITH CHECK (... AND is_active = true)`. `staff_read_payments` had no
+  scoping beyond `gym_id` — full gym-wide revenue history one API call
+  away regardless of the Finance route guard. Scopes it to payments made
+  today (gym-local timezone), enough for staff to see what they just
+  collected without exposing history.
+
 **Edge Functions to (re)deploy alongside 114–116:**
 
 - `supabase functions deploy create-staff-user` — now also writes
