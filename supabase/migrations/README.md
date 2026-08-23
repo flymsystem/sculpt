@@ -152,6 +152,16 @@ Applied to production (run by hand in the SQL editor, verified):
   today (gym-local timezone), enough for staff to see what they just
   collected without exposing history.
 
+- `124_fix_renew_expiry_no_op_join_date.sql` — found verifying 122 end to
+  end against the live DB: renewing an expired member whose stored
+  `join_date` already equalled the computed renewal date (e.g. same-day
+  trial-to-paid, or a second same-day renewal) silently left
+  `expiry_date` unchanged — 122's "only recompute when join_date/duration
+  change" trigger guard saw no change and did nothing, and
+  `sculpt_renew_member` never set `expiry_date` itself. Now computes and
+  sets it explicitly in the same UPDATE, so it's correct regardless of
+  whether the trigger's guard fires.
+
 **Edge Functions to (re)deploy alongside 114–116:**
 
 - `supabase functions deploy create-staff-user` — now also writes
