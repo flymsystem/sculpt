@@ -165,36 +165,88 @@ SCULPT_TEST_EMAIL=sculptfit@gmail.com SCULPT_TEST_PASSWORD=... node scripts/qa-d
 
 ---
 
-## ⚠️ Migrations 114–116 need running, and two Edge Functions redeploying
+## Migrations 114–124: applied and verified
 
-As of 2026-08-22: `114_fix_add_member_stale_helper_call.sql`,
-`115_staff_login_revocation.sql` and `116_staff_login_metadata.sql` exist as
-files but have not been applied to production yet — run them in the SQL
-editor, in that order. `create-staff-user` and the new `manage-staff-login`
-Edge Function also need `supabase functions deploy`. See
-`supabase/migrations/README.md` for what each one does. Confirmed live
-against production (built preview, not dev server) via Playwright before
-these were applied: adding a member fails with `flym_assert_payment_mode
-does not exist` (now correctly attributed by the client instead of blaming
-`sculpt_add_member`) exactly as expected pre-114.
+As of 2026-08-23, migrations `114` through `124` are all applied to
+production and verified directly against the live database (function
+bodies read via `pg_get_functiondef`, not assumed from the migration
+files — see `supabase/migrations/README.md` for what each one does).
+`create-staff-user` and `manage-staff-login` are both deployed
+(`supabase functions list` shows both ACTIVE).
 
-Separately, unrelated to this session's changes: the `manoj.sculpt@gmail.com`
-staff test account has `staff.user_id` / `login_enabled = true` set from an
-earlier attempt but no matching `gym_users` row — it currently cannot sign
-in as staff at all. A one-off corrective `INSERT` (not a migration, this is
-account-specific data) was proposed and is the client's call to run.
+Notable ones from this batch:
 
-The check-in feature itself (`111_fix_returns_table_column_shadowing.sql`
+- `118_member_phone_unique.sql` had to be applied by hand in this same
+  session — it was missing despite being bundled with "114–123 applied,"
+  confirmed by `ux_members_gym_phone_active` not existing in
+  `pg_indexes`. No duplicate active phone numbers existed, so it was
+  safe to apply directly; re-verified after (index exists, all phones
+  normalised to `+91XXXXXXXXXX`, `sculpt_add_member` has the
+  duplicate-key error handler).
+- `124_fix_renew_expiry_no_op_join_date.sql` fixes a real regression
+  found while verifying `122` end-to-end: renewing an expired member
+  whose stored `join_date` already equalled the renewal's computed
+  join_date (e.g. same-day trial→paid, or a second same-day renewal)
+  silently left `expiry_date` unchanged — `122`'s "only recompute when
+  join_date/duration change" trigger guard saw no change and did
+  nothing, and `sculpt_renew_member` never set `expiry_date` itself.
+  Fixed by having the RPC set it explicitly, same formula the trigger
+  uses.
+
+The check-in feature (`111_fix_returns_table_column_shadowing.sql`
 onward) is confirmed working — `sculpt_issue_checkin_token` /
-`sculpt_member_checkin` / `sculpt_manual_checkin` all fixed and applied. The
-`checkin.spec.js:24`/`:33` failures from an earlier session were real but
-were a test-authoring bug, not a product bug: those tests signed in as the
+`sculpt_member_checkin` / `sculpt_manual_checkin` all fixed and applied.
+The `checkin.spec.js:24`/`:33` failures from an earlier session were a
+test-authoring bug, not a product bug: those tests signed in as the
 *owner*, who has no `staff` row, so `sculpt_staff_checkin` legitimately
 returned `NOT_STAFF` every time. `tests/checkin.spec.js` now requires
-`SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` (a real staff login) and fails
-loudly if the account it's given isn't actually staff, instead of silently
-testing nothing. `tests/_diag-checkin-token.spec.js` (the temporary
-diagnostic that first proved this) has been deleted.
+`SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` (a real staff login) and
+fails loudly if the account it's given isn't actually staff, instead of
+silently testing nothing. `tests/_diag-checkin-token.spec.js` (the
+temporary diagnostic that first proved this) has been deleted.
+
+**`manoj.sculpt@gmail.com` staff account** — corrected note: it
+**does** have a matching `gym_users` row (`role = 'staff'`), and
+`staff.is_active` / `staff.login_enabled` are both `true`. The "no
+matching `gym_users` row" problem this file used to describe is gone —
+no SQL fix is needed. The only thing actually missing is a known
+password: nobody currently knows what it is. To make this account
+usable for testing, use the app itself — Staff page → this row →
+Manage Login → Reset Password (owner-only, via the deployed
+`manage-staff-login` Edge Function) — no direct SQL required.
+
+---
+
+## Pending
+
+Genuinely open items, as of 2026-08-23:
+
+- **Gym display name.** `gyms.name` is currently `"D fitness"`, which is
+  why `tests/auth-flow.spec.js` (expects `"D Sculpt Fitness"`) fails —
+  that's a stale test expectation vs. real data, not a code bug. Needs a
+  decision on the correct name before anyone runs
+  `UPDATE gyms SET name = '...' WHERE id = '7854b083-ce56-47ff-8339-79ebbd183fd5';`
+- **`manoj.sculpt@gmail.com` password unknown** — see above; reset it
+  through the app when someone needs to actually test as that account.
+- **`scripts/verify-schema.mjs`'s RPC section is unreliable.** Supabase
+  now returns `401 Invalid API key — Only service_role can be used for
+  this endpoint` on `/rest/v1/` (the OpenAPI spec endpoint the script
+  fetches to list exposed RPCs) when called with the anon key — a
+  platform-side change, unrelated to anything in this repo. The
+  table-existence and removed-features sections are unaffected (they
+  hit `/rest/v1/<table>` directly, which anon keys can still read) and
+  stay trustworthy; the `MISSING`/`all exposed rpcs:` output under "RPCs
+  exposed" should be ignored until the script is rewritten to check
+  function existence a different way (e.g. `pg_proc` via a
+  `service_role`-authenticated call, or the Supabase CLI's
+  `db query --linked`).
+- **`security.spec.js:201`** ("a token older than 90 seconds... is
+  rejected") still needs a real staff login to pass — it currently
+  returns `NOT_STAFF` when run with owner-only credentials. Same root
+  cause as the `checkin.spec.js` note above.
+- **tests/checkin.spec.js, tests/security.spec.js's other check-in
+  tests** — need `SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` to run at
+  all; currently skipped whenever only owner credentials are provided.
 
 ---
 
