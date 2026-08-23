@@ -1,39 +1,43 @@
 # Flym migrations — read this first
 
-## ⚠️ This directory cannot currently rebuild the database
+## Baseline: `000_baseline_current.sql`
 
-Six migrations are **missing from version control**: `008`, `009`, `020`, `021`,
-`026`, and the `flym_rls_multibranch_fix.sql` at the end has no number so its
-position in the sequence is guesswork.
+`000_baseline_current.sql` is a `pg_dump --schema-only` of the live `public`
+schema, taken 2026-08-23 straight after the Supabase account transfer. It is
+**the truth**. Everything numbered `001`–`117` is historical record.
 
-Things the live database has that **no migration here creates**:
+It covers 18 tables, 33 functions and 64 RLS policies. Six migrations
+(`008`, `009`, `020`, `021`, `026`, and the unnumbered
+`flym_rls_multibranch_fix.sql`) are still missing from version control, and
+several live objects were never created by any file here — `expenses`,
+`gyms.gst_percentage`, `plans.is_featured`, and the `member-photos` /
+`aadhar-photos` / `invoices` storage buckets. The baseline dump contains all
+of them, so the schema can now be rebuilt from this directory. That was not
+true before.
 
-| Missing object | Referenced by |
-|---|---|
-| `expenses` table | `src/lib/expenses.js`, Finance, Expenses page |
-| `invoices` table + storage bucket | `src/lib/invoices.js`, `029_invoice_pdf_storage.sql` assumes it |
-| `gyms.gst_percentage` | `src/pages/dashboard/backup.js` (GST summary) |
-| `plans.is_featured` | `src/pages/dashboard/backup.js`, plans showcase |
-| `member-photos` / `aadhar-photos` buckets | photo upload |
+> **Correction to an earlier note in this file:** there is no `invoices`
+> table and there never was. Invoice PDFs are generated on demand from
+> `payment_history` (see `genInvoiceNo()` in `helpers.js`) and stored in the
+> `invoices` bucket. `sculpt_my_receipts()` returns payment rows, not
+> invoice rows.
 
-**What this means in practice:** if the Supabase project were lost, the schema
-could not be reconstructed from this repository. It is also why nobody noticed
-that the `expenses` table has **no indexes at all** — the table isn't in version
-control, so it was never reviewed.
+**Two things the baseline does NOT contain**, because a `public`-schema dump
+skips them — worth knowing before anyone tries a from-scratch rebuild:
 
-### Fixing it — one command, and it needs you
+- the `auth` and `storage` schemas (users, bucket rows, storage policies)
+- `pg_cron` job definitions, which live in the `cron` schema
+  (migration 032's notification job is the one that matters)
 
-I could not do this myself: it requires connecting to the live database, and I
-was asked not to run anything against it. Please run, from the repo root:
+To refresh the baseline later, from the repo root:
 
-```bash
-npx supabase db dump --schema public > supabase/migrations/000_baseline_current.sql
+```powershell
+$env:PGPASSWORD = '<database password>'
+& "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe" -h aws-0-ap-northeast-2.pooler.supabase.com -p 5432 -U postgres.acigxzbbchhisaymklld -d postgres --schema public --schema-only --no-owner --no-privileges -f supabase/migrations/000_baseline_current.sql
+Remove-Item Env:\PGPASSWORD
 ```
 
-Then commit that file. From that point on, `000_baseline_current.sql` is the
-truth and `001`–`032` are historical record only. Tell me once it exists and I
-will diff it against what the numbered migrations produce, so we know exactly
-what drifted.
+`npx supabase db dump` does the same job but needs Docker Desktop installed;
+`pg_dump` directly does not.
 
 ---
 

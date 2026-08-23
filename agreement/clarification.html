@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Project Clarification &amp; Service Terms</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap');
+
+  :root{
+    --navy:#0A1628;
+    --navy-2:#0F1F35;
+    --ink:#101828;
+    --ink-soft:#3d4a5c;
+    --muted:#5c6b80;
+    --faint:#8592a3;
+    --line:#e3e8ef;
+    --blue:#0A63C4;
+    --blue-soft:#eef4fc;
+    --blue-tint:#f4f8fd;
+    --amber:#b7791f;
+    --amber-soft:#fbf3e6;
+    --green:#1a7f52;
+    --green-soft:#eaf7f0;
+    --paper:#ffffff;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ background:var(--paper); }
+  body{
+    font-family:'Manrope', -apple-system, Segoe UI, Arial, sans-serif;
+    color:var(--ink);
+    font-size:13px;
+    line-height:1.52;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  @page{ size:A4; margin:0; }
+
+  .page{
+    width:100%;
+    background:var(--paper);
+    position:relative;
+    break-after:page;
+    page-break-after:always;
+    padding:0 0 36px 0;
+  }
+  .page:last-child{ break-after:auto; page-break-after:auto; }
+
+  .content{ padding:0 46px; }
+
+  .section, .money-card, .domain-hero, .callout, .trio, .checklist, .sig-grid, .fact-list{
+    break-inside:avoid; page-break-inside:avoid;
+  }
+
+  /* ---------- Cover / hero header ---------- */
+  .hero{
+    background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);
+    color:#fff;
+    padding:26px 46px 20px;
+    position:relative;
+  }
+  .hero-top{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .brand{
+    font-family:'Manrope',sans-serif;
+    font-weight:800;
+    font-size:19px;
+    letter-spacing:0.2px;
+    color:#fff;
+  }
+  .badges{ display:flex; gap:8px; }
+  .badge{
+    font-size:9.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase;
+    padding:5px 11px; border-radius:20px;
+    border:1px solid rgba(255,255,255,0.28);
+    color:rgba(255,255,255,0.85);
+  }
+  .badge.solid{ background:var(--blue); border-color:var(--blue); color:#fff; }
+
+  .eyebrow{
+    font-size:11px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase;
+    color:#7fb2ec; margin-bottom:5px;
+  }
+  .hero h1{
+    font-family:'Source Serif 4', Georgia, serif;
+    font-weight:600;
+    font-size:28px;
+    line-height:1.2;
+    color:#fff;
+    margin-bottom:9px;
+    letter-spacing:0.2px;
+  }
+  .hero p.sub{
+    font-size:13px;
+    color:#c3cedd;
+    max-width:480px;
+    line-height:1.5;
+  }
+  .meta-strip{
+    margin-top:12px;
+    padding-top:9px;
+    border-top:1px solid rgba(255,255,255,0.14);
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+  }
+  .meta-item .k{ font-size:9.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#7d8ba0; margin-bottom:5px; }
+  .meta-item .v{ font-size:13px; font-weight:700; color:#fff; }
+
+  /* ---------- Section headings ---------- */
+  .section{ padding:7px 0; border-bottom:1px solid var(--line); }
+  .section:last-child{ border-bottom:none; }
+  .section-head{
+    display:flex; align-items:baseline; gap:10px;
+    margin-bottom:9px;
+  }
+  .section-num{
+    font-family:'Manrope',sans-serif;
+    font-size:11px; font-weight:800; color:var(--blue);
+    background:var(--blue-soft);
+    width:22px; height:22px; border-radius:6px;
+    display:inline-flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .section-head h2{
+    font-size:15.5px; font-weight:800; letter-spacing:0.1px; color:var(--ink);
+  }
+  .section p{ color:var(--ink-soft); font-size:12px; line-height:1.5; margin-bottom:6px; }
+  .section p:last-child{ margin-bottom:0; }
+  .lede{ font-size:12px; color:var(--muted); margin-bottom:7px; line-height:1.5; }
+
+  /* ---------- Callout cards ---------- */
+  .callout{
+    border-radius:10px;
+    padding:11px 15px;
+    margin:9px 0;
+    border:1px solid var(--line);
+  }
+  .callout.blue{ background:var(--blue-tint); border-color:#d7e6f7; border-left:3px solid var(--blue); }
+  .callout.amber{ background:var(--amber-soft); border-color:#f0dfba; border-left:3px solid var(--amber); }
+  .callout.green{ background:var(--green-soft); border-color:#c9e9d7; border-left:3px solid var(--green); }
+  .callout.navy{ background:var(--navy); border-left:3px solid var(--blue); }
+  .callout .cal-label{ font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:6px; }
+  .callout.blue .cal-label{ color:var(--blue); }
+  .callout.amber .cal-label{ color:#9a6414; }
+  .callout.green .cal-label{ color:var(--green); }
+  .callout p{ font-size:12.5px; color:var(--ink-soft); margin:0; line-height:1.6; }
+  .callout strong{ color:var(--ink); }
+
+  /* ---------- Scope grid ---------- */
+  .scope-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px;
+    margin-top:2px;
+  }
+  .scope-group h3{
+    font-size:11px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase;
+    color:var(--blue); margin-bottom:9px;
+  }
+  .scope-group ul{ list-style:none; }
+  .scope-group li{
+    font-size:12.5px; color:var(--ink-soft);
+    padding:2px 0 2px 17px;
+    position:relative;
+    line-height:1.45;
+  }
+  .scope-group li::before{
+    content:''; position:absolute; left:0; top:11px;
+    width:5px; height:5px; border-radius:50%;
+    background:var(--blue);
+  }
+
+  /* ---------- Commercial summary table ---------- */
+  .money-card{
+    border-radius:12px; overflow:hidden; border:1px solid var(--line);
+    margin:9px 0 4px;
+  }
+  .money-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 16px; font-size:12px;
+    border-bottom:1px solid var(--line);
+    background:#fff;
+  }
+  .money-row .lbl{ color:var(--muted); font-weight:600; }
+  .money-row .amt{ font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .money-row.received .amt{ color:var(--green); }
+  .money-row.total{
+    background:var(--navy); color:#fff; border-bottom:none;
+    padding:13px 18px;
+  }
+  .money-row.total .lbl{ color:#c3cedd; font-size:11px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; }
+  .money-row.total .amt{ color:#fff; font-size:24px; font-weight:800; }
+
+  .reassure{
+    display:flex; gap:9px; align-items:flex-start;
+    background:var(--green-soft); border:1px solid #c9e9d7; border-radius:9px;
+    padding:8px 12px; margin-top:6px;
+  }
+  .reassure .dot{ width:16px; height:16px; border-radius:50%; background:var(--green); flex-shrink:0; margin-top:2px; position:relative; }
+  .reassure .dot::after{ content:''; position:absolute; left:5px; top:2.5px; width:4px; height:8px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
+  .reassure p{ font-size:12.5px; color:#1a6b47; font-weight:600; margin:0; line-height:1.55; }
+
+  /* ---------- Domain explainer ---------- */
+  .domain-hero{
+    background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);
+    border-radius:10px; padding:14px 16px; margin:9px 0 12px;
+  }
+  .domain-hero .cal-label{ color:#7fb2ec; font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:8px; }
+  .domain-hero p{ color:#dbe4f0; font-size:12.5px; line-height:1.5; margin:0; }
+  .domain-hero p strong{ color:#fff; }
+
+  .trio{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin:9px 0; }
+  .trio-card{
+    border:1px solid var(--line); border-radius:9px; padding:9px 11px;
+    background:#fafbfd;
+  }
+  .trio-card.hi{ background:var(--blue-soft); border-color:#d7e6f7; }
+  .trio-card .t{ font-size:10px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase; color:var(--blue); margin-bottom:5px; }
+  .trio-card .d{ font-size:12px; color:var(--ink-soft); line-height:1.5; }
+
+  .fact-list{ margin:9px 0; }
+  .fact-row{
+    display:flex; gap:12px; padding:7px 0;
+    border-bottom:1px solid var(--line);
+    align-items:baseline;
+  }
+  .fact-row:last-child{ border-bottom:none; }
+  .fact-row .fk{ font-size:11.5px; font-weight:700; color:var(--muted); width:150px; flex-shrink:0; }
+  .fact-row .fv{ font-size:12.5px; color:var(--ink); font-weight:600; }
+
+  .price-pill{
+    display:inline-block; background:var(--navy); color:#fff;
+    font-weight:800; font-size:13px; padding:3px 10px; border-radius:6px;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ---------- Handover checklist ---------- */
+  .checklist{ display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin:9px 0; }
+  .check-item{
+    display:flex; align-items:flex-start; gap:9px;
+    font-size:12.5px; color:var(--ink-soft); padding:3px 0;
+  }
+  .check-item .box{
+    width:15px; height:15px; border-radius:4px; border:1.6px solid var(--blue);
+    flex-shrink:0; margin-top:1px; position:relative;
+  }
+  .check-item .box::after{
+    content:''; position:absolute; left:4px; top:1px; width:4px; height:8px;
+    border:solid var(--blue); border-width:0 2px 2px 0; transform:rotate(45deg);
+  }
+
+  /* ---------- Terms list ---------- */
+  .terms-list{ counter-reset:term; margin-top:4px; }
+  .term-item{
+    display:flex; gap:12px; padding:7px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .term-item:last-child{ border-bottom:none; }
+  .term-item .tn{
+    font-size:11px; font-weight:800; color:var(--blue);
+    width:20px; flex-shrink:0;
+  }
+  .term-item p{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0; }
+  .term-item strong{ color:var(--ink); }
+
+  /* ---------- Footer ---------- */
+  .footer{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:14px 56px; border-top:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:9.5px; color:var(--faint); letter-spacing:0.3px;
+  }
+  .footer .fl{ text-transform:uppercase; font-weight:700; letter-spacing:0.6px; }
+
+  /* ---------- Signatures ---------- */
+  .sig-grid{ display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:10px; }
+  .sig-block .for{ font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--blue); margin-bottom:12px; }
+  .sig-name{ font-size:14.5px; font-weight:700; color:var(--ink); }
+  .sig-role{ font-size:11.5px; color:var(--muted); margin-bottom:16px; }
+  .sig-line{ border-top:1px solid var(--ink); padding-top:6px; margin-top:6px; font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--faint); font-weight:700; }
+  .sig-fill{ font-size:11px; color:var(--muted); margin-bottom:14px; }
+  .sig-fill .u{ display:inline-block; border-bottom:1px solid var(--line); min-width:170px; height:14px; }
+
+  .divider-note{
+    background:var(--blue-tint); border:1px solid #d7e6f7; border-radius:9px;
+    padding:10px 14px; margin-top:12px;
+  }
+  .divider-note p{ font-size:11.5px; color:var(--ink-soft); margin:0; line-height:1.6; }
+
+  h2.page-title{
+    font-family:'Source Serif 4', Georgia, serif;
+    font-weight:600; font-size:20px; color:var(--ink); margin-bottom:4px;
+  }
+  .page-kicker{ font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--blue); margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 ============ -->
+<section class="page">
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brand">flym</div>
+      <div class="badges">
+        <div class="badge">PRIVATE &amp; CONFIDENTIAL</div>
+        <div class="badge solid">CLIENT COPY</div>
+      </div>
+    </div>
+    <div class="eyebrow">Supplement to Agreement FLYM-AGR-2026-003</div>
+    <h1>Project Clarification &amp;<br>Service Terms</h1>
+    <p class="sub">Clarification and service terms for Agreement FLYM-AGR-2026-003, prepared for D Sculpt Fitness by Flym Technologies.</p>
+    <div class="meta-strip">
+      <div class="meta-item"><div class="k">Reference Agreement</div><div class="v">FLYM-AGR-2026-003</div></div>
+      <div class="meta-item"><div class="k">Original Agreement Date</div><div class="v">19 Aug 2026</div></div>
+      <div class="meta-item"><div class="k">Client</div><div class="v">D Sculpt Fitness</div></div>
+      <div class="meta-item"><div class="k">Service Provider</div><div class="v">Flym Technologies</div></div>
+    </div>
+  </div>
+
+  <div class="content" style="padding-top:16px;">
+    <div class="section" style="padding-top:0;">
+      <div class="section-head"><span class="section-num">·</span><h2>Purpose of this document</h2></div>
+      <p>This document supplements and clarifies the existing Project Agreement (FLYM-AGR-2026-003) dated 19 August 2026. It does not change the scope or the agreed project value — it exists to remove ambiguity around hosting, the domain, ongoing support, future improvements and the payment position, so that everything is easy to understand ahead of our upcoming meeting.</p>
+      <div class="reassure">
+        <div class="dot"></div>
+        <p>Nothing in this document increases the ₹47,000 project value or introduces a new charge for the agreed scope.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span class="section-num">01</span><h2>Commercial Summary</h2></div>
+      <p class="lede">The figures below match the original signed Agreement. There is no change to the project value.</p>
+      <div class="money-card">
+        <div class="money-row"><span class="lbl">Original agreed project value</span><span class="amt">₹47,000</span></div>
+        <div class="money-row received"><span class="lbl">Amount received to date</span><span class="amt">₹20,000</span></div>
+        <div class="money-row"><span class="lbl">Outstanding balance</span><span class="amt">₹27,000</span></div>
+        <div class="money-row total"><span class="lbl">Final Project Investment</span><span class="amt">₹47,000</span></div>
+      </div>
+      <div class="reassure">
+        <div class="dot"></div>
+        <p>There are no additional charges for the agreed project scope. The outstanding balance of ₹27,000 is payable as set out in the original Agreement, on delivery/handover.</p>
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <div class="section-head"><span class="section-num">02</span><h2>Project Scope</h2></div>
+      <p class="lede">The scope below is unchanged from the original signed Agreement and remains the complete, fixed-price scope of work.</p>
+      <div class="scope-grid">
+        <div class="scope-group">
+          <h3>Member Management</h3>
+          <ul>
+            <li>Member registration &amp; profiles</li>
+            <li>Membership renewals &amp; expiry tracking</li>
+            <li>Payment &amp; due tracking</li>
+            <li>Member search, filters &amp; photos</li>
+          </ul>
+          <h3 style="margin-top:9px;">QR Check-in App</h3>
+          <ul>
+            <li>Unique QR code per member</li>
+            <li>Scan-to-check-in at gym entrance</li>
+            <li>Check-in log visible to staff/admin</li>
+          </ul>
+        </div>
+        <div class="scope-group">
+          <h3>Plans, Billing &amp; Reports</h3>
+          <ul>
+            <li>Membership plans &amp; invoice generation</li>
+            <li>Revenue, dues &amp; expiry reports</li>
+            <li>Dashboard with business insights</li>
+          </ul>
+          <h3 style="margin-top:9px;">Operations &amp; Platform</h3>
+          <ul>
+            <li>Staff management &amp; expense tracking</li>
+            <li>WhatsApp reminders</li>
+            <li>Secure cloud hosting</li>
+            <li>Custom branding</li>
+            <li>Progressive Web App (PWA)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="fl">D Sculpt Fitness · Project Clarification &amp; Service Terms</span>
+    <span>Page 01 of 04</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 2 ============ -->
+<section class="page">
+  <div class="content" style="padding-top:40px;">
+    <div class="page-kicker">Flym Technologies · FLYM-AGR-2026-003</div>
+    <h2 class="page-title">Hosting, Domain &amp; Support</h2>
+    <div style="height:18px;"></div>
+
+    <div class="section" style="padding-top:0;">
+      <div class="section-head"><span class="section-num">03</span><h2>Hosting &amp; Data Server</h2></div>
+      <div class="callout blue">
+        <div class="cal-label">Flym-managed infrastructure</div>
+        <p>Flym Technologies manages the cloud/data server infrastructure required for the operation of the platform. This covers everything needed to keep D Sculpt Fitness's application, database and check-in system running securely.</p>
+      </div>
+      <div class="reassure">
+        <div class="dot"></div>
+        <p>There is no separate server management or hosting charge to D Sculpt Fitness under the current project arrangement — this is already covered within the ₹47,000 project value.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span class="section-num">04</span><h2>Domain &amp; Domain Renewal</h2></div>
+      <p class="lede">This section is worth reading carefully — a domain is often confused with the website or the software itself.</p>
+
+      <div class="domain-hero">
+        <div class="cal-label">In plain terms</div>
+        <p>A <strong>domain</strong> is simply the internet address or URL used to access a website — for example, <strong>dsculptfitness.com</strong>. The domain is <strong>not</strong> the website itself, the gym management software, the database, or the hosting/server.</p>
+      </div>
+
+      <div class="trio">
+        <div class="trio-card hi">
+          <div class="t">Domain</div>
+          <div class="d">The website address / URL people type or tap to reach the app.</div>
+        </div>
+        <div class="trio-card">
+          <div class="t">Website / Software</div>
+          <div class="d">The actual gym management application and its features.</div>
+        </div>
+        <div class="trio-card">
+          <div class="t">Hosting</div>
+          <div class="d">The infrastructure where the application runs and stores data.</div>
+        </div>
+      </div>
+
+      <div class="fact-list">
+        <div class="fact-row"><span class="fk">Registration handled by</span><span class="fv">Flym Technologies, for the initial registration period</span></div>
+        <div class="fact-row"><span class="fk">Current registration valid until</span><span class="fv">August 2027</span></div>
+        <div class="fact-row"><span class="fk">Next renewal due</span><span class="fv">August 2027</span></div>
+        <div class="fact-row"><span class="fk">Current registrar renewal price</span><span class="fv">Approximately ₹800</span></div>
+        <div class="fact-row"><span class="fk">Expected renewal cost</span><span class="fv"><span class="price-pill">Less than ₹1,000 / year</span></span></div>
+      </div>
+
+      <div class="callout amber">
+        <div class="cal-label">Please note</div>
+        <p>The renewal price is not guaranteed to always be ₹800 — registrar pricing can change over time. The actual renewal amount will depend on the registrar's applicable pricing at the time of renewal. Domain renewal is a third-party recurring registration cost — it is <strong>not</strong> a development charge, not a charge for the website/software, and not a hosting charge. It is simply the recurring cost required to keep the chosen domain name registered.</p>
+      </div>
+
+      <div class="reassure">
+        <div class="dot"></div>
+        <p>Before the August 2027 renewal, Flym Technologies will inform D Sculpt Fitness of the applicable renewal amount and obtain confirmation/payment before proceeding.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="fl">D Sculpt Fitness · Project Clarification &amp; Service Terms</span>
+    <span>Page 02 of 04</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 3 ============ -->
+<section class="page">
+  <div class="content" style="padding-top:40px;">
+    <div class="page-kicker">Flym Technologies · FLYM-AGR-2026-003</div>
+    <h2 class="page-title">Support, Future Work &amp; Handover</h2>
+    <div style="height:18px;"></div>
+
+    <div class="section" style="padding-top:0;">
+      <div class="section-head"><span class="section-num">05</span><h2>Bug Fix &amp; Ongoing Support</h2></div>
+      <div class="callout green">
+        <div class="cal-label">Included, at no extra cost</div>
+        <p>Flym Technologies will provide ongoing support for genuine bugs or errors affecting the agreed functionality of the delivered system, without additional development charges.</p>
+      </div>
+      <p><strong>A bug</strong> is an issue where an existing agreed feature or functionality does not work as intended — for example: QR check-in failing due to an implementation issue, an existing invoice calculation behaving incorrectly, existing member functionality stopping working, or existing agreed functionality breaking.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span class="section-num">06</span><h2>Future Features &amp; Improvements</h2></div>
+      <p>Features and improvements that can reasonably be developed within the existing Flym platform will be provided without additional development charges, subject to technical feasibility and mutual discussion.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span class="section-num">07</span><h2>Third-Party Services &amp; External Costs</h2></div>
+      <p>Flym's development and support work is separate from third-party recurring costs that sit outside our control — for example, domain registration/renewal, paid third-party APIs, payment gateway charges, WhatsApp/communication provider charges, or other external subscriptions and services. If any third-party service requires a payment, Flym will communicate the applicable cost to D Sculpt Fitness before the cost is incurred, wherever reasonably possible.</p>
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <div class="section-head"><span class="section-num">08</span><h2>Additional Work &amp; Scope Clarity</h2></div>
+      <p>To keep things simple, work falls into one of four categories:</p>
+      <div class="checklist" style="grid-template-columns:1fr;">
+        <div class="check-item"><div class="box"></div><span><strong>Existing bugs</strong> — covered under ongoing support, no charge.</span></div>
+        <div class="check-item"><div class="box"></div><span><strong>Reasonable improvements/features within the Flym platform</strong> — no development charge, subject to feasibility.</span></div>
+        <div class="check-item"><div class="box"></div><span><strong>Third-party costs</strong> — passed through transparently, communicated in advance.</span></div>
+        <div class="check-item"><div class="box"></div><span><strong>Work requiring fundamentally new systems, external products, hardware or infrastructure</strong> — scoped and quoted separately, only after discussion and approval.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="fl">D Sculpt Fitness · Project Clarification &amp; Service Terms</span>
+    <span>Page 03 of 04</span>
+  </div>
+</section>
+
+<!-- ============ PAGE 4 ============ -->
+<section class="page">
+  <div class="content" style="padding-top:40px;">
+    <div class="page-kicker">Flym Technologies · FLYM-AGR-2026-003</div>
+    <h2 class="page-title">Testing, Handover &amp; Signatures</h2>
+    <div style="height:18px;"></div>
+
+    <div class="section" style="padding-top:0;">
+      <div class="section-head"><span class="section-num">09</span><h2>Testing &amp; Handover</h2></div>
+      <p class="lede">Before handover, the following steps are completed:</p>
+      <div class="checklist">
+        <div class="check-item"><div class="box"></div><span>Final testing of all agreed functionality</span></div>
+        <div class="check-item"><div class="box"></div><span>Bug correction before handover</span></div>
+        <div class="check-item"><div class="box"></div><span>Deployment &amp; configuration</span></div>
+        <div class="check-item"><div class="box"></div><span>Owner/admin access set up</span></div>
+        <div class="check-item"><div class="box"></div><span>Member access set up</span></div>
+        <div class="check-item"><div class="box"></div><span>Domain connected</span></div>
+        <div class="check-item"><div class="box"></div><span>Final handover to D Sculpt Fitness</span></div>
+      </div>
+      <div class="callout blue">
+        <div class="cal-label">Final balance</div>
+        <p>The final balance payable on handover is <strong>₹27,000</strong>, per the original Agreement's payment schedule.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span class="section-num">10</span><h2>General Terms</h2></div>
+      <div class="terms-list">
+        <div class="term-item"><span class="tn">10.1</span><p>Both parties agree to keep business, member and financial information shared during this engagement confidential.</p></div>
+        <div class="term-item"><span class="tn">10.2</span><p>Client data (member records, business information) remains the property of D Sculpt Fitness.</p></div>
+        <div class="term-item"><span class="tn">10.3</span><p>Delivery of certain features may depend on third-party services (e.g. WhatsApp, payment or communication providers) operating as expected.</p></div>
+        <div class="term-item"><span class="tn">10.4</span><p>Future features and improvements are provided subject to technical feasibility.</p></div>
+        <div class="term-item"><span class="tn">10.5</span><p>Flym Technologies is responsible for domain registration and renewal notifications. Any applicable domain renewal fee will be payable by D Sculpt Fitness after confirmation of the renewal amount.</p></div>
+        <div class="term-item"><span class="tn">10.6</span><p><strong>This document supplements and clarifies the original Agreement (FLYM-AGR-2026-003).</strong> Where this document specifically clarifies or modifies the terms relating to hosting, domain, support, future improvements and payment, the terms stated in this document shall apply.</p></div>
+        <div class="term-item"><span class="tn">10.7</span><p>By signing below, both parties acknowledge and agree to the clarified terms set out in this document.</p></div>
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <div class="section-head"><span class="section-num">11</span><h2>Signatures</h2></div>
+      <div class="sig-grid">
+        <div class="sig-block">
+          <div class="for">For Flym Technologies</div>
+          <div class="sig-name">Steven Anthony</div>
+          <div class="sig-role">Founder, Flym Technologies</div>
+          <div style="height:34px;"></div>
+          <div class="sig-line">Signature</div>
+          <div style="height:14px;"></div>
+          <div class="sig-line">Date</div>
+        </div>
+        <div class="sig-block">
+          <div class="for">For D Sculpt Fitness</div>
+          <div class="sig-name">Owner / Authorized Signatory</div>
+          <div class="sig-role">&nbsp;</div>
+          <div class="sig-fill">Name: <span class="u"></span></div>
+          <div style="height:20px;"></div>
+          <div class="sig-line">Signature</div>
+          <div style="height:14px;"></div>
+          <div class="sig-line">Date</div>
+        </div>
+      </div>
+      <div class="divider-note">
+        <p>This document is issued as a clarification and supplement to Agreement FLYM-AGR-2026-003 dated 19 August 2026, and is intended to be read together with it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="fl">D Sculpt Fitness · Project Clarification &amp; Service Terms</span>
+    <span>Page 04 of 04</span>
+  </div>
+</section>
+
+</body>
+</html>

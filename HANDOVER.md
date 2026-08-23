@@ -23,15 +23,33 @@ backend, installable as a phone app (PWA).
 
 | Thing | Value |
 |---|---|
+| Supabase account | `sculp.flym@gmail.com` |
+| Supabase organization | `D Sculpt Fitness` (free plan) |
 | Supabase project | `sculp-fitness` |
 | Project ref | `acigxzbbchhisaymklld` |
 | Dashboard | https://supabase.com/dashboard/project/acigxzbbchhisaymklld |
 | Region | `ap-northeast-2` (Seoul) |
-| Owner login | `sculptfit@gmail.com` |
+| Owner login (the app) | `sculptfit@gmail.com` |
 | Gym code | `SCULPT01` |
 
+> **The backend moved accounts on 2026-08-23.** The project used to sit in
+> Steven's personal Supabase account; it was **transferred** into the
+> `D Sculpt Fitness` organization owned by `sculp.flym@gmail.com`. A
+> transfer moves the project intact — the project ref, URL, anon key,
+> service_role key, database, storage and Edge Functions are all unchanged,
+> which is why nothing in `.env.local` or in the Vercel environment
+> variables needed touching and no redeploy was required.
+>
+> The personal account remains an Owner of the organization so it can still
+> administer the project. Removing it from Organization Settings → Team is
+> a deliberate act, not housekeeping — do it only when you're sure
+> `sculp.flym@gmail.com` is the account that will be maintaining this.
+
 > **Change the owner password.** It is currently `sculpt12345`, which is
-> weak and was sent in chat. Supabase dashboard → Authentication → Users →
+> weak and was sent in chat. The **database** password has also been sent
+> in chat and should be reset at the same time (Settings → Database →
+> Reset database password; nothing in the app reads it, so a reset is
+> safe). Supabase dashboard → Authentication → Users →
 > click the user → Reset password. Do this before anyone else gets access.
 
 The **anon key** in `.env.local` is public by design — it ships inside the
