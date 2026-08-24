@@ -104,13 +104,59 @@ const duration = (months) => {
   return `${m} month${m === 1 ? '' : 's'}`;
 };
 
-/** features is free text — one perk per line, or comma separated. */
-const featureList = (features) =>
-  String(features || '')
+/**
+ * `plans.features` is written by the dashboard's Plan Settings as a JSON
+ * string, `{"featuresList":"one, two, three"}` (see parsePlanData() in
+ * dashboard/helpers.js) — not free text. Unwrap that shape first, falling
+ * back to the raw value for any row saved before that format existed.
+ * Skipping this step used to split the JSON's own syntax into "features"
+ * (`{"featuresList":"Locker room` as one bullet, `Cardio"}` as another) —
+ * this is a duplicate of parsePlanData's unwrap, not an import from
+ * dashboard/, since pages/dashboard -> pages/landing is not an allowed
+ * import direction here.
+ */
+const featureList = (features) => {
+  let raw = features;
+  try {
+    const parsed = JSON.parse(features || '{}');
+    if (parsed && parsed.featuresList !== undefined) raw = parsed.featuresList;
+  } catch (_) { /* not JSON — already plain text */ }
+  return String(raw || '')
     .split(/[\n,;]+/)
     .map(s => s.trim())
-    .filter(Boolean)
-    .slice(0, 5);
+    .filter(Boolean);
+};
+
+// Caps how many perks a card shows before collapsing the rest into a
+// "+N more" line — one plan with a long feature list must not make the
+// whole grid excessively tall, or every other card in the row along
+// with it since grid rows stretch to the tallest sibling.
+const MAX_PLAN_FEATS = 4;
+
+/**
+ * One reusable membership card, driven entirely by a plan row from
+ * public_gym_plans() — nothing about a specific plan is hardcoded here.
+ * Whatever the owner adds/edits/deletes in Plan Settings shows up here
+ * unchanged, in the order the RPC returns it.
+ */
+function planCardHTML(p, featured) {
+  const feats = featureList(p.features);
+  const shown = feats.slice(0, MAX_PLAN_FEATS);
+  const extra = feats.length - shown.length;
+  return `
+      <article class="sc-plan${featured ? ' is-featured' : ''}">
+        ${featured ? '<span class="sc-plan-tag">Best value</span>' : ''}
+        <div class="sc-plan-head">
+          <h3>${escHtml(p.name || 'Membership')}</h3>
+          <p class="sc-plan-dur">${escHtml(duration(p.duration_months))}</p>
+        </div>
+        <p class="sc-plan-price">${escHtml(inr(p.price))}</p>
+        ${shown.length ? `<ul class="sc-plan-feats">
+          ${shown.map(f => `<li>${escHtml(f)}</li>`).join('')}
+          ${extra > 0 ? `<li class="sc-plan-feat-more">+ ${extra} more</li>` : ''}
+        </ul>` : ''}
+      </article>`;
+}
 
 export function renderLanding(router) {
   // ── Force dark while mounted, restore on the way out ────────────
@@ -208,9 +254,9 @@ export function renderLanding(router) {
          Populated from Plan Settings via the public_gym_plans RPC.
          Stays hidden unless the gym actually has active plans, so the
          page never shows invented or empty pricing. -->
-    <section class="sc-sec" id="membership" hidden>
-      <h2 class="sc-h2">MEMBER<span class="sc-h1-hi">SHIP</span></h2>
-      <p class="sc-sec-sub">Straightforward pricing. No joining fee, no lock-in contract.</p>
+    <section class="sc-sec sc-sec-tight" id="membership" hidden>
+      <h2 class="sc-h2">MEMBER<span class="sc-h1-hi">SHIPS</span></h2>
+      <p class="sc-sec-sub">Simple plans. No lock-in.</p>
       <div class="sc-grid sc-plans" id="sc-plans"></div>
     </section>
 
@@ -240,7 +286,7 @@ export function renderLanding(router) {
     <section class="sc-final">
       <h2 class="sc-h2 sc-final-h">READY TO <span class="sc-h1-hi">START?</span></h2>
       <p class="sc-lede sc-final-lede">
-        Come in, look around, and talk to a trainer before you commit to anything.
+        Train with purpose. Build the discipline.
       </p>
       <div class="sc-cta-row sc-cta-center">
         <a class="sc-btn sc-btn-lg" href="#contact">Contact us</a>
@@ -371,23 +417,9 @@ export function renderLanding(router) {
       (best, p, i) => (Number(p.duration_months) > Number(plans[best].duration_months) ? i : best), 0
     );
 
-    grid.innerHTML = plans.map((p, i) => {
-      const feats = featureList(p.features);
-      return `
-      <article class="sc-plan${i === featuredIdx && plans.length > 1 ? ' is-featured' : ''}">
-        ${i === featuredIdx && plans.length > 1 ? '<span class="sc-plan-tag">Best value</span>' : ''}
-        <div class="sc-plan-head">
-          <h3>${escHtml(p.name || 'Membership')}</h3>
-          <p class="sc-plan-dur">${escHtml(duration(p.duration_months))}</p>
-        </div>
-        <p class="sc-plan-price">${escHtml(inr(p.price))}</p>
-        ${feats.length ? `<ul class="sc-plan-feats">
-          ${feats.map(f => `<li>${escHtml(f)}</li>`).join('')}
-        </ul>` : ''}
-        <a class="sc-btn sc-plan-btn${i === featuredIdx && plans.length > 1 ? '' : ' sc-btn-ghost'}"
-           href="#contact">Enquire</a>
-      </article>`;
-    }).join('');
+    grid.innerHTML = plans
+      .map((p, i) => planCardHTML(p, i === featuredIdx && plans.length > 1))
+      .join('');
 
     section.hidden = false;
     document.querySelector('.sc-nav-membership')?.removeAttribute('hidden');
@@ -525,7 +557,7 @@ function injectLandingStyles() {
 .sc-btn:hover{background:${BLUE_LIGHT};border-color:${BLUE_LIGHT};}
 .sc-btn:active{transform:translateY(1px);}
 .sc-btn-sm{padding:10px 20px;font-size:14px;min-height:40px;}
-.sc-btn-lg{padding:16px 32px;font-size:16px;}
+.sc-btn-lg{padding:13px 26px;font-size:14.5px;min-height:44px;}
 .sc-btn-ghost{background:transparent;color:#F2F4F8;border-color:rgba(200,205,214,0.32);}
 .sc-btn-ghost:hover{background:rgba(200,205,214,0.09);border-color:${CHROME};}
 /* 2026-08 REVERSAL, recorded rather than deleted per this codebase's own
@@ -557,15 +589,19 @@ function injectLandingStyles() {
 .sc-h1{font-size:clamp(40px,7.4vw,72px);max-width:15ch;margin:0;}
 .sc-lede{max-width:46ch;margin:24px 0 0;font-size:clamp(15px,1.6vw,18px);
   line-height:1.62;color:${CHROME};}
-.sc-cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px;}
+.sc-cta-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;}
 .sc-cta-center{justify-content:center;}
 
 /* SECTIONS */
-.sc-sec{padding-block:clamp(56px,8vw,104px);}
+.sc-sec{padding-block:clamp(48px,7vw,88px);}
 .sc-sec-alt{background:#0A0B0E;}
-.sc-h2{font-size:clamp(30px,5vw,48px);margin:0 0 22px;}
-.sc-sec-sub{color:#8A929F;font-size:14px;line-height:1.6;margin:0 0 34px;max-width:60ch;}
-.sc-grid{display:grid;gap:20px;margin-top:34px;}
+/* Membership specifically runs tighter still — a pricing grid reads best
+   compact, and the hero stays the tallest, most visually dominant band
+   on the page precisely because every section below it is this measured. */
+.sc-sec-tight{padding-block:clamp(32px,5vw,56px);}
+.sc-h2{font-size:clamp(28px,5vw,48px);margin:0 0 16px;}
+.sc-sec-sub{color:#8A929F;font-size:14px;line-height:1.6;margin:0 0 20px;max-width:60ch;}
+.sc-grid{display:grid;gap:16px;margin-top:8px;}
 .sc-grid-2{grid-template-columns:1fr;}
 .sc-grid-4{grid-template-columns:1fr;}
 @media (min-width:640px){
@@ -614,25 +650,27 @@ function injectLandingStyles() {
 @media (min-width:1000px){.sc-plans{grid-template-columns:repeat(3,1fr);}}
 .sc-plan{position:relative;display:flex;flex-direction:column;
   background:#141519;border:1px solid rgba(200,205,214,0.10);
-  border-radius:var(--sc-card);padding:28px 24px;}
-.sc-plan.is-featured{border-color:${BLUE};background:#12161D;}
-.sc-plan-tag{position:absolute;top:-11px;left:24px;background:${BLUE};color:#fff;
+  border-radius:var(--sc-card);padding:22px 20px;}
+.sc-plan.is-featured{border-color:${BLUE};background:#12161D;
+  box-shadow:0 0 0 1px rgba(10,132,255,0.25),0 12px 28px -12px rgba(10,132,255,0.35);}
+.sc-plan-tag{position:absolute;top:-11px;left:20px;background:${BLUE};color:#fff;
   font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
   padding:5px 12px;border-radius:999px;}
-.sc-plan-head h3{margin:0;font-size:19px;font-weight:700;}
-.sc-plan-dur{margin:4px 0 0;color:#8A929F;font-size:13px;font-weight:500;
+.sc-plan-head h3{margin:0;font-size:18px;font-weight:700;}
+.sc-plan-dur{margin:3px 0 0;color:#8A929F;font-size:12.5px;font-weight:500;
   text-transform:uppercase;letter-spacing:0.08em;}
-.sc-plan-price{margin:18px 0 0;font-size:38px;font-weight:800;line-height:1;
+.sc-plan-price{margin:12px 0 0;font-size:34px;font-weight:800;line-height:1;
   letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
-.sc-plan-feats{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px;}
-.sc-plan-feats li{position:relative;padding-left:26px;color:${CHROME};
-  font-size:14px;line-height:1.5;}
-.sc-plan-feats li::before{content:'';position:absolute;left:0;top:4px;width:16px;height:16px;
+.sc-plan-feats{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px;}
+.sc-plan-feats li{position:relative;padding-left:24px;color:${CHROME};
+  font-size:13.5px;line-height:1.45;}
+.sc-plan-feats li::before{content:'';position:absolute;left:0;top:3px;width:15px;height:15px;
   border-radius:50%;border:1.5px solid ${BLUE};
-  background:no-repeat center/9px 7px
+  background:no-repeat center/8px 6px
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 7'%3E%3Cpath d='M1 3.6L3.3 6 8 1' fill='none' stroke='%230A84FF' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
-.sc-plan-btn{margin-top:24px;width:100%;}
-.sc-plan-feats + .sc-plan-btn{margin-top:auto;padding-top:24px;}
+.sc-plan-feat-more{color:#6B727E;font-style:italic;}
+.sc-plan-feat-more::before{display:none;}
+.sc-plan-feat-more{padding-left:0;}
 
 /* ABOUT — reference pairs a text column with a 570x454 image */
 .sc-about{display:grid;gap:36px;align-items:center;grid-template-columns:1fr;}
@@ -643,11 +681,11 @@ function injectLandingStyles() {
 
 /* FINAL CTA */
 .sc-final{position:relative;text-align:center;
-  padding-block:clamp(64px,10vw,120px);
+  padding-block:clamp(40px,6vw,64px);
   border-top:1px solid rgba(200,205,214,0.10);
   background:radial-gradient(120% 100% at 50% 0%,rgba(10,132,255,0.10) 0%,transparent 62%);}
 .sc-final-h{font-size:clamp(34px,6vw,64px);}
-.sc-final-lede{margin:20px auto 0;}
+.sc-final-lede{margin:12px auto 0;}
 
 /* FOOTER */
 .sc-foot{border-top:1px solid rgba(200,205,214,0.10);background:#08090B;
@@ -705,7 +743,8 @@ function injectLandingStyles() {
 }
 @media (max-width:560px){
   .sc-cta-row .sc-btn{width:100%;}
-  .sc-plan-price{font-size:32px;}
+  .sc-plan{padding:18px 16px;}
+  .sc-plan-price{font-size:28px;}
 }
 /* INTRO — mounted on <body>, so these selectors are deliberately not
    scoped under .sc-land. */

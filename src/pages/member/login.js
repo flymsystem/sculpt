@@ -21,8 +21,8 @@ export function renderMemberLogin(router) {
             style="display:block;margin:0 auto;">
         </div>
 
-        <h1 class="login-title">Member Login</h1>
-        <div class="login-sub">Enter the details from your welcome message</div>
+        <h1 class="login-title">Welcome back</h1>
+        <div class="login-sub">Sign in with the details from your welcome message</div>
 
         <div class="login-error" id="member-login-error" role="alert" aria-live="polite"></div>
 
@@ -43,7 +43,7 @@ export function renderMemberLogin(router) {
         </div>
 
         <button class="btn btn-primary btn-full" id="member-login-submit" type="submit" disabled style="margin-top:6px;height:46px;">
-          <span id="member-login-btn-text">Check In →</span>
+          <span id="member-login-btn-text">Continue →</span>
           <span id="member-login-spinner" class="spinner" aria-hidden="true"
             style="display:none;width:16px;height:16px;border-width:2px;"></span>
         </button>

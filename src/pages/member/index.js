@@ -56,7 +56,9 @@ function shellHTML() {
   return `
     <div id="page-member">
       <div class="mp-topbar">
-        ${_membership.gym_logo_url ? `<img src="${escHtml(_membership.gym_logo_url)}" alt="" class="mp-topbar-logo">` : ''}
+        <span class="mp-topbar-badge">
+          <img src="${escHtml(_membership.gym_logo_url || '/logo-256.png')}" alt="" class="mp-topbar-logo">
+        </span>
         <div class="mp-topbar-name">${escHtml(gymName)}</div>
         <button class="mp-signout" id="mp-signout" type="button" aria-label="Sign out">Sign Out</button>
       </div>
@@ -77,7 +79,7 @@ function tabIcon(name) {
     receipts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>',
     visits: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   };
-  return `<span class="mp-tab-icon">${icons[name] || ''}</span>`;
+  return `<span class="mp-tab-icon-wrap"><span class="mp-tab-icon">${icons[name] || ''}</span></span>`;
 }
 
 function bindShell(router) {
@@ -125,17 +127,56 @@ function statusMeta(status) {
 }
 
 // ── Check In ─────────────────────────────────────────────────────
+// A greeting, one compact primary action, and the two numbers a member
+// actually opens this tab to check (membership status, balance due) —
+// replacing the old 224px floating circle plus a screen's worth of empty
+// space above and below it with a screen that has real content on it.
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
 function renderCheckinTab(c) {
+  const m = _membership;
+  const meta = statusMeta(m.computed_status);
+  const firstName = (m.member_name || '').split(' ')[0] || 'there';
+  const balance = Number(m.balance_due || 0);
+
   c.innerHTML = `
-    <div class="mp-checkin" id="mp-checkin-stage">
-      <div class="mp-checkin-spacer"></div>
-      <button class="mp-scan-btn" id="mp-scan-start" type="button">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
-        <span>Tap to Scan &amp; Check In</span>
+    <div class="mp-home" id="mp-checkin-stage">
+      <div class="mp-greeting">
+        <div class="mp-greeting-eyebrow">${escHtml(greeting().toUpperCase())}</div>
+        <div class="mp-greeting-name">${escHtml(firstName)}</div>
+        <div class="mp-greeting-sub">Ready to train?</div>
+      </div>
+
+      <button class="mp-checkin-cta" id="mp-scan-start" type="button">
+        <span class="mp-checkin-cta-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+        </span>
+        <span class="mp-checkin-cta-text">
+          <span class="mp-checkin-cta-title">Check In</span>
+          <span class="mp-checkin-cta-hint">Scan the QR at the front desk</span>
+        </span>
+        <span class="mp-checkin-cta-arrow" aria-hidden="true">→</span>
       </button>
-      <div class="mp-checkin-hint">Point your camera at the screen at the front desk</div>
+
       <div id="mp-checkin-camera" style="display:none;"></div>
       <div id="mp-checkin-result"></div>
+
+      <div class="mp-stat-row">
+        <div class="mp-stat-card">
+          <div class="mp-stat-label">Membership</div>
+          <div class="mp-stat-value ${meta.tone}">${escHtml(meta.label.toUpperCase())}</div>
+          ${m.days_remaining != null ? `<div class="mp-stat-sub">${escHtml(String(m.days_remaining))} day${m.days_remaining === 1 ? '' : 's'} remaining</div>` : ''}
+        </div>
+        ${balance > 0 ? `
+          <div class="mp-stat-card mp-stat-card-warn">
+            <div class="mp-stat-label">Balance</div>
+            <div class="mp-stat-value">₹${balance.toLocaleString('en-IN')}</div>
+            <div class="mp-stat-sub">due</div>
+          </div>` : ''}
+      </div>
     </div>`;
 
   document.getElementById('mp-scan-start')?.addEventListener('click', startMemberScan);
@@ -143,15 +184,15 @@ function renderCheckinTab(c) {
 
 async function startMemberScan() {
   const scanBtn = document.getElementById('mp-scan-start');
-  const spacer = document.querySelector('.mp-checkin-spacer');
-  const hint = document.querySelector('.mp-checkin-hint');
+  const greeting = document.querySelector('.mp-greeting');
+  const statRow = document.querySelector('.mp-stat-row');
   const cameraWrap = document.getElementById('mp-checkin-camera');
   const resultEl = document.getElementById('mp-checkin-result');
   if (!cameraWrap) return;
 
   if (scanBtn) scanBtn.style.display = 'none';
-  if (spacer) spacer.style.display = 'none';
-  if (hint) hint.style.display = 'none';
+  if (greeting) greeting.style.display = 'none';
+  if (statRow) statRow.style.display = 'none';
   resultEl.innerHTML = '';
   cameraWrap.style.display = 'block';
   cameraWrap.innerHTML = `
@@ -165,6 +206,17 @@ async function startMemberScan() {
   const status = document.getElementById('mp-scan-status');
   if (!video) return; // tab switched away while qr.js was loading
 
+  // One physical scan must produce exactly one result. `busy` alone isn't
+  // enough — it only blocks a *second* decode while the first is in
+  // flight, and used to reset in `finally`, leaving the camera running
+  // and free to re-decode the same still-visible code on error paths
+  // (expired token, network blip). That produced the reported
+  // expired->success->expired flicker: two overlapping requests against
+  // the same stale token, UI updated by whichever response landed last.
+  // Fix: stop the scanner the instant ANY terminal result comes back —
+  // success or error — so a fresh scan always starts from a clean
+  // Scanning -> Validating -> Success/Error -> Done sequence. "Try Again"
+  // starts an entirely new startMemberScan() call with its own `busy`.
   let busy = false;
   _stopScanner = await startScanner(
     video,
@@ -173,15 +225,13 @@ async function startMemberScan() {
       const m = /^SCULPT1:([^:]+):([0-9a-f]{32})$/.exec(String(raw || ''));
       if (!m) { status.textContent = 'Not a check-in code.'; return; }
       busy = true;
+      stopMemberScanner();
       status.textContent = 'Checking in…';
       try {
         const { status: st, message } = await memberCheckin(m[2]);
         showCheckinResult(st, message);
-        if (st === 'OK' || st === 'ALREADY_CHECKED_IN') stopMemberScanner();
       } catch (err) {
         showCheckinResult('ERROR', err.message || 'Check-in failed. Please try again.');
-      } finally {
-        busy = false;
       }
     },
     (err) => { status.textContent = 'Camera unavailable: ' + (err?.message || 'permission denied.'); }
@@ -229,11 +279,12 @@ function stopMemberScanner() {
 }
 
 // ── My Plan ──────────────────────────────────────────────────────
-// Not a dashboard: one card, one dominant number. Days-remaining is the
-// figure people open this tab for, so it gets the biggest type on the
-// screen — everything else is context around it. Expiring/Expired get
-// a full-card colour wash, not a small pill, per the brief ("visually
-// loud and unmissable — colour, not a small label").
+// Status and days-remaining sit side by side as balanced stats, not one
+// giant hero numeral over an otherwise empty screen — the four statuses
+// (Active / Expiring / Expired / Cancelled) stay distinguished by a
+// full-card colour wash on the warn/bad tones so the state still reads
+// at a glance. Balance due gets its own visually prominent block when
+// it applies, not folded into the grid with joined/expiry dates.
 function renderPlanTab(c) {
   const m = _membership;
   const meta = statusMeta(m.computed_status);
@@ -246,24 +297,26 @@ function renderPlanTab(c) {
 
   c.innerHTML = `
     <div class="mp-card mp-plan-card ${loud ? 'mp-plan-card-' + meta.tone : ''}">
-      <div class="mp-plan-status ${meta.tone}">${escHtml(meta.label)}</div>
-      <div class="mp-plan-days">
-        <span class="mp-plan-days-num">${escHtml(daysValue)}</span>
-        <span class="mp-plan-days-caption">${escHtml(daysCaption)}</span>
+      <div class="mp-plan-top">
+        <div>
+          <div class="mp-plan-name">${escHtml(m.plan_name || 'No plan')}</div>
+          <div class="mp-plan-app">${escHtml(m.application_number || '')}</div>
+        </div>
+        <div class="mp-plan-status ${meta.tone}">${escHtml(meta.label)}</div>
       </div>
-      <div class="mp-plan-name">${escHtml(m.plan_name || 'No plan')}</div>
-      <div class="mp-plan-app">${escHtml(m.application_number || '')}</div>
       <div class="mp-plan-divider"></div>
       <div class="mp-plan-grid">
+        <div><div class="mp-plan-label">Days Remaining</div><div class="mp-plan-value mp-plan-days-value">${escHtml(daysValue)} <span>${escHtml(daysCaption)}</span></div></div>
         <div><div class="mp-plan-label">Joined</div><div class="mp-plan-value">${fmtDate(m.join_date) || '—'}</div></div>
         <div><div class="mp-plan-label">Expires</div><div class="mp-plan-value">${fmtDate(m.expiry_date) || '—'}</div></div>
       </div>
-      ${balance > 0 ? `
-        <div class="mp-plan-balance">
-          <span>Balance due</span>
-          <span class="mp-plan-balance-amt">₹${balance.toLocaleString('en-IN')}</span>
-        </div>` : ''}
-    </div>`;
+    </div>
+    ${balance > 0 ? `
+      <div class="mp-card mp-balance-card">
+        <div class="mp-plan-label">Balance Due</div>
+        <div class="mp-balance-amt">₹${balance.toLocaleString('en-IN')}</div>
+        <div class="mp-balance-sub">Pay at the front desk to clear your balance.</div>
+      </div>` : ''}`;
 }
 
 // ── My Visits ────────────────────────────────────────────────────
@@ -271,18 +324,25 @@ function renderPlanTab(c) {
 // deterministically without a live session — see the window.__sculptMemberPortal
 // hook at the bottom of this file, same convention as window.__sculptCheckin.
 async function renderVisitsTab(c, fixtureVisits) {
+  const header = `
+    <div class="mp-page-header">
+      <div class="mp-page-title">Visits</div>
+      <div class="mp-page-sub">Your check-in history at the gym.</div>
+    </div>`;
+
   let visits = fixtureVisits;
   if (visits === undefined) {
     c.innerHTML = `<div class="loading-inline"><div class="spinner"></div></div>`;
     try {
       visits = await getMyVisits(30);
     } catch (err) {
-      c.innerHTML = `<div class="mp-empty"><div class="mp-empty-icon">⚠️</div><div class="mp-empty-title">Could not load your visits</div><div class="mp-empty-sub">${escHtml(err.message || 'Please try again.')}</div></div>`;
+      c.innerHTML = `${header}<div class="mp-empty"><div class="mp-empty-icon">⚠️</div><div class="mp-empty-title">Could not load your visits</div><div class="mp-empty-sub">${escHtml(err.message || 'Please try again.')}</div></div>`;
       return;
     }
   }
   if (!visits.length) {
     c.innerHTML = `
+      ${header}
       <div class="mp-empty">
         <div class="mp-empty-icon">🏋️</div>
         <div class="mp-empty-title">No visits yet</div>
@@ -290,7 +350,10 @@ async function renderVisitsTab(c, fixtureVisits) {
       </div>`;
     return;
   }
-  c.innerHTML = `<div class="mp-visit-list">${visits.map(v => `
+  c.innerHTML = `
+    ${header}
+    <div class="mp-page-count">${visits.length} visit${visits.length === 1 ? '' : 's'}</div>
+    <div class="mp-visit-list">${visits.map(v => `
     <div class="mp-visit-row">
       <div class="mp-visit-date">${escHtml(fmtDate(v.checked_in_at))} · ${escHtml(new Date(v.checked_in_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }))}</div>
       <div class="mp-visit-badge ${v.status === 'ok' ? 'ok' : 'bad'}">${v.source === 'manual' ? 'Manual' : 'QR'}</div>
@@ -306,25 +369,51 @@ function injectMemberPortalStyles() {
   style.id = 'member-portal-styles';
   style.textContent = `
     #page-member { display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; background:var(--surface-bg); }
-    .mp-topbar { display:flex; align-items:center; gap:10px; padding:14px 18px; padding-top:max(14px, env(safe-area-inset-top,0px)); border-bottom:1px solid var(--border-subtle); flex-shrink:0; }
-    .mp-topbar-logo { width:32px; height:32px; object-fit:contain; border-radius:var(--radius-sm); }
+    .mp-topbar { display:flex; align-items:center; gap:12px; padding:14px 18px; padding-top:max(14px, env(safe-area-inset-top,0px)); border-bottom:1px solid var(--border-subtle); flex-shrink:0; background:var(--surface-1); }
+    .mp-topbar-badge { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border-subtle); flex-shrink:0; overflow:hidden; }
+    .mp-topbar-logo { width:100%; height:100%; object-fit:contain; }
     .mp-topbar-name { flex:1; font-size:var(--text-md); font-weight:var(--font-semibold); color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .mp-signout { background:none; border:1px solid var(--border-default); color:var(--text-tertiary); border-radius:var(--radius-md); padding:8px 14px; font-size:var(--text-sm); cursor:pointer; min-height:36px; }
+    .mp-signout { background:none; border:1px solid var(--border-default); color:var(--text-tertiary); border-radius:var(--radius-pill); padding:8px 14px; font-size:var(--text-sm); cursor:pointer; min-height:36px; }
+    .mp-signout:hover { color:var(--text-primary); border-color:var(--border-focus); }
 
     .mp-content { flex:1; overflow-y:auto; display:flex; flex-direction:column; padding:20px 16px 24px; }
 
+    /* Bottom nav — the active tab gets a filled pill behind its icon
+       rather than just a colour swap, so "where am I" reads at a glance
+       even at a quick downward glance while walking. */
     .mp-tabbar { display:flex; border-top:1px solid var(--border-subtle); background:var(--surface-1); padding-bottom:env(safe-area-inset-bottom,0px); flex-shrink:0; }
-    .mp-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px 8px; background:none; border:none; color:var(--text-quaternary); font-size:var(--text-xs); cursor:pointer; min-height:52px; }
-    .mp-tab-icon svg { width:22px; height:22px; }
+    .mp-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; background:none; border:none; color:var(--text-quaternary); font-size:var(--text-xs); font-weight:var(--font-medium); cursor:pointer; min-height:52px; }
+    .mp-tab-icon-wrap { display:flex; align-items:center; justify-content:center; width:40px; height:26px; border-radius:var(--radius-pill); transition:background-color 0.15s ease; }
+    .mp-tab-icon svg { width:20px; height:20px; display:block; }
     .mp-tab.active { color:var(--brand-text); }
+    .mp-tab.active .mp-tab-icon-wrap { background:var(--brand-fade); }
 
-    /* Check In — the button lives at the bottom of the tab, where a
-       thumb resting on the phone naturally lands, not centred in the
-       middle of the screen. */
-    .mp-checkin { display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; flex:1; justify-content:flex-end; padding-bottom:24px; }
-    .mp-checkin-spacer { flex:1; min-height:8px; }
-    .mp-scan-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; width:224px; height:224px; border-radius:50%; background:linear-gradient(135deg, var(--brand-text), var(--purple)); color:var(--text-inverse); border:none; font-size:var(--text-md); font-weight:var(--font-bold); cursor:pointer; box-shadow:0 0 60px var(--brand-fade-strong); }
-    .mp-checkin-hint { color:var(--text-tertiary); font-size:var(--text-base); max-width:260px; }
+    /* Check In (home) — a greeting, one compact primary action, then the
+       two numbers a member opens this tab to check. Content fills the
+       screen instead of a big empty flex spacer above a floating circle. */
+    .mp-home { display:flex; flex-direction:column; gap:20px; flex:1; }
+    .mp-greeting-eyebrow { font-size:var(--text-xs); font-weight:var(--font-bold); letter-spacing:var(--tracking-wider); color:var(--brand-text); margin-bottom:4px; }
+    .mp-greeting-name { font-size:var(--text-2xl); font-weight:var(--font-bold); color:var(--text-primary); line-height:var(--leading-snug); }
+    .mp-greeting-sub { font-size:var(--text-md); color:var(--text-tertiary); margin-top:2px; }
+
+    .mp-checkin-cta { display:flex; align-items:center; gap:14px; width:100%; padding:18px 20px; border-radius:var(--radius-xl); background:linear-gradient(135deg, var(--brand-text), var(--purple)); color:var(--text-inverse); border:none; cursor:pointer; box-shadow:0 8px 30px var(--brand-fade-strong); text-align:left; }
+    .mp-checkin-cta-icon { display:flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.18); flex-shrink:0; }
+    .mp-checkin-cta-text { flex:1; display:flex; flex-direction:column; gap:2px; }
+    .mp-checkin-cta-title { font-size:var(--text-lg); font-weight:var(--font-bold); }
+    .mp-checkin-cta-hint { font-size:var(--text-sm); opacity:0.85; }
+    .mp-checkin-cta-arrow { font-size:var(--text-xl); opacity:0.85; }
+
+    .mp-stat-row { display:grid; grid-template-columns:1fr; gap:12px; }
+    .mp-stat-row:has(.mp-stat-card-warn) { grid-template-columns:1fr 1fr; }
+    .mp-stat-card { background:var(--surface-1); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:16px; }
+    .mp-stat-card-warn { background:var(--amber-fade); border-color:var(--amber-strong); }
+    .mp-stat-label { font-size:var(--text-xs); color:var(--text-quaternary); text-transform:uppercase; letter-spacing:var(--tracking-wide); margin-bottom:6px; }
+    .mp-stat-value { font-size:var(--text-xl); font-weight:var(--font-extrabold); color:var(--text-primary); letter-spacing:var(--tracking-tight); }
+    .mp-stat-value.warn { color:var(--amber); }
+    .mp-stat-value.bad { color:var(--red); }
+    .mp-stat-value.ok { color:var(--green); }
+    .mp-stat-sub { font-size:var(--text-sm); color:var(--text-tertiary); margin-top:2px; }
+
     .mp-camera-frame { position:relative; width:100%; max-width:340px; aspect-ratio:1; border-radius:var(--radius-xl); overflow:hidden; background:#000; margin:0 auto; }
     .mp-camera-frame video { width:100%; height:100%; object-fit:cover; }
     .mp-camera-status { position:absolute; inset:auto 0 0 0; padding:10px; text-align:center; background:var(--surface-overlay); color:var(--text-primary); font-size:var(--text-sm); }
@@ -342,24 +431,26 @@ function injectMemberPortalStyles() {
     .mp-confirm-warn { background:var(--amber-fade); }
     .mp-confirm-bad { background:var(--red-fade); }
 
-    .mp-card { background:var(--surface-1); border:1px solid var(--border-subtle); border-radius:var(--radius-xl); padding:28px 24px; }
+    .mp-card { background:var(--surface-1); border:1px solid var(--border-subtle); border-radius:var(--radius-xl); padding:22px 20px; }
     .mp-plan-card-warn { background:var(--amber-fade); border-color:var(--amber-strong); }
     .mp-plan-card-bad { background:var(--red-fade); border-color:var(--red-strong); }
-    .mp-plan-status { display:inline-block; font-size:var(--text-xs); font-weight:var(--font-bold); letter-spacing:var(--tracking-wide); text-transform:uppercase; padding:5px 12px; border-radius:var(--radius-pill); margin-bottom:16px; }
+    .mp-plan-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .mp-plan-status { display:inline-block; flex-shrink:0; font-size:var(--text-xs); font-weight:var(--font-bold); letter-spacing:var(--tracking-wide); text-transform:uppercase; padding:5px 12px; border-radius:var(--radius-pill); }
     .mp-plan-status.ok { background:var(--green-fade); color:var(--green); }
     .mp-plan-status.warn { background:var(--amber-strong); color:var(--amber); }
     .mp-plan-status.bad { background:var(--red-strong); color:var(--red); }
-    .mp-plan-days { display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
-    .mp-plan-days-num { font-family:var(--font-sans); font-size:72px; font-weight:var(--font-extrabold); line-height:1; color:var(--text-primary); letter-spacing:var(--tracking-tight); }
-    .mp-plan-days-caption { font-size:var(--text-md); color:var(--text-tertiary); font-weight:var(--font-medium); }
     .mp-plan-name { font-size:var(--text-lg); font-weight:var(--font-semibold); color:var(--text-primary); margin-bottom:2px; }
     .mp-plan-app { font-family:var(--font-mono); font-size:var(--text-sm); color:var(--text-tertiary); }
-    .mp-plan-divider { height:1px; background:var(--border-subtle); margin:20px 0; }
-    .mp-plan-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .mp-plan-divider { height:1px; background:var(--border-subtle); margin:18px 0; }
+    .mp-plan-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 12px; }
     .mp-plan-label { font-size:var(--text-xs); color:var(--text-quaternary); text-transform:uppercase; letter-spacing:var(--tracking-wide); margin-bottom:3px; }
     .mp-plan-value { font-size:var(--text-md); font-weight:var(--font-semibold); color:var(--text-primary); }
-    .mp-plan-balance { display:flex; align-items:center; justify-content:space-between; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-subtle); font-size:var(--text-md); color:var(--text-secondary); }
-    .mp-plan-balance-amt { font-weight:var(--font-bold); color:var(--text-primary); }
+    .mp-plan-days-value { grid-column:1 / -1; font-size:var(--text-2xl); font-weight:var(--font-extrabold); }
+    .mp-plan-days-value span { font-size:var(--text-sm); font-weight:var(--font-medium); color:var(--text-tertiary); margin-left:4px; }
+
+    .mp-balance-card { margin-top:14px; background:var(--red-fade); border-color:var(--red-strong); }
+    .mp-balance-amt { font-size:var(--text-2xl); font-weight:var(--font-extrabold); color:var(--red); letter-spacing:var(--tracking-tight); }
+    .mp-balance-sub { font-size:var(--text-sm); color:var(--text-tertiary); margin-top:4px; }
 
     .mp-visit-list { display:flex; flex-direction:column; gap:8px; }
     .mp-visit-row { display:flex; align-items:center; justify-content:space-between; background:var(--surface-1); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:14px; font-size:var(--text-base); min-height:44px; }
@@ -374,6 +465,19 @@ function injectMemberPortalStyles() {
     .mp-empty-icon { font-size:38px; margin-bottom:4px; }
     .mp-empty-title { font-size:var(--text-lg); font-weight:var(--font-semibold); color:var(--text-primary); }
     .mp-empty-sub { font-size:var(--text-base); max-width:280px; line-height:var(--leading-relaxed); }
+
+    .mp-page-header { margin-bottom:4px; }
+    .mp-page-title { font-size:var(--text-xl); font-weight:var(--font-bold); color:var(--text-primary); }
+    .mp-page-sub { font-size:var(--text-sm); color:var(--text-tertiary); margin-top:2px; }
+    .mp-page-count { font-size:var(--text-xs); font-weight:var(--font-bold); letter-spacing:var(--tracking-wide); text-transform:uppercase; color:var(--text-quaternary); margin:16px 0 8px; }
+
+    .mp-receipt-list { display:flex; flex-direction:column; gap:8px; }
+    .mp-receipt-card { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--surface-1); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:14px; }
+    .mp-receipt-plan { font-size:var(--text-base); font-weight:var(--font-semibold); color:var(--text-primary); }
+    .mp-receipt-date { font-size:var(--text-xs); color:var(--text-tertiary); margin-top:2px; }
+    .mp-receipt-card-side { text-align:right; flex-shrink:0; }
+    .mp-receipt-amount { font-size:var(--text-md); font-weight:var(--font-bold); color:var(--text-primary); }
+    .mp-receipt-status { font-size:var(--text-xs); font-weight:var(--font-bold); color:var(--green); text-transform:uppercase; letter-spacing:var(--tracking-wide); margin-top:2px; }
 
     .mp-section-label { font-size:var(--text-xs); font-weight:var(--font-bold); letter-spacing:var(--tracking-wider); text-transform:uppercase; color:var(--text-quaternary); margin:18px 0 8px; }
     .mp-section-label:first-child { margin-top:0; }

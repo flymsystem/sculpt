@@ -6,9 +6,12 @@ import { escHtml } from './helpers.js';
 
 let _stopScanner = null;
 let _busy = false;
+let _container = null;
 
 export function renderCheckinScan(container) {
   window.__sculptRegisterCleanup?.(stopCheckinScan);
+  _container = container;
+  _busy = false;
 
   container.innerHTML = `
     <div class="content-inner page-enter" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;">
@@ -42,23 +45,35 @@ async function handleDecode(raw, statusEl) {
     return;
   }
 
+  // Stop the scanner the moment a code is decoded, not just on success —
+  // otherwise the same still-visible code gets re-detected and re-submitted
+  // while the first request is settling (or after it errors), producing
+  // overlapping requests and a flickering result. See the matching fix and
+  // rationale in src/pages/member/index.js. A "Scan Again" action below
+  // is what starts a genuinely new scan session afterwards.
   _busy = true;
+  stopCheckinScan();
   statusEl.textContent = 'Checking in…';
   try {
     const { status, message } = await staffCheckin(m[2]);
-    const resultEl = document.getElementById('checkin-scan-result');
     const ok = status === 'CHECKED_IN' || status === 'CHECKED_OUT';
-    if (resultEl) {
-      resultEl.style.color = ok ? 'var(--green, #2ecc71)' : 'var(--red, #e74c3c)';
-      resultEl.textContent = escHtml(message);
-    }
+    showResult(message, ok);
     showToast(message, ok ? 'green' : 'amber');
-    if (ok) { stopCheckinScan(); return; } // done — no point scanning again
   } catch (err) {
+    showResult(err.message || 'Check-in failed', false);
     showToast(err.message || 'Check-in failed', 'red');
-  } finally {
-    _busy = false;
   }
+}
+
+function showResult(message, ok) {
+  const resultEl = document.getElementById('checkin-scan-result');
+  if (!resultEl) return;
+  resultEl.innerHTML = `
+    <div style="color:${ok ? 'var(--green, #2ecc71)' : 'var(--red, #e74c3c)'};">${escHtml(message)}</div>
+    ${!ok ? '<button class="btn btn-secondary" id="checkin-scan-again" type="button" style="margin-top:10px;">Scan Again</button>' : ''}`;
+  document.getElementById('checkin-scan-again')?.addEventListener('click', () => {
+    if (_container) renderCheckinScan(_container);
+  });
 }
 
 export function stopCheckinScan() {
