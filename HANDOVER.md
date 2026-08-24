@@ -217,15 +217,69 @@ Manage Login → Reset Password (owner-only, via the deployed
 
 ---
 
+## 2026-08-24: QR check-in flicker fix, member portal redesign, landing page fixes
+
+Pushed to `sculpt-whitelabel` (commit `470cd80`), not yet applied to the
+database beyond what auto-deploys from the frontend build (see the gym
+display name pending item above for the one DB change still outstanding).
+
+- **QR check-in flicker fixed** (`src/pages/member/index.js`,
+  `src/pages/dashboard/checkin-scan.js`). Both the member and staff
+  scanners used to stop the camera only on a *successful* check-in — an
+  expired-token or network error left the camera running, which
+  immediately re-decoded the same still-visible QR and fired another
+  check-in request. Two overlapping requests racing against the same
+  stale token is what produced "Code expired → Checked in successfully
+  → Code expired": whichever response landed last won the UI. Fix: stop
+  the scanner on any terminal result, success or error, and start a
+  genuinely new scan session on "Try Again" / "Scan Again" instead of
+  letting the old one keep running underneath.
+- **Member portal redesign** — login copy now matches the staff login's
+  conventions ("Welcome back" / "Continue →"); check-in tab replaced
+  the large floating scan button and surrounding dead space with a
+  greeting, a compact check-in action, and live membership/balance
+  stats; plan tab rebalanced so the days-remaining number no longer
+  dominates the screen; receipts tab gained a heading/count/proper
+  cards; header and bottom nav got a more premium treatment (logo
+  badge, filled active-tab pill).
+- **Landing page membership cards were rendering raw JSON as bullet
+  text.** `plans.features` is written by the dashboard's Plan Settings
+  as a JSON string (`{"featuresList":"a,b,c"}`, see `parsePlanData()` in
+  `dashboard/helpers.js`), but `landing.js`'s `featureList()` treated
+  that column as plain delimited text — splitting the JSON's own syntax
+  into visible bullets (`{"featuresList":"Locker room` as one bullet).
+  Fixed by unwrapping the JSON shape first, duplicating
+  `parsePlanData()`'s logic locally rather than importing it, since
+  `pages/dashboard -> pages/landing` is not an allowed import direction.
+  Verified directly against the live `public_gym_plans` RPC.
+- **Landing page Membership/Contact sections redesigned** — compact
+  cards via one reusable `planCardHTML()` (still fully driven by
+  `getPublicPlans()`, nothing hardcoded), capped visible features at 4
+  with a "+N more" line, smaller CTAs, tighter section spacing
+  throughout so the hero stays the dominant section. No Enquire button
+  on the cards anymore, per an explicit follow-up request.
+
+Verified before push: `npm run build`, `npm run lint` (same 12
+pre-existing errors), full Playwright suite (37 passed / 21 skipped —
+the skip count is credential-gated tests, unchanged), and
+`node scripts/qa-responsive.mjs` (clean at every width 375–1600px on
+`/` and `/login`).
+
+---
+
 ## Pending
 
 Genuinely open items, as of 2026-08-23:
 
 - **Gym display name.** `gyms.name` is currently `"D fitness"`, which is
   why `tests/auth-flow.spec.js` (expects `"D Sculpt Fitness"`) fails —
-  that's a stale test expectation vs. real data, not a code bug. Needs a
-  decision on the correct name before anyone runs
-  `UPDATE gyms SET name = '...' WHERE id = '7854b083-ce56-47ff-8339-79ebbd183fd5';`
+  that's a stale test expectation vs. real data, not a code bug. The
+  owner confirmed the correct name in session on 2026-08-24, and
+  `supabase/migrations/125_fix_gym_display_name.sql` is written and
+  committed — **not yet applied**, since this environment only has the
+  anon key, not the database password. Run it via the Supabase SQL
+  editor or `npx supabase db push` to fix the name everywhere it's
+  surfaced (member portal header, member login, `auth-flow.spec.js`).
 - **`manoj.sculpt@gmail.com` password unknown** — see above; reset it
   through the app when someone needs to actually test as that account.
 - **`scripts/verify-schema.mjs`'s RPC section is unreliable.** Supabase

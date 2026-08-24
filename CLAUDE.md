@@ -161,6 +161,30 @@ Read from it; don't thread it through parameters.
   "remove this staff member" revoke access immediately and everywhere,
   with no separate step to remember. Do not add a second, parallel way
   to check staff authorization — route through this function.
+- **A QR scan result must stop the scanner on every terminal outcome,
+  success or error — never only on success.** `startScanner()`
+  (`src/lib/qr.js`) keeps decoding every frame until its `stop()` is
+  called; it has no idea whether a decoded code was accepted. Both
+  `src/pages/member/index.js` and `src/pages/dashboard/checkin-scan.js`
+  used to call `stopMemberScanner()`/`stopCheckinScan()` only when the
+  check-in succeeded, so an expired-token or network error left the
+  camera running and free to re-decode the same still-visible code,
+  firing a second overlapping check-in request. Whichever response
+  landed last won the UI, producing "Code expired → Checked in
+  successfully → Code expired" from one physical scan. The scanner
+  must stop the instant *any* result comes back; a "Try Again"/"Scan
+  Again" action starts a genuinely new scan session afterward rather
+  than leaving the old one running underneath.
+- **`plans.features` is a JSON string, `{"featuresList":"a,b,c"}`, not
+  plain delimited text** — written that way by the dashboard's Plan
+  Settings (`collectPlanData()` in `dashboard/plans.js`) and unwrapped
+  correctly by `parsePlanData()` in `dashboard/helpers.js`. Any other
+  reader of this column (the landing page's `featureList()` shipped
+  broken this way) must unwrap the same JSON shape before splitting on
+  delimiters, or the JSON's own syntax renders as visible bullet text.
+  `landing.js` duplicates `parsePlanData()`'s unwrap logic locally
+  rather than importing it, since `pages/dashboard -> pages/landing` is
+  not an allowed import direction (see "Layout and boundaries" above).
 
 ## Invoices and printable documents
 
