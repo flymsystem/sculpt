@@ -184,7 +184,7 @@ body.sidebar-scroll-lock{overflow:hidden;}
 .period-btn.active{background:var(--brand-fade);color:var(--brand-text);border-color:var(--brand-fade-strong);}
 .finance-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin-bottom:var(--space-6);}
 .finance-stat{background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);box-shadow:var(--shadow-sm);}
-.finance-stat-label{font-size:var(--text-sm);color:var(--text-tertiary);margin-bottom:var(--space-2);}
+.finance-stat-label{font-size:var(--text-sm);color:var(--text-tertiary);margin-bottom:var(--space-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .finance-stat-val{font-size:var(--text-2xl);font-weight:700;letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;color:var(--text-primary);word-break:break-all;}
 .finance-stat-sub{font-size:var(--text-sm);color:var(--text-tertiary);margin-top:4px;}
 .finance-charts{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-5);}

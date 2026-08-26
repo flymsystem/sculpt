@@ -28,7 +28,15 @@ function renderFinance(c, period, customStart, customEnd) {
       case'week':return{start:mon,end:endOfDay(sun),prev:{start:pMon,end:endOfDay(pSun)},label:'This Week'};
       case'month':return{start:new Date(y,mo,1),end:endOfDay(new Date(y,mo+1,0)),prev:{start:new Date(y,mo-1,1),end:endOfDay(new Date(y,mo,0))},label:'This Month'};
       case'lastmonth':return{start:new Date(y,mo-1,1),end:endOfDay(new Date(y,mo,0)),prev:{start:new Date(y,mo-2,1),end:endOfDay(new Date(y,mo-1,0))},label:'Last Month'};
-      case'year':return{start:new Date(y,0,1),end:endOfDay(new Date(y,11,31)),prev:{start:new Date(y-1,0,1),end:endOfDay(new Date(y-1,11,31))},label:'This Year'};
+      // AUDIT.md C9: this button was labeled "This Year" but sums a plain
+      // Jan-Dec calendar year, not the Apr-Mar Indian financial year an
+      // Indian gym owner would assume from "This Year" in a finance
+      // report. Switching the underlying math to Apr-Mar would change
+      // what every number in this period means with no way to reconcile
+      // against a prior "This Year" screenshot, so the safer fix is to
+      // stop implying it's a financial year at all — "Calendar Year
+      // 2026" says exactly what's being summed.
+      case'year':return{start:new Date(y,0,1),end:endOfDay(new Date(y,11,31)),prev:{start:new Date(y-1,0,1),end:endOfDay(new Date(y-1,11,31))},label:`Calendar Year ${y}`};
       case'custom':{
         if (!customStart) return{start:null,end:null,prev:null,label:'Custom Range'};
         const cs = new Date(customStart+'T00:00:00');
@@ -54,6 +62,11 @@ function renderFinance(c, period, customStart, customEnd) {
   function inRange(ds,start,end){if(!ds||!start)return true;const d=new Date(ds+'T00:00:00');return d>=start&&d<=end;}
 
   const bounds = getPeriodBounds(period);
+  // A plain date-range string for whatever bounds.prev turned out to be,
+  // used only inside growth-percentage tooltips ("vs 1-31 Jul 2026").
+  const prevRangeLabel = bounds.prev
+    ? bounds.prev.start.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + '–' + bounds.prev.end.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+    : null;
 
   // Revenue helpers (shared between sync setup and async render)
   function phInRange(ph, start, end) {
@@ -62,7 +75,15 @@ function renderFinance(c, period, customStart, customEnd) {
     return d >= start && d <= end;
   }
   function gPct(c2,p2){if(p2===0)return c2>0?100:0;return Math.round(((c2-p2)/p2)*100);}
-  function gHTML(pct){if(pct===0)return'<span style="font-size:12px;color:var(--text-tertiary);">\u2014</span>';const col=pct>0?'var(--green)':'var(--red)';return`<span style="font-size:12px;color:${col};font-weight:500;">${pct>0?'\u2191':'\u2193'} ${Math.abs(pct)}%</span>`;}
+  // AUDIT.md C9: a bare "12%" next to an up-arrow doesn't say what it's
+  // measured against. Every caller now passes the comparison basis as a
+  // tooltip \u2014 same number, but a hover explains "vs \u20b9X in <prev period>".
+  function gHTML(pct,tooltip){
+    const t = tooltip ? ` title="${escHtml(tooltip)}"` : '';
+    if(pct===0)return`<span style="font-size:12px;color:var(--text-tertiary);"${t}>\u2014</span>`;
+    const col=pct>0?'var(--green)':'var(--red)';
+    return`<span style="font-size:12px;color:${col};font-weight:500;cursor:${tooltip?'help':'default'};"${t}>${pct>0?'\u2191':'\u2193'} ${Math.abs(pct)}%</span>`;
+  }
 
   // Month buckets for the trend chart. Built locally so the labels and
   // the boundaries always come from the same calendar the rest of this
@@ -280,14 +301,19 @@ function renderFinance(c, period, customStart, customEnd) {
 
     c.innerHTML = `<div class="content-inner page-enter">
       <div class="page-header"><div class="page-header-left"><div class="page-title">Finance</div>
-        <div class="page-sub">${bounds.label}</div></div></div>
+        <div class="page-sub">${bounds.label}</div></div>
+        <button class="btn btn-ghost" id="fin-export-btn" type="button" title="Download revenue, expenses and pending dues for ${escHtml(bounds.label)} as CSV">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:5px;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
       ${revenueStale ? `<div style="display:flex;align-items:center;gap:10px;padding:11px 16px;margin-bottom:var(--space-5);background:var(--amber-fade);border:1px solid var(--amber-strong);border-radius:var(--radius-md);color:var(--amber);font-size:13px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span>Couldn’t refresh from the server — the numbers below may be out of date. Check your connection and reload.</span>
       </div>` : ''}
       <div class="finance-period-bar">
         ${['today','week','month','lastmonth','year','all'].map(p=>`<button class="period-btn ${period===p?'active':''}" data-fin-p="${p}">${
-          p==='today'?'Today':p==='week'?'This Week':p==='month'?'This Month':p==='lastmonth'?'Last Month':p==='year'?'This Year':'All Time'}</button>`).join('')}
+          p==='today'?'Today':p==='week'?'This Week':p==='month'?'This Month':p==='lastmonth'?'Last Month':p==='year'?'Calendar Year':'All Time'}</button>`).join('')}
         <button class="period-btn ${period==='custom'?'active':''}" id="fin-custom-btn" style="border-style:${period==='custom'?'solid':'dashed'};">Custom</button>
       </div>
       <div id="fin-custom-range" style="display:${period==='custom'?'flex':'none'};gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
@@ -297,10 +323,10 @@ function renderFinance(c, period, customStart, customEnd) {
         <button class="btn btn-sm btn-primary" id="fin-custom-apply" style="padding:7px 16px;">Apply</button>
       </div>
       <div class="finance-stats">
-        <div class="finance-stat ${payCount > 0 ? 'stat-card-clickable' : ''}" id="fin-rev-card" style="cursor:${payCount > 0 ? 'pointer' : 'default'};" title="${payCount > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Revenue</div><div class="finance-stat-val" style="color:var(--green);">\u20B9${totalRev.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(revG)} ${payCount > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${payCount} payment${payCount!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
-        <div class="finance-stat ${periodExpenses.length > 0 ? 'stat-card-clickable' : ''}" id="fin-exp-card" style="cursor:${periodExpenses.length > 0 ? 'pointer' : 'default'};" title="${periodExpenses.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Expenses</div><div class="finance-stat-val" style="color:var(--red);">\u20B9${totalExp.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(expG)} ${periodExpenses.length > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${periodExpenses.length} item${periodExpenses.length!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
-        <div class="finance-stat"><div class="finance-stat-label">Net Profit</div><div class="finance-stat-val" style="color:${netP>=0?'var(--brand)':'var(--red)'};">\u20B9${netP.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(profitG)}</div></div>
-        <div class="finance-stat ${dueMbrs.length > 0 ? 'stat-card-clickable' : ''}" id="fin-dues-card" style="cursor:${dueMbrs.length > 0 ? 'pointer' : 'default'};" title="${dueMbrs.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Pending Dues</div><div class="finance-stat-val" style="color:var(--amber);">\u20B9${totalDue.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${dueMbrs.length} member${dueMbrs.length!==1?'s':''} ${dueMbrs.length > 0 ? '<span style="font-size:10px;">\u25BC</span>' : ''}</div></div>
+        <div class="finance-stat ${payCount > 0 ? 'stat-card-clickable' : ''}" id="fin-rev-card" style="cursor:${payCount > 0 ? 'pointer' : 'default'};" title="${payCount > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Revenue<span class="stat-card-period">${escHtml(bounds.label)}</span></div><div class="finance-stat-val" style="color:var(--green);">\u20B9${totalRev.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(revG, prevRangeLabel ? `${revG>=0?'Up':'Down'} ${Math.abs(revG)}% vs \u20B9${prevRev.toLocaleString('en-IN')} in ${prevRangeLabel}` : '')} ${payCount > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${payCount} payment${payCount!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
+        <div class="finance-stat ${periodExpenses.length > 0 ? 'stat-card-clickable' : ''}" id="fin-exp-card" style="cursor:${periodExpenses.length > 0 ? 'pointer' : 'default'};" title="${periodExpenses.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Expenses<span class="stat-card-period">${escHtml(bounds.label)}</span></div><div class="finance-stat-val" style="color:var(--red);">\u20B9${totalExp.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(expG, prevRangeLabel ? `${expG>=0?'Up':'Down'} ${Math.abs(expG)}% vs \u20B9${prevExp2.toLocaleString('en-IN')} in ${prevRangeLabel}` : '')} ${periodExpenses.length > 0 ? `<span style="font-size:11px;color:var(--text-tertiary);margin-left:4px;">${periodExpenses.length} item${periodExpenses.length!==1?'s':''}</span> <span style="font-size:10px;">\u25BC</span>` : ''}</div></div>
+        <div class="finance-stat"><div class="finance-stat-label">Net Profit<span class="stat-card-period">${escHtml(bounds.label)}</span></div><div class="finance-stat-val" style="color:${netP>=0?'var(--brand)':'var(--red)'};">\u20B9${netP.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${gHTML(profitG, prevRangeLabel ? `Revenue minus expenses, vs the same calculation for ${prevRangeLabel}` : '')}</div></div>
+        <div class="finance-stat ${dueMbrs.length > 0 ? 'stat-card-clickable' : ''}" id="fin-dues-card" style="cursor:${dueMbrs.length > 0 ? 'pointer' : 'default'};" title="${dueMbrs.length > 0 ? 'Click to view details' : ''}"><div class="finance-stat-label">Pending Dues<span class="stat-card-period" title="Not period-scoped \u2014 this is every member currently owing money, regardless of when they joined">All time</span></div><div class="finance-stat-val" style="color:var(--amber);">\u20B9${totalDue.toLocaleString('en-IN')}</div><div class="finance-stat-sub">${dueMbrs.length} member${dueMbrs.length!==1?'s':''} ${dueMbrs.length > 0 ? '<span style="font-size:10px;">\u25BC</span>' : ''}</div></div>
       </div>
 
       ${payCount > 0 ? `<div id="fin-rev-detail" style="display:none;margin-bottom:20px;animation:fadeUp 200ms var(--ease-out) both;">
@@ -366,7 +392,15 @@ function renderFinance(c, period, customStart, customEnd) {
 
       <div class="finance-charts">
         <div class="settings-card">
-          <div class="settings-card-title" style="margin-bottom:12px;">Revenue vs Expenses</div>
+          <!-- AUDIT.md C9: this chart always trends the last 6 calendar
+               months regardless of the period buttons above (today/week/
+               month/...) — it's a trend view, not a period-filtered one,
+               and used to say "Revenue vs Expenses" with no indication
+               of that, so selecting "This Month" while the chart showed
+               6 months of bars read as a bug. The label now says what
+               the chart actually shows instead of changing what six
+               months of daily granularity would even mean. -->
+          <div class="settings-card-title" style="margin-bottom:12px;">Revenue vs Expenses <span style="font-weight:400;color:var(--text-tertiary);font-size:12px;">— Last 6 Months</span></div>
           <div style="display:flex;gap:16px;margin-bottom:12px;">
             <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-tertiary);"><span style="width:10px;height:10px;background:var(--brand);border-radius:2px;"></span>Revenue</div>
             <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-tertiary);"><span style="width:10px;height:10px;background:var(--red);border-radius:2px;opacity:0.4;"></span>Expenses</div>
@@ -378,25 +412,41 @@ function renderFinance(c, period, customStart, customEnd) {
           `<div style="display:flex;align-items:flex-end;gap:8px;padding-top:8px;">${barChart}</div>`}
         </div>
         <div class="settings-card">
-          <div class="settings-card-title" style="margin-bottom:12px;">Payment Split</div>
+          <div class="settings-card-title" style="margin-bottom:12px;">Payment Split <span style="font-weight:400;color:var(--text-tertiary);font-size:12px;">${escHtml(bounds.label)}</span></div>
           ${(cashT + cardT + onlineT) <= 0 ? `
           <!-- With every total at zero the conic-gradient still painted a
                full ring in the last colour, which read as "100% Online".
                A sentence is more honest than a chart of nothing. -->
           <p style="margin:0;padding:24px 4px;text-align:center;color:var(--text-tertiary);font-size:13px;line-height:1.6;">
             No payment data yet.<br>Record a payment to see how members pay.
-          </p>` : `
-          <div style="display:flex;align-items:center;gap:24px;">
-            <div style="width:100px;height:100px;border-radius:50%;background:conic-gradient(var(--brand) 0% ${cashPct}%, var(--amber) ${cashPct}% ${cashPct+cardPct}%, var(--green) ${cashPct+cardPct}% 100%);position:relative;">
+          </p>` : (() => {
+            // Reconciliation: the split is built from three FILTER'd sums
+            // (payment_mode = 'Cash' / 'Card' / 'Online' \u2014 see migration
+            // 035_revenue_aggregation.sql) that should exhaustively cover
+            // every payment_history row, since the Add/Renew/Clear-Balance
+            // forms only ever write one of those three exact strings \u2014 no
+            // free-text, no blank default. Any gap here means a payment
+            // row exists with some other or NULL payment_mode (legacy
+            // data, or one written outside the app's own forms), which
+            // the three-way FILTER would otherwise just silently drop
+            // from the chart while still counting it in Revenue above.
+            const attributed = cashT + cardT + onlineT;
+            const unattributed = Math.round((totalRev - attributed) * 100) / 100;
+            const otherPct = totalRev > 0 ? Math.round((unattributed / totalRev) * 100) : 0;
+            return `
+          <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+            <div style="width:100px;height:100px;border-radius:50%;background:conic-gradient(var(--brand) 0% ${cashPct}%, var(--amber) ${cashPct}% ${cashPct+cardPct}%, var(--green) ${cashPct+cardPct}% ${cashPct+cardPct+(totalRev>0?Math.round((onlineT/totalRev)*100):0)}%, var(--text-quaternary) ${cashPct+cardPct+(totalRev>0?Math.round((onlineT/totalRev)*100):0)}% 100%);position:relative;flex-shrink:0;">
               <div style="position:absolute;inset:25%;border-radius:50%;background:var(--surface-1);"></div>
             </div>
             <div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--brand);"></span><span style="font-size:13px;color:var(--text-secondary);">Cash \u20B9${cashT.toLocaleString('en-IN')}</span></div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></span><span style="font-size:13px;color:var(--text-secondary);">Card \u20B9${cardT.toLocaleString('en-IN')}</span></div>
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span><span style="font-size:13px;color:var(--text-secondary);">Online \u20B9${onlineT.toLocaleString('en-IN')}</span></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:${unattributed > 0 ? '8px' : '16px'};"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span><span style="font-size:13px;color:var(--text-secondary);">Online \u20B9${onlineT.toLocaleString('en-IN')}</span></div>
+              ${unattributed > 0 ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;" title="Payments recorded with no Cash/Card/Online mode \u2014 check for legacy or manually-inserted records"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-quaternary);"></span><span style="font-size:13px;color:var(--text-tertiary);">Unattributed \u20B9${unattributed.toLocaleString('en-IN')} (${otherPct}%)</span></div>` : ''}
               <div style="font-size:13px;color:var(--text-tertiary);">New members: <span style="color:var(--text-primary);font-weight:600;">${newMbrs}</span></div>
             </div>
-          </div>`}
+          </div>`;
+          })()}
         </div>
       </div>
       ${sortedCats.length>0?`<div class="settings-card" style="margin-top:20px;">
@@ -405,6 +455,10 @@ function renderFinance(c, period, customStart, customEnd) {
           return`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;"><span style="font-size:16px;width:24px;text-align:center;">${icon}</span><span style="font-size:13px;color:var(--text-secondary);width:100px;">${escHtml(cat)}</span><div style="flex:1;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${barW}%;background:var(--brand);border-radius:4px;"></div></div><span style="font-size:13px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums;width:80px;text-align:right;">\u20B9${amt.toLocaleString('en-IN')}</span><span style="font-size:11px;color:var(--text-tertiary);width:36px;text-align:right;">${pct2}%</span></div>`;}).join('')}
       </div>`:''}
     </div>`;
+
+    document.getElementById('fin-export-btn')?.addEventListener('click', () => {
+      exportFinanceCSV({ bounds, totalRev, totalExp, netP, totalDue, revRows: detailRows, expRows: expSorted, dueMbrs });
+    });
 
     document.querySelectorAll('[data-fin-p]').forEach(btn=>{
       btn.addEventListener('click',()=>renderFinance(document.getElementById('gym-content'),btn.dataset.finP));
@@ -455,5 +509,56 @@ function renderFinance(c, period, customStart, customEnd) {
 }
 
 
+
+// ── CSV export (AUDIT.md C9) ────────────────────────────────────────
+// A plain client-side CSV, not a server report — everything it needs
+// (detailRows/expSorted/dueMbrs) is already downloaded for the on-screen
+// tables, so this just reshapes what's already in memory rather than
+// making a second round trip.
+function csvCell(v) {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvRow(cells) { return cells.map(csvCell).join(',') + '\r\n'; }
+
+function exportFinanceCSV({ bounds, totalRev, totalExp, netP, totalDue, revRows, expRows, dueMbrs }) {
+  let out = '';
+  out += csvRow(['D Sculpt Fitness — Finance Export']);
+  out += csvRow(['Period', bounds.label]);
+  out += csvRow(['Generated', new Date().toLocaleString('en-IN')]);
+  out += '\r\n';
+  out += csvRow(['Summary']);
+  out += csvRow(['Revenue', totalRev]);
+  out += csvRow(['Expenses', totalExp]);
+  out += csvRow(['Net Profit', netP]);
+  out += csvRow(['Pending Dues (all time)', totalDue]);
+  out += '\r\n';
+
+  out += csvRow(['Revenue']);
+  out += csvRow(['Member', 'Plan', 'Date', 'Mode', 'Amount']);
+  (revRows||[]).forEach(p => out += csvRow([p.memberName||'', p.planName||'', p.paidAt ? fmtDate(p.paidAt) : '', p.mode||'', p.amount||0]));
+  out += '\r\n';
+
+  out += csvRow(['Expenses']);
+  out += csvRow(['Category', 'Description', 'Date', 'Amount']);
+  (expRows||[]).forEach(e => out += csvRow([e.category||'', e.description||'', e.expense_date ? fmtDate(e.expense_date) : '', e.amount||0]));
+  out += '\r\n';
+
+  out += csvRow(['Pending Dues (all time, not period-scoped)']);
+  out += csvRow(['Member', 'Phone', 'Plan', 'Status', 'Amount Due']);
+  (dueMbrs||[]).forEach(m => out += csvRow([m.full_name||m.name||'', m.phone||'', m.plan_name||m.plan||'', m.payment_status||'', outstandingAmount(m)]));
+
+  const blob = new Blob([out], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const datePart = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `finance-${(bounds.label||'export').toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${datePart}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Finance CSV downloaded', 'green');
+}
 
 export { renderFinance };
