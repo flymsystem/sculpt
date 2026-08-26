@@ -1410,10 +1410,23 @@ function openMemberDetailModal(memberId) {
     : '';
 
   openModal({
-    title: 'Member Details',
+    // The modal header (with the ✕ close) is sticky already — folding the
+    // member's name into the title, rather than the generic "Member
+    // Details", is what keeps their identity visible while the body
+    // scrolls past the profile header block below (AUDIT.md C4).
+    title: `Member — ${escHtml(m.full_name||m.name||'')}`,
     size: 'md',
     mobileCompact: true,
     body: `
+      <!-- Section nav — sticky under the modal header, for jumping around
+           a long record instead of scrolling through all of it. -->
+      <div class="modal-section-nav" role="tablist" aria-label="Jump to section">
+        <button type="button" class="modal-section-nav-item" data-jump="md-sec-contact">Contact</button>
+        <button type="button" class="modal-section-nav-item" data-jump="md-sec-membership">Membership</button>
+        <button type="button" class="modal-section-nav-item" data-jump="md-sec-payment">Payment</button>
+        <button type="button" class="modal-section-nav-item" data-jump="md-ph-toggle">History</button>
+      </div>
+
       <!-- Profile Header -->
       <div style="display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);margin-bottom:16px;">
         <div class="member-avatar" style="width:56px;height:56px;font-size:20px;flex-shrink:0;overflow:hidden;${m.photo_url?'padding:0;':''}">${m.photo_url ? `<img src="${escHtml(m.photo_url)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : av}</div>
@@ -1440,14 +1453,14 @@ function openMemberDetailModal(memberId) {
       </div>` : ''}
 
       <!-- Contact -->
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;" id="md-sec-contact">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Contact</div>
         ${mRow('Phone',  m.phone ? `<a href="tel:${encodeURIComponent(m.phone)}" style="color:var(--brand-text);text-decoration:none;font-weight:500;">${escHtml(m.phone)}</a>` : '—')}
         ${m.email ? mRow('Email', `<a href="mailto:${encodeURIComponent(m.email)}" style="color:var(--brand-text);text-decoration:none;">${escHtml(m.email)}</a>`) : ''}
         ${m.gender ? mRow('Gender', escHtml(m.gender)) : ''}
         ${dobStr   ? mRow('Date of Birth', dobStr) : ''}
         ${m.aadhar_number ? mRow('Aadhar ID', `<span style="font-family:var(--font-mono);color:var(--text-primary);letter-spacing:0.05em;font-size:12px;">${escHtml(m.aadhar_number.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`) : ''}
-        ${m.application_number ? mRow('App No.', `<span style="font-family:var(--font-mono);color:var(--brand-text);background:var(--brand-fade);padding:2px 6px;border-radius:3px;font-size:12px;">#${escHtml(m.application_number)}</span> <button type="button" id="md-cred-btn" style="background:none;border:none;color:var(--brand-text);font-size:11px;font-weight:600;cursor:pointer;padding:0 0 0 8px;text-decoration:underline;">Send Login</button>`) : ''}
+        ${m.application_number ? mRow('App No.', `<span style="font-family:var(--font-mono);color:var(--brand-text);background:var(--brand-fade);padding:2px 6px;border-radius:3px;font-size:12px;">#${escHtml(m.application_number)}</span> <button type="button" id="md-cred-btn" title="Sends the app number and member login link over WhatsApp" style="background:none;border:none;color:var(--brand-text);font-size:11px;font-weight:600;cursor:pointer;padding:0 0 0 8px;text-decoration:underline;">Send Login via WhatsApp</button>`) : ''}
         ${m.added_by_name ? mRow('Added By', escHtml(m.added_by_name)) : ''}
       </div>
 
@@ -1485,7 +1498,7 @@ function openMemberDetailModal(memberId) {
       </div>
 
       <!-- Membership -->
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;" id="md-sec-membership">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Membership</div>
         ${mRow('Plan',      escHtml(m.plan_name||m.plan||'—'))}
         ${plan ? mRow('Duration', (plan.duration_months||plan.duration)+' month'+((plan.duration_months||plan.duration)>1?'s':'')) : ''}
@@ -1494,7 +1507,7 @@ function openMemberDetailModal(memberId) {
       </div>
 
       <!-- Payment -->
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;" id="md-sec-payment">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Payment</div>
 
         ${mType !== 'Trial' ? `
@@ -1537,36 +1550,59 @@ function openMemberDetailModal(memberId) {
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:8px;">Notes</div>
         <div style="background:var(--surface-2);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;">${escHtml(m.notes)}</div>
       </div>` : ''}`,
+    // Footer hierarchy (AUDIT.md C4): primary = Renew / Invoice — the
+    // actions that move the membership forward; secondary = Edit / Remind
+    // — routine, low-stakes; destructive = Cancel/Reactivate and Remove
+    // Member, visually separated at the bottom. The old footer also had a
+    // "Close" button that duplicated the header's ✕ — that's gone; the ✕
+    // is the only close affordance now.
     footer: (() => {
       const _role = S.role || 'owner';
       const _canEdit = hasAccess(_role, 'edit_member');
       const _canCancel = hasAccess(_role, 'cancel_member');
       const _canDelete = hasAccess(_role, 'delete_member');
       const _canRenew = hasAccess(_role, 'renew_member');
-      const cancelBtn = _canCancel ? (m.cancelled_at
-            ? `<button class="btn" id="md-cancelmem-btn" style="min-width:0;background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);">Reactivate</button>`
-            : `<button class="btn" id="md-cancelmem-btn" style="min-width:0;background:var(--surface-3);color:var(--text-secondary);border:1px solid var(--border-default);">Cancel</button>`) : '';
-      const editBtn = _canEdit ? `<button class="btn btn-ghost" id="md-edit-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>` : '';
-      const topCols = [true, _canEdit, _canCancel].filter(Boolean).length;
+      const hasBalance = parseFloat(m.balance_due) > 0;
+
+      const primaryBtns = [
+        _canRenew && mType !== 'Trial' ? `<button class="btn btn-primary" id="md-renew-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:3px;vertical-align:-2px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Renew</button>` : '',
+        `<button class="btn btn-primary" id="md-inv-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Invoice</button>`,
+        hasBalance ? `<button class="btn" id="md-bal-btn" style="min-width:0;background:var(--amber-fade);color:var(--amber);border:1px solid var(--amber-strong);">Clear Balance</button>` : '',
+      ].filter(Boolean);
+
+      const secondaryBtns = [
+        _canEdit ? `<button class="btn btn-ghost" id="md-edit-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>` : '',
+        `<button class="btn btn-ghost" id="md-wa-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:3px;vertical-align:-2px;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Remind</button>`,
+      ].filter(Boolean);
+
+      const destructiveBtns = [
+        _canCancel ? (m.cancelled_at
+          ? `<button class="btn" id="md-cancelmem-btn" style="min-width:0;background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);">Reactivate Membership</button>`
+          : `<button class="btn btn-ghost" id="md-cancelmem-btn" style="min-width:0;color:var(--red);">Cancel Membership</button>`) : '',
+        _canDelete ? `<button class="btn" id="md-del-btn" style="min-width:0;background:rgba(255,77,77,0.08);color:var(--red);border:1px solid rgba(255,77,77,0.25);font-size:12px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Remove Member</button>` : '',
+      ].filter(Boolean);
+
       return `<div style="display:flex;flex-direction:column;gap:8px;width:100%;">
-        <div style="display:grid;grid-template-columns:repeat(${topCols},1fr);gap:8px;">
-          <button class="btn btn-ghost" id="modal-cancel" style="min-width:0;">Close</button>
-          ${editBtn}
-          ${cancelBtn}
-        </div>
-        <div style="display:grid;grid-template-columns:${parseFloat(m.balance_due)>0?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'};gap:8px;">
-          ${_canRenew && mType !== 'Trial' ? `<button class="btn" id="md-renew-btn" style="min-width:0;background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);">Renew</button>` : ''}
-          ${parseFloat(m.balance_due)>0 ? `<button class="btn" id="md-bal-btn" style="min-width:0;background:var(--amber-fade);color:var(--amber);border:1px solid var(--amber-strong);">Clear Bal</button>` : ''}
-          <button class="btn btn-success-soft" id="md-wa-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:3px;vertical-align:-2px;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Remind</button>
-          <button class="btn btn-primary" id="md-inv-btn" style="min-width:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Invoice</button>
-        </div>
-        ${_canDelete ? `<div style="display:grid;grid-template-columns:1fr;gap:8px;">
-          <button class="btn" id="md-del-btn" style="min-width:0;background:rgba(255,77,77,0.08);color:var(--red);border:1px solid rgba(255,77,77,0.25);font-size:12px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Remove Member</button>
-        </div>` : ''}
+        ${primaryBtns.length ? `<div style="display:grid;grid-template-columns:repeat(${primaryBtns.length},1fr);gap:8px;">${primaryBtns.join('')}</div>` : ''}
+        ${secondaryBtns.length ? `<div style="display:grid;grid-template-columns:repeat(${secondaryBtns.length},1fr);gap:8px;">${secondaryBtns.join('')}</div>` : ''}
+        ${destructiveBtns.length ? `<div style="display:grid;grid-template-columns:repeat(${destructiveBtns.length},1fr);gap:8px;padding-top:6px;border-top:1px solid var(--border-subtle);">${destructiveBtns.join('')}</div>` : ''}
       </div>`;
     })(),
     onOpen: () => {
       bindModalCancel();
+
+      // ── Section nav: scroll the target section under the sticky nav ──
+      document.querySelectorAll('.modal-section-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = document.getElementById(btn.dataset.jump);
+          target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // History lives behind the collapsed toggle — jumping there
+          // should also open it, not just scroll to a collapsed row.
+          if (btn.dataset.jump === 'md-ph-toggle' && document.getElementById('md-ph-container')?.style.display === 'none') {
+            target?.click();
+          }
+        });
+      });
 
       // ── Payment History toggle + async load ──
       let phLoaded = false;
@@ -1610,9 +1646,18 @@ function openMemberDetailModal(memberId) {
                     </div>
                     <span class="badge ${modeBadge}" style="font-size:9px;flex-shrink:0;">${p.payment_mode || '—'}</span>
                     <div style="font-weight:600;color:var(--green);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;">₹${Number(p.amount).toLocaleString('en-IN')}</div>
+                    <button type="button" class="md-ph-invoice" data-member="${escHtml(String(m.id))}" title="View current membership invoice" aria-label="View invoice" style="background:none;border:none;color:var(--brand-text);cursor:pointer;padding:2px;flex-shrink:0;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </button>
                   </div>`;
                 }).join('')}
+              </div>
+              <div style="font-size:10px;color:var(--text-quaternary);margin-top:8px;line-height:1.5;">
+                Payment records don't store a per-transaction invoice number — the invoice icon opens the member's current membership invoice, not a historical receipt for that specific payment.
               </div>`;
+            container.querySelectorAll('.md-ph-invoice').forEach(btn => {
+              btn.addEventListener('click', (e) => { e.stopPropagation(); closeModal(); openInvoiceModal(btn.dataset.member); });
+            });
           } catch (err) {
             container.innerHTML = `<div style="padding:12px;text-align:center;color:var(--red);font-size:12px;">Failed to load payment history</div>`;
           }
@@ -1878,6 +1923,9 @@ function openCredentialsWAModal(m) {
     title: 'Send Login Details',
     mobileCompact: true,
     body: `
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.5;">
+        Sends the member's application number and their member-portal login link via <strong style="color:var(--text-secondary);">WhatsApp</strong> — review or edit the message below, then it opens WhatsApp with the text pre-filled. Nothing is sent automatically.
+      </div>
       <div class="form-group"><label class="form-label">Member</label>
         <input class="form-input" value="${escHtml(m.full_name||m.name||'')}" readonly></div>
       <div class="form-group"><label class="form-label">Phone</label>
