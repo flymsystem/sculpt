@@ -653,6 +653,31 @@ export async function logReminder(gymId, memberId, message) {
   safeLog(gymId, 'reminder_sent', 'WhatsApp reminder sent to member');
 }
 
+/**
+ * Latest reminder_logs.created_at per member, for the current gym.
+ * Used by Member Alerts (AUDIT.md C8) to show "last reminded" and to
+ * cooldown-gate repeat reminders — reminder_logs is append-only (every
+ * send is its own row), so this reduces client-side to the max per
+ * member rather than needing a separate "last reminded" column anywhere.
+ * Capped at the most recent 500 log rows for the gym; a gym sending more
+ * than 500 reminders between two Alerts page loads is not a case this
+ * needs to handle precisely — it would just under-report "last
+ * reminded" for the oldest of that burst, not misreport it as none.
+ */
+export async function getLastReminders(gymId) {
+  if (!gymId) return {};
+  const { data, error } = await supabase
+    .from('reminder_logs')
+    .select('member_id, created_at')
+    .eq('gym_id', gymId)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) { console.warn('[Sculpt] getLastReminders:', error.message); return {}; }
+  const map = {};
+  (data || []).forEach(r => { if (!map[r.member_id]) map[r.member_id] = r.created_at; });
+  return map;
+}
+
 // ── Payment history paging ────────────────────────────────────────
 // Every revenue figure in the product (Finance, Overview, Analytics,
 // P&L, GST summary, backups) is a JS sum over the array these two

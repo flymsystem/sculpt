@@ -27,7 +27,47 @@ function sourceBadge(source) {
     'Walk-in':'🚶', 'Google Maps':'📍', Google:'🔍', Instagram:'📸',
     Referral:'🤝', Facebook:'📱', WhatsApp:'💬', Other:'📋',
   };
-  return `<span style="font-size:12px;color:var(--text-secondary);">${icons[source]||'📋'} ${escHtml(source||'Walk-in')}</span>`;
+  // white-space:nowrap — a two-word source like "Google Maps" used to
+  // wrap one word per line inside the flexible name row on narrow
+  // screens (AUDIT.md C5). It's a label, it should stay one unit.
+  return `<span class="enq-source-badge">${icons[source]||'📋'} ${escHtml(source||'Walk-in')}</span>`;
+}
+
+let _enqStylesInjected = false;
+function _injectEnquiryStyles() {
+  if (_enqStylesInjected) return;
+  _enqStylesInjected = true;
+  const s = document.createElement('style');
+  s.id = 'sculpt-enquiry-styles';
+  s.textContent = `
+    .enq-source-badge{font-size:12px;color:var(--text-secondary);white-space:nowrap;}
+    /* Card is a vertical stack from the start — the old layout put the
+       avatar, name/badges, contact line, and every action button in one
+       horizontal flex row with no wrap boundary, so on a 320-375px phone
+       the action buttons overlapped the phone number and the source
+       badge/timestamp wrapped mid-value (AUDIT.md C5). Each piece now
+       gets its own row and the action row is the only one allowed to
+       wrap, onto full lines of its own. */
+    .enq-card{display:flex;flex-direction:column;gap:10px;padding:14px 16px;}
+    .enq-card-head{display:flex;align-items:flex-start;gap:12px;min-width:0;}
+    .enq-card-head .member-avatar{flex-shrink:0;}
+    .enq-card-body{flex:1;min-width:0;}
+    .enq-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .enq-name-row .enq-name{font-weight:600;font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+    .enq-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:5px;}
+    .enq-meta-item{font-size:12px;color:var(--text-tertiary);white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+    .enq-notes{font-size:12px;color:var(--text-secondary);margin-top:4px;font-style:italic;overflow-wrap:break-word;}
+    .enq-actions{display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border-subtle);padding-top:10px;}
+    .enq-actions .btn{white-space:nowrap;}
+    @media (max-width:480px){
+      /* Below 480px every action button also carries a visible text
+         label, not just an icon + tooltip — tooltips don't exist on
+         touch, and this row now has the vertical room for it. */
+      .enq-actions{gap:8px;}
+      .enq-actions .btn{flex:1 1 auto;justify-content:center;padding:7px 10px !important;}
+    }
+  `;
+  document.head.appendChild(s);
 }
 
 function fmtTime(iso) {
@@ -43,6 +83,7 @@ function fmtTime(iso) {
 }
 
 async function renderEnquiries(c) {
+  _injectEnquiryStyles();
   showSectionLoading(c, 'Enquiries');
   const gymId = S.gym?.id;
   if (!gymId) return;
@@ -125,36 +166,39 @@ async function renderEnquiries(c) {
             </div>`
           : list.map(e => {
             const waDisabled = !e.phone;
-            return `<div class="card card-sm" style="padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;" data-enq-id="${e.id}">
-              <div class="member-avatar" style="flex-shrink:0;">${av2(e.name)}</div>
-              <div style="flex:1;min-width:0;">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                  <span style="font-weight:600;font-size:14px;color:var(--text-primary);">${escHtml(e.name)}</span>
-                  ${statusBadge(e.status)}
-                  ${sourceBadge(e.source)}
+            const safeName = escHtml(e.name);
+            return `<div class="card card-sm enq-card" data-enq-id="${e.id}">
+              <div class="enq-card-head">
+                <div class="member-avatar">${av2(e.name)}</div>
+                <div class="enq-card-body">
+                  <div class="enq-name-row">
+                    <span class="enq-name" title="${safeName}">${safeName}</span>
+                    ${statusBadge(e.status)}
+                    ${sourceBadge(e.source)}
+                  </div>
+                  <div class="enq-meta">
+                    ${e.phone
+                      ? `<a href="tel:${escHtml(normalizePhone(e.phone))}" class="sculpt-tel enq-meta-item" onclick="event.stopPropagation();">📞 ${escHtml(formatPhone(e.phone))}</a>`
+                      : '<span class="enq-meta-item" style="color:var(--text-quaternary);">No phone</span>'}
+                    <span class="enq-meta-item">🕐 ${fmtTime(e.created_at)}</span>
+                    ${e.followed_up_at ? `<span class="enq-meta-item" style="color:var(--green);">✓ Followed up ${fmtTime(e.followed_up_at)}</span>` : ''}
+                  </div>
+                  ${e.notes ? `<div class="enq-notes">${escHtml(e.notes)}</div>` : ''}
                 </div>
-                <div style="font-size:12px;color:var(--text-tertiary);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;">
-                  ${e.phone
-                    ? `<a href="tel:${escHtml(normalizePhone(e.phone))}" class="sculpt-tel" onclick="event.stopPropagation();">📞 ${escHtml(formatPhone(e.phone))}</a>`
-                    : '<span style="color:var(--text-quaternary);">No phone</span>'}
-                  <span>🕐 ${fmtTime(e.created_at)}</span>
-                  ${e.followed_up_at ? `<span style="color:var(--green);">✓ Followed up ${fmtTime(e.followed_up_at)}</span>` : ''}
-                </div>
-                ${e.notes ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;font-style:italic;">${escHtml(e.notes)}</div>` : ''}
               </div>
-              <div class="action-btns" style="gap:4px;flex-shrink:0;flex-wrap:nowrap;">
-                ${callBtn(e.phone)}
-                ${e.status !== 'Converted' ? `<button class="btn btn-sm" data-enq-convert="${e.id}" title="Convert to member" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+              <div class="enq-actions">
+                ${callBtn(e.phone, { label: true })}
+                ${e.status !== 'Converted' ? `<button class="btn btn-sm" data-enq-convert="${e.id}" title="Convert to member" aria-label="Convert ${safeName} to member" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg><span>Convert</span>
                 </button>` : ''}
-                <button class="btn btn-sm" data-enq-wa="${e.id}" title="Follow up on WhatsApp" ${waDisabled?'disabled':''} style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);padding:5px 8px;${waDisabled?'opacity:0.4;cursor:not-allowed;':''}">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                <button class="btn btn-sm" data-enq-wa="${e.id}" title="Follow up on WhatsApp" aria-label="Follow up with ${safeName} on WhatsApp" ${waDisabled?'disabled':''} style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);padding:5px 8px;${waDisabled?'opacity:0.4;cursor:not-allowed;':''}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span>WhatsApp</span>
                 </button>
-                <button class="btn btn-sm btn-ghost" data-enq-edit="${e.id}" title="Edit" style="padding:5px 8px;">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <button class="btn btn-sm btn-ghost" data-enq-edit="${e.id}" title="Edit" aria-label="Edit ${safeName}" style="padding:5px 8px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span>Edit</span>
                 </button>
-                <button class="btn btn-sm" data-enq-del="${e.id}" title="Remove" style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                <button class="btn btn-sm" data-enq-del="${e.id}" title="Remove" aria-label="Remove ${safeName}" style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg><span>Remove</span>
                 </button>
               </div>
             </div>`;

@@ -76,6 +76,8 @@ function renderMembers(c) {
 
   _selected.clear();
   _selectMode = false;
+  closeOverflowMenu();
+  if (typeof window.__sculptRegisterCleanup === 'function') window.__sculptRegisterCleanup(closeOverflowMenu);
 
   c.innerHTML = `<div class="content-inner page-enter">
 
@@ -175,7 +177,7 @@ function renderMembers(c) {
       const balBtn  = e.target.closest('[data-bal]');
       const cancelMemBtn = e.target.closest('[data-cancelmem]');
       const photoBtn = e.target.closest('[data-photo]');
-      const moreBtn  = e.target.closest('[data-more]');
+      const overflowBtn = e.target.closest('[data-overflow]');
       if (photoBtn) { e.stopPropagation(); openPhotoLightbox(photoBtn.dataset.photo); return; }
       if (waBtn)   { e.stopPropagation(); _openWAModal && _openWAModal(waBtn.dataset.wa); return; }
       if (invBtn)  { e.stopPropagation(); _openInvoiceModal && _openInvoiceModal(invBtn.dataset.inv); return; }
@@ -184,7 +186,7 @@ function renderMembers(c) {
       if (renewBtn){ e.stopPropagation(); _openRenewModal && _openRenewModal(renewBtn.dataset.renew); return; }
       if (balBtn)  { e.stopPropagation(); _openClearBalanceModal && _openClearBalanceModal(balBtn.dataset.bal); return; }
       if (cancelMemBtn) { e.stopPropagation(); _confirmCancelMembership && _confirmCancelMembership(cancelMemBtn.dataset.cancelmem); return; }
-      if (moreBtn) { e.stopPropagation(); _openMemberDetailModal && _openMemberDetailModal(moreBtn.dataset.more); return; }
+      if (overflowBtn) { e.stopPropagation(); toggleOverflowMenu(overflowBtn); return; }
       const row = e.target.closest('.member-row');
       if (row && row.dataset.id) { _openMemberDetailModal && _openMemberDetailModal(row.dataset.id); }
     });
@@ -289,7 +291,9 @@ function fillTable(list) {
   const role = S.role || 'owner';
   const canEdit   = hasAccess(role, 'edit_member');
   const canDelete = hasAccess(role, 'delete_member');
-  const canCancel = hasAccess(role, 'cancel_member');
+  // cancel_member permission is checked inside toggleOverflowMenu() now
+  // (the Cancel/Reactivate action moved into the ⋯ overflow menu), not
+  // here — fillTable() no longer renders that button directly.
   const canRenew  = hasAccess(role, 'renew_member');
 
   const totalItems = list.length;
@@ -348,21 +352,9 @@ function fillTable(list) {
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
     </button>`;
 
-    const invBtn = `<button class="btn btn-sm hide-mobile" data-inv="${escHtml(String(m.id))}" type="button"
-      title="Invoice" aria-label="Invoice for ${safeName}"
-      style="background:var(--amber-fade);color:var(--amber);border:1px solid var(--amber-strong);padding:5px 8px;">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-    </button>`;
-
     const editBtn = canEdit ? `<button class="btn btn-sm btn-ghost" data-edit="${escHtml(String(m.id))}" type="button"
       title="Edit" aria-label="Edit ${safeName}" style="padding:5px 8px;">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-    </button>` : '';
-
-    const delBtn = canDelete ? `<button class="btn btn-sm hide-mobile" data-del="${escHtml(String(m.id))}" type="button"
-      title="Remove" aria-label="Remove ${safeName}"
-      style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
     </button>` : '';
 
     const renewBtn = canRenew && (st === 'Expired' || st === 'Expiring') && mType !== 'Trial' && !m.cancelled_at
@@ -372,27 +364,18 @@ function fillTable(list) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         </button>` : '';
 
-    const cancelMemBtn = canCancel ? (m.cancelled_at
-      ? `<button class="btn btn-sm hide-mobile" data-cancelmem="${escHtml(String(m.id))}" type="button"
-          title="Reactivate membership" aria-label="Reactivate membership for ${safeName}"
-          style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);padding:5px 8px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        </button>`
-      : `<button class="btn btn-sm btn-ghost hide-mobile" data-cancelmem="${escHtml(String(m.id))}" type="button"
-          title="Cancel membership" aria-label="Cancel membership for ${safeName}" style="padding:5px 8px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-        </button>`) : '';
-
-    const balBtn = (parseFloat(m.balance_due)||0) > 0
-      ? `<button class="btn btn-sm" data-bal="${escHtml(String(m.id))}" type="button"
-          title="Clear balance (\u20B9${Number(m.balance_due).toLocaleString('en-IN')} due)"
-          aria-label="Clear balance of \u20B9${Number(m.balance_due).toLocaleString('en-IN')} for ${safeName}"
-          style="background:var(--amber-fade);color:var(--amber);border:1px solid var(--amber-strong);padding:5px 8px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        </button>` : '';
-
-    const moreBtn = `<button class="btn btn-sm btn-ghost show-mobile-only" data-more="${escHtml(String(m.id))}" type="button"
-      title="More options" aria-label="More options for ${safeName}"
+    // Invoice, Clear Balance, Cancel/Reactivate and Delete used to each
+    // render as their own always-visible icon (AUDIT.md C3: "too many
+    // action icons per row"). They're real actions but not ones taken on
+    // most rows most of the time, so they now live behind a single \u22EF
+    // overflow menu (built per-member in bindOverflowMenu() below,
+    // recomputed from S.members rather than serialized into the row's
+    // markup). WhatsApp reminder, Edit, and (when applicable) Renew stay
+    // as direct icons because they're the actions actually taken on a
+    // typical row.
+    const moreBtn = `<button class="btn btn-sm btn-ghost" data-overflow="${escHtml(String(m.id))}" type="button"
+      aria-haspopup="menu" aria-expanded="false"
+      title="More actions" aria-label="More actions for ${safeName}"
       style="padding:5px 8px;">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
         <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
@@ -434,9 +417,9 @@ function fillTable(list) {
         </span>
       </td>
       <td><span class="badge ${stBadge}">${escHtml(st)}</span></td>
-      <td>
+      <td class="col-actions">
         <div class="action-btns" style="gap:3px;flex-wrap:nowrap;justify-content:flex-end;">
-          ${renewBtn}${balBtn}${cancelMemBtn}${waBtn}${invBtn}${editBtn}${delBtn}${moreBtn}
+          ${renewBtn}${waBtn}${editBtn}${moreBtn}
         </div>
       </td>
     </tr>`;
@@ -459,6 +442,94 @@ function fillTable(list) {
   }
 
   _syncSelectionUI();
+}
+
+// ── Row overflow menu (⋯) ───────────────────────────────
+// The table's horizontal scroller (.members-table-scroll) has
+// overflow-x:auto, which would clip an absolutely-positioned dropdown
+// the same way .topbar's overflow:hidden clips anything not attached to
+// <body> (see CLAUDE.md). This menu is appended to <body> and positioned
+// with getBoundingClientRect() instead of living inside the table.
+let _overflowMenuEl = null;
+let _overflowCloseHandlers = null;
+function closeOverflowMenu() {
+  if (_overflowMenuEl) { _overflowMenuEl.remove(); _overflowMenuEl = null; }
+  if (_overflowCloseHandlers) {
+    document.removeEventListener('click', _overflowCloseHandlers.click, true);
+    document.removeEventListener('keydown', _overflowCloseHandlers.key, true);
+    window.removeEventListener('scroll', _overflowCloseHandlers.scroll, true);
+    window.removeEventListener('resize', _overflowCloseHandlers.scroll, true);
+    _overflowCloseHandlers = null;
+  }
+  document.querySelectorAll('[data-overflow][aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+function toggleOverflowMenu(btn) {
+  if (_overflowMenuEl) { const wasForThisBtn = _overflowMenuEl.dataset.for === btn.dataset.overflow; closeOverflowMenu(); if (wasForThisBtn) return; }
+
+  const id = btn.dataset.overflow;
+  const m = S.members.find(x => String(x.id) === id);
+  if (!m) return;
+  const role = S.role || 'owner';
+  const canCancel = hasAccess(role, 'cancel_member');
+  const canDelete = hasAccess(role, 'delete_member');
+  const safeName = escHtml(m.full_name || m.name || '');
+
+  const items = [];
+  items.push({ action:'inv', label:'Invoice', danger:false });
+  if ((parseFloat(m.balance_due)||0) > 0) {
+    items.push({ action:'bal', label:`Clear balance (₹${Number(m.balance_due).toLocaleString('en-IN')} due)`, danger:false });
+  }
+  if (canCancel) {
+    items.push(m.cancelled_at
+      ? { action:'cancelmem', label:'Reactivate membership', danger:false }
+      : { action:'cancelmem', label:'Cancel membership', danger:false });
+  }
+  if (canDelete) items.push({ action:'del', label:'Remove member', danger:true });
+  if (!items.length) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'row-overflow-menu';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', `More actions for ${safeName}`);
+  menu.dataset.for = id;
+  menu.innerHTML = items.map(it => `<button type="button" role="menuitem" class="row-overflow-item${it.danger ? ' danger' : ''}" data-action="${it.action}">${it.label}</button>`).join('');
+  document.body.appendChild(menu);
+
+  const r = btn.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let top = r.bottom + 4;
+  let left = r.right - menuRect.width;
+  if (left < 8) left = 8;
+  if (top + menuRect.height > window.innerHeight - 8) top = r.top - menuRect.height - 4;
+  menu.style.top = `${Math.max(8, top)}px`;
+  menu.style.left = `${left}px`;
+
+  btn.setAttribute('aria-expanded', 'true');
+  _overflowMenuEl = menu;
+
+  menu.querySelectorAll('.row-overflow-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const action = item.dataset.action;
+      closeOverflowMenu();
+      if (action === 'inv') _openInvoiceModal && _openInvoiceModal(id);
+      else if (action === 'bal') _openClearBalanceModal && _openClearBalanceModal(id);
+      else if (action === 'cancelmem') _confirmCancelMembership && _confirmCancelMembership(id);
+      else if (action === 'del') _confirmDelete && _confirmDelete(id);
+    });
+  });
+
+  const clickHandler = (e) => { if (!menu.contains(e.target) && e.target !== btn) closeOverflowMenu(); };
+  const keyHandler = (e) => { if (e.key === 'Escape') { closeOverflowMenu(); btn.focus(); } };
+  const scrollHandler = () => closeOverflowMenu();
+  setTimeout(() => {
+    document.addEventListener('click', clickHandler, true);
+    document.addEventListener('keydown', keyHandler, true);
+    window.addEventListener('scroll', scrollHandler, true);
+    window.addEventListener('resize', scrollHandler, true);
+  }, 0);
+  _overflowCloseHandlers = { click: clickHandler, key: keyHandler, scroll: scrollHandler };
+  menu.querySelector('.row-overflow-item')?.focus();
 }
 
 function _syncSelectionUI() {

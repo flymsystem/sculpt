@@ -43,6 +43,10 @@
 .stat-card-accent{position:absolute;top:0;left:0;right:0;height:2px;opacity:0.7;}
 .stat-card-label{display:flex;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--text-secondary);font-weight:500;margin-bottom:var(--space-3);letter-spacing:0;text-transform:none;}
 .stat-card-label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--stat-dot,var(--brand));}
+/* Explicit period chip on each KPI card — AUDIT.md C2: cards had no
+   indication of whether a number was "as of now" or "all time", or
+   which exact dates a "this month" figure covered. */
+.stat-card-period{margin-left:auto;font-size:var(--text-xs);font-weight:600;color:var(--text-quaternary);background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:1px 8px;white-space:nowrap;cursor:default;}
 .stat-card-value{font-size:var(--text-4xl);font-weight:600;color:var(--text-primary);line-height:1;letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;}
 .stat-card-sub{font-size:var(--text-sm);color:var(--text-tertiary);margin-top:var(--space-3);display:flex;align-items:center;gap:6px;}
 .stat-card-sub .up{color:var(--green);font-weight:500;}.stat-card-sub .down{color:var(--red);font-weight:500;}
@@ -83,7 +87,14 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
 .modal-close{background:transparent;border:none;color:var(--text-tertiary);cursor:pointer;font-size:18px;line-height:1;padding:6px;border-radius:var(--radius-sm);transition:all var(--duration-fast) var(--ease-out);}
 .modal-close:hover{color:var(--text-primary);background:var(--surface-2);}
 .modal-body{padding:var(--space-6);}
-.modal-footer{padding:var(--space-4) var(--space-6);border-top:1px solid var(--border-subtle);display:flex;gap:var(--space-3);justify-content:flex-end;}
+.modal-footer{padding:var(--space-4) var(--space-6);border-top:1px solid var(--border-subtle);display:flex;gap:var(--space-3);justify-content:flex-end;position:sticky;bottom:0;background:var(--surface-1);z-index:1;}
+/* Sticky in-body section nav for long records (member detail modal) —
+   sits under the sticky modal header so both the identity and a way to
+   jump straight to a section stay put while the body scrolls. */
+.modal-section-nav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 12px;position:sticky;top:0;background:var(--surface-1);z-index:1;border-bottom:1px solid var(--border-subtle);}
+.modal-section-nav::-webkit-scrollbar{display:none;}
+.modal-section-nav-item{flex:0 0 auto;font-size:11px;font-weight:600;padding:5px 11px;border-radius:var(--radius-pill);background:var(--surface-2);color:var(--text-tertiary);border:1px solid var(--border-subtle);cursor:pointer;white-space:nowrap;}
+.modal-section-nav-item:hover{color:var(--text-primary);border-color:var(--border-default);}
 
 /* TOAST */
 .toast{position:fixed;bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 16px));right:16px;background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 18px;font-size:var(--text-md);color:var(--text-primary);z-index:var(--z-toast);opacity:0;pointer-events:none;transform:translateY(12px) scale(0.96);transition:opacity var(--duration-normal) var(--ease-out),transform var(--duration-normal) var(--ease-out);display:flex;align-items:center;gap:var(--space-3);max-width:min(380px,calc(100vw - 32px));box-shadow:var(--shadow-lg);overflow:hidden;}

@@ -1,8 +1,16 @@
 import { S } from './state.js';
-import { expiryDate, memberStatus, escHtml, escAttr, av2, fmtDate, fmtCurrency, outstandingAmount } from './helpers.js';
+import { expiryDate, memberStatus, escHtml, escAttr, av2, fmtDate, fmtCurrency, timeAgo, outstandingAmount } from './helpers.js';
 import { scard } from './overview.js';
-import { openRenewModal, openInvoiceModal, openWAModal } from './member-modals.js';
+import { openRenewModal, openInvoiceModal, openWAModal, openMemberDetailModal } from './member-modals.js';
 import { callBtn, formatPhone, normalizePhone } from '../../components/call-button.js';
+import { getLastReminders } from '../../lib/members.js';
+import { showConfirm } from '../../components/confirm.js';
+
+// A repeat reminder inside this window needs an explicit confirm instead
+// of firing immediately — AUDIT.md C8: nothing stopped a staff member
+// from tapping Remind on the same member 5 times in a row, each one
+// opening a fresh WhatsApp compose window.
+const REMINDER_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 // One card per alerting member, all built into a single innerHTML
 // string, was fine at 200 members. At 100,000 with a realistic 25%
@@ -16,6 +24,14 @@ function renderMemberAlerts(c) {
   let alertFilter = 'all';
   let sortBy = 'urgency';
   let page = 1;
+  let lastReminders = {}; // member_id -> ISO timestamp of most recent reminder, loaded async below
+
+  if (S.gym?.id) {
+    getLastReminders(S.gym.id).then(map => {
+      lastReminders = map;
+      render();
+    }).catch(() => {});
+  }
 
   // ── Helper: does this member have a pending payment? ──────────
   // Uses payment_status directly (not memberStatus) so expired members
@@ -58,6 +74,7 @@ function renderMemberAlerts(c) {
     const totalDue = allAlerts.filter(m => !m.cancelled_at).reduce((s, m) => s + outstandingAmount(m), 0);
     const list = filteredAlerts();
     const callable = allAlerts.filter(m => normalizePhone(m.phone)).length;
+    const noPhoneCount = allAlerts.length - callable;
 
     const totalPages = Math.max(1, Math.ceil(list.length / ALERTS_PAGE_SIZE));
     if (page > totalPages) page = totalPages;
@@ -68,7 +85,7 @@ function renderMemberAlerts(c) {
       <div class="page-header">
         <div class="page-header-left">
           <div class="page-title">Member Alerts</div>
-          <div class="page-sub">${allAlerts.length} member${allAlerts.length !== 1 ? 's' : ''} need attention · ${fmtCurrency(totalDue)} outstanding${callable ? ' · ' + callable + ' callable' : ''}</div>
+          <div class="page-sub">${allAlerts.length} member${allAlerts.length !== 1 ? 's' : ''} need attention · ${fmtCurrency(totalDue)} outstanding${callable ? ` · <span title="${noPhoneCount} of ${allAlerts.length} have no phone number on file and can't be called">${callable} callable</span>` : ''}</div>
         </div>
       </div>
 
@@ -156,6 +173,15 @@ function renderMemberAlerts(c) {
 
     const fmtExp = exp ? fmtDate(exp.toISOString().split('T')[0]) : '—';
     const amount = outstandingAmount(m);
+    const lastReminderISO = lastReminders[m.id];
+
+    // Invoice only makes sense as a live document when money is actually
+    // owed; an expired member with ₹0 outstanding has nothing to invoice
+    // — AUDIT.md C8. Those rows get a "Details" action (opens the full
+    // member record) instead, and Invoice moves out of the primary slot
+    // for everyone else too — Renew is the one action that actually
+    // resolves an alert.
+    const showInvoice = amount > 0;
 
     return `<div class="alert-card ${st === 'Expired' ? 'critical' : ''}" style="border-left-color:${accentColor};margin-bottom:var(--space-3);animation:fadeUp ${Math.min(150 + idx * 30, 400)}ms var(--ease-out) both;">
       <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
@@ -168,28 +194,48 @@ function renderMemberAlerts(c) {
             <span class="badge ${st === 'Expired' ? 'badge-red' : st === 'Expiring' ? 'badge-amber' : 'badge-purple'} badge-dot">${statusText}</span>${paymentDueBadge}
           </div>
           <div style="font-size:12px;color:var(--text-tertiary);display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
-            ${tel ? `<a href="tel:${escHtml(tel)}" class="sculpt-tel" onclick="event.stopPropagation();">${escHtml(formatPhone(tel))}</a>
-            <span style="color:var(--border-strong);">·</span>` : ''}
+            ${tel
+              ? `<a href="tel:${escHtml(tel)}" class="sculpt-tel" onclick="event.stopPropagation();">${escHtml(formatPhone(tel))}</a>`
+              : `<span style="color:var(--red);font-weight:500;">No phone</span>`}
+            <span style="color:var(--border-strong);">·</span>
             <span>${escHtml(m.plan_name || m.plan || '—')}</span>
             <span style="color:var(--border-strong);">·</span>
             <span>Expiry: ${fmtExp}</span>
             <span style="color:var(--border-strong);">·</span>
-            <span style="font-weight:600;color:var(--text-primary);">${fmtCurrency(amount)}</span>
+            <span style="font-weight:600;color:var(--text-primary);">${fmtCurrency(amount)} due</span>
+            ${lastReminderISO ? `<span style="color:var(--border-strong);">·</span><span title="${escAttr(new Date(lastReminderISO).toLocaleString('en-IN'))}">Last reminded ${timeAgo(lastReminderISO)}</span>` : ''}
           </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
         ${callBtn(m.phone)}
         ${!isTrialMember ? `<button class="btn btn-sm btn-primary" onclick="window._renew('${escAttr(m.id)}')" style="font-size:12px;padding:6px 12px;">Renew</button>` : ''}
-        <button class="btn btn-sm btn-ghost" onclick="window._inv('${escAttr(m.id)}')" style="font-size:12px;padding:6px 10px;">Invoice</button>
-        <button class="btn btn-sm btn-success-soft" onclick="window._wa('${escAttr(m.id)}')" style="font-size:12px;padding:6px 10px;">Remind</button>
+        ${showInvoice
+          ? `<button class="btn btn-sm btn-ghost" onclick="window._inv('${escAttr(m.id)}')" style="font-size:12px;padding:6px 10px;">Invoice</button>`
+          : `<button class="btn btn-sm btn-ghost" onclick="window._details('${escAttr(m.id)}')" style="font-size:12px;padding:6px 10px;">Details</button>`}
+        <button class="btn btn-sm btn-success-soft" onclick="window._wa('${escAttr(m.id)}')" style="font-size:12px;padding:6px 10px;" title="${lastReminderISO ? 'Last reminded ' + timeAgo(lastReminderISO) : 'No reminder sent yet'}">Remind</button>
       </div>
     </div>`;
   }
 
   window._renew = id => openRenewModal(id);
   window._inv = id => openInvoiceModal(id);
-  window._wa = id => openWAModal(id);
+  window._details = id => openMemberDetailModal(id);
+  window._wa = id => {
+    const lastISO = lastReminders[id];
+    const sinceMs = lastISO ? (Date.now() - new Date(lastISO).getTime()) : Infinity;
+    if (sinceMs < REMINDER_COOLDOWN_MS) {
+      const m = S.members.find(x => String(x.id) === String(id));
+      showConfirm({
+        title: 'Send another reminder?',
+        message: `${escHtml(m?.full_name || m?.name || 'This member')} was already reminded ${timeAgo(lastISO)}. Sending again this soon can come across as spammy — send anyway?`,
+        confirmLabel: 'Send Anyway',
+        onConfirm: () => openWAModal(id),
+      });
+      return;
+    }
+    openWAModal(id);
+  };
   render();
 }
 
