@@ -144,6 +144,29 @@ function renderGymConfig(c) {
         <button class="btn btn-primary" id="btn-savetax" style="width:100%;">Save Tax Settings</button>
       </div>
       <div class="settings-card">
+        <div class="settings-card-title">Legal &amp; Audit Identity</div>
+        <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6;">
+          Printed on the cover page of the Financial &amp; GST Audit Support Report
+          (Data &amp; Backup page). Left blank, the report shows an explicit
+          "not supplied" state instead of guessing — fill these in before
+          handing the report to an auditor or accountant.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Legal / Registered Business Name</label>
+          <input class="form-input" id="cfg-legal-name" placeholder="e.g. Deepu Fitness Ventures Pvt. Ltd." value="${escHtml(g.legal_name||'')}">
+          <div class="form-hint">Only needed if it differs from the gym's display name above.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">PAN</label>
+          <input class="form-input" id="cfg-pan" placeholder="AAAAA0000A" style="text-transform:uppercase;" value="${escHtml(g.pan||'')}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Registered Address <span style="color:var(--text-quaternary);font-weight:400;font-size:11px;">(for GST/PAN registration)</span></label>
+          <textarea class="form-input" id="cfg-registered-addr" rows="2" style="resize:vertical;" placeholder="Address as registered with GST/PAN, if different from the Address on the General tab">${escHtml(g.registered_address||'')}</textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-save-legal" style="width:100%;">Save Legal &amp; Audit Identity</button>
+      </div>
+      <div class="settings-card">
         <div class="settings-card-title">GST Preview</div>
         <div id="gst-preview-calc" style="padding:16px;background:var(--surface-2);border-radius:var(--radius-md);">
           ${buildGSTPreview(gstPct, g.gst_enabled)}
@@ -477,6 +500,31 @@ function renderGymConfig(c) {
       showToast('Tax settings saved!', 'green');
     } catch (err) { showToast(err.message || 'Save failed', 'red'); }
     finally { btn.disabled = false; btn.textContent = 'Save Tax Settings'; }
+  });
+
+  // ── Save legal & audit identity ────────────────────────────────
+  // Separate save button from "Save Tax Settings" (GSTIN/GST%) even
+  // though it sits in the same tab — these fields feed the audit report's
+  // cover page (backup.js), not invoice GST math, and an owner filling in
+  // one shouldn't accidentally blank the other via a shared handler.
+  document.getElementById('btn-save-legal')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const updates = {
+        legal_name: document.getElementById('cfg-legal-name')?.value.trim() || null,
+        pan: document.getElementById('cfg-pan')?.value.trim().toUpperCase() || null,
+        registered_address: document.getElementById('cfg-registered-addr')?.value.trim() || null,
+      };
+      if (S.gym?.id) {
+        const { error } = await supabase.from('gyms').update(updates).eq('id', S.gym.id);
+        if (error) throw error;
+      }
+      S.gym = { ...S.gym, ...updates };
+      if (window.__sculptSession?.gym) window.__sculptSession.gym = { ...window.__sculptSession.gym, ...updates };
+      showToast('Legal & audit identity saved!', 'green');
+    } catch (err) { showToast(err.message || 'Save failed', 'red'); }
+    finally { btn.disabled = false; btn.textContent = 'Save Legal & Audit Identity'; }
   });
 
   // ── Save invoice settings ─────────────────────────────────────
