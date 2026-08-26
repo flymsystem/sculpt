@@ -15,7 +15,7 @@ function openSupportModal() {
       <div style="display:flex;flex-direction:column;gap:14px;font-size:13px;color:var(--text-secondary);line-height:1.6;">
         <div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-quaternary);margin-bottom:4px;">Report a problem</div>
-          <a href="mailto:support@dsculptfitness.com?subject=D%20Sculpt%20Fitness%20-%20Support" style="color:var(--brand-text);text-decoration:none;">support@dsculptfitness.com</a>
+          <a href="mailto:dsculptfitness5@gmail.com?subject=D%20Sculpt%20Fitness%20-%20Support" style="color:var(--brand-text);text-decoration:none;">dsculptfitness5@gmail.com</a>
         </div>
         ${gymPhone ? `<div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-quaternary);margin-bottom:4px;">Gym contact on file</div>
