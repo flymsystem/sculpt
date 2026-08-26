@@ -678,7 +678,13 @@ ${summaryBlock}
     // ── Place of supply — derivable only from what's actually configured
     const gstin = S.gym?.gstin || '';
     const stateCode = /^\d{2}/.test(gstin) ? gstin.slice(0, 2) : '';
-    const regAddr = S.gym?.registered_address || S.gym?.address || '';
+    // Deliberately does NOT fall back to gyms.address: that field is the
+    // invoice/WhatsApp-facing mailing line, and in this gym's current data
+    // it holds what looks like an email address typo'd into the address
+    // box (see 127_gym_audit_identity_fields.sql's header comment). Reusing
+    // it here would silently print that bad value as the audited place of
+    // supply. Only the dedicated registered_address field counts.
+    const regAddr = S.gym?.registered_address || '';
     const placeOfSupply = (stateCode || regAddr)
       ? { headers: ['Field', 'Value'], rows: [
           ['Place of Supply (single location)', regAddr || 'Not supplied'],
@@ -795,7 +801,7 @@ ${summaryBlock}
       ['Legal / Registered Name', g.legal_name ? escHtml(g.legal_name) : (g.name ? escHtml(g.name) + ' <span style="color:#999;">(display name — legal name not supplied)</span>' : notSupplied)],
       ['GSTIN', g.gstin ? escHtml(g.gstin) : notSupplied],
       ['PAN', g.pan ? escHtml(g.pan) : notSupplied],
-      ['Registered Address', (g.registered_address || g.address) ? escHtml(g.registered_address || g.address) : notSupplied],
+      ['Registered Address', g.registered_address ? escHtml(g.registered_address) : notSupplied],
       ['Accounting Basis', 'Cash basis — revenue recognised on payment receipt date (payment_history.paid_at), not on invoice/plan-sale date'],
     ];
     return rows.map(([k, v]) => `<div style="padding:6px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:16px;"><span style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">${k}</span><span style="font-size:12px;color:#222;text-align:right;">${v}</span></div>`).join('');
