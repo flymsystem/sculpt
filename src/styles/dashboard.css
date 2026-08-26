@@ -223,6 +223,16 @@ body.sidebar-scroll-lock{overflow:hidden;}
   .topbar-date{display:none;}
   .topbar-search-hint{display:none;}
   .topbar-title{font-size:14px;padding:0 8px;}
+  /* The bell, theme toggle, avatar and a forced-visible logout button
+     (#topbar-logout-btn{display:inline-flex!important} above) leave the
+     title well under 100px of a 390px topbar even with search/date
+     already hidden — "All Members" truncated to "All Me…". The LOGOUT
+     label is the one piece of that row that's pure decoration once the
+     icon and the title="Sign Out" tooltip already say the same thing;
+     dropping it to icon-only on mobile is what gets the title its room
+     back, not shrinking the title font further. */
+  #topbar-logout-btn span{display:none;}
+  #topbar-logout-btn{padding:8px;min-width:44px;justify-content:center;}
 
   /* Content area */
   .content-inner{
@@ -306,8 +316,24 @@ body.sidebar-scroll-lock{overflow:hidden;}
   .finance-stats{grid-template-columns:repeat(2,1fr);}
   .finance-stat-val{font-size:var(--text-xl);}
 
-  /* Members filters */
-  .members-filters{display:flex;flex-direction:column;gap:var(--space-2);}
+  /* Members filters: intentionally NOT redefined here.
+     components.css already sets a correct 2-up mobile grid for this exact
+     breakpoint (max-width:768px) with search spanning both columns. This
+     file used to also define `.members-filters{flex-direction:column}` at
+     the same breakpoint — both files load (components.css first, always;
+     dashboard.css second, lazily, only once the dashboard route mounts),
+     so this rule loaded LAST and won, silently discarding the grid. With
+     the container switched to flex-direction:column, every child's
+     `flex:1 1 130px` (written for a ROW layout, where flex-basis sets
+     width) got reinterpreted along the now-vertical main axis instead —
+     flex-basis:130px became a 130px-tall row, and flex-grow:1 stretched
+     it further to fill whatever vertical space the column had, which is
+     what actually produced the ~145px-tall filter boxes. Root cause was
+     this file re-declaring a class components.css already owned for this
+     breakpoint, not a sizing bug in either rule on its own — see
+     components.css's `.mf-more`/`.mf-more-toggle` rules for the
+     collapsed-by-default date/Added-By filters that got added alongside
+     this fix. */
 
   /* Settings */
   .settings-grid{grid-template-columns:1fr;}

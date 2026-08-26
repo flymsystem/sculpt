@@ -183,6 +183,13 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
 .members-filters .form-input{min-width:0;flex:1 1 130px;height:38px;padding:0 var(--space-3);}
 .members-filters .mf-search{flex:2 1 200px;}
 .members-filters .mf-date{flex:0 1 150px;color:var(--text-secondary);}
+/* Join-date + Added-By, collapsed behind "More filters" on mobile only
+   (see the @media block below). display:contents on desktop makes this
+   wrapper invisible to layout — its children join .members-filters'
+   flex row directly, exactly as if the wrapper weren't there, so desktop
+   is byte-for-byte unchanged by this section existing. */
+.mf-more{display:contents;}
+.mf-more-toggle{display:none;}
 .members-table-wrap{background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);}
 .members-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius-lg);}
 .members-table{width:100%;border-collapse:collapse;min-width:620px;}
@@ -191,6 +198,24 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:var(--surface-2);}
 .members-table tr:last-child td{border-bottom:none;}.members-table tr:hover td{background:var(--surface-2);}
 @media(max-width:768px){
   .members-filters{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);}.members-filters .form-input:first-child{grid-column:1 / -1;}
+  /* Search (row 1, full width) + Status/Plan (row 2, 2-up) is ~84px —
+     comfortably under a one-screen filter block. Join date + Added By
+     collapse behind a toggle, closed by default, rather than adding a
+     3rd row every visit: those two are used far less often than
+     status/plan, and the members table needs to be reachable without
+     scrolling past a wall of filters first. */
+  .mf-more{display:none;}
+  .mf-more.is-open{display:contents;}
+  .mf-more-toggle{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    grid-column:1 / -1;height:38px;
+    background:var(--surface-1);border:1px solid var(--border-default);
+    border-radius:var(--radius-md);color:var(--text-secondary);
+    font-size:var(--text-sm);font-family:var(--font-sans);cursor:pointer;
+  }
+  .mf-more-toggle:hover{border-color:var(--border-strong);color:var(--text-primary);}
+  .mf-more-toggle svg{transition:transform var(--duration-fast) var(--ease-out);}
+  .mf-more-toggle.is-open svg{transform:rotate(180deg);}
   .members-table th,.members-table td{padding:10px;font-size:var(--text-base);}
   @media(max-width:480px){.members-table th:nth-child(4),.members-table td:nth-child(4),.members-table th:nth-child(6),.members-table td:nth-child(6){display:none;}}
 }

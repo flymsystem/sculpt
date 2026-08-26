@@ -125,13 +125,19 @@ function renderMembers(c) {
         <option value="">All Plans</option>
         ${planOpts}
       </select>
-      <label class="sr-only" for="sf-joindate">Filter by join date</label>
-      <input type="date" class="form-input mf-date" id="sf-joindate" title="Filter by join date">
-      <label class="sr-only" for="sf-addedby">Filter by who added them</label>
-      <select class="form-input" id="sf-addedby">
-        <option value="">Added By: Anyone</option>
-        ${[...new Set(S.members.map(m => m.added_by_name).filter(Boolean))].sort().map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
-      </select>
+      <button type="button" class="mf-more-toggle" id="mf-more-toggle" aria-expanded="false" aria-controls="mf-more">
+        <span id="mf-more-label">More filters</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="mf-more" id="mf-more">
+        <label class="sr-only" for="sf-joindate">Filter by join date</label>
+        <input type="date" class="form-input mf-date" id="sf-joindate" title="Filter by join date">
+        <label class="sr-only" for="sf-addedby">Filter by who added them</label>
+        <select class="form-input" id="sf-addedby">
+          <option value="">Added By: Anyone</option>
+          ${[...new Set(S.members.map(m => m.added_by_name).filter(Boolean))].sort().map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
+        </select>
+      </div>
     </div>
 
     <div class="members-table-wrap" id="members-table-wrap">
@@ -165,6 +171,25 @@ function renderMembers(c) {
   document.getElementById('sf-plan').addEventListener('change', () => { setMemberPage(1); filterTable(); });
   document.getElementById('sf-joindate').addEventListener('change', () => { setMemberPage(1); filterTable(); });
   document.getElementById('sf-addedby')?.addEventListener('change', () => { setMemberPage(1); filterTable(); });
+
+  // "More filters" toggle (mobile only — display:none on desktop where
+  // .mf-more is always expanded, see components.css). Starts closed
+  // every render; if a join-date or added-by filter is already active
+  // (e.g. carried over from before a re-render), open it immediately so
+  // an active filter is never hidden without any visible sign it's set.
+  const mfMoreBtn = document.getElementById('mf-more-toggle');
+  const mfMore = document.getElementById('mf-more');
+  const mfMoreLabel = document.getElementById('mf-more-label');
+  function setMoreFiltersOpen(open) {
+    mfMore.classList.toggle('is-open', open);
+    mfMoreBtn.classList.toggle('is-open', open);
+    mfMoreBtn.setAttribute('aria-expanded', String(open));
+    mfMoreLabel.textContent = open ? 'Fewer filters' : 'More filters';
+  }
+  mfMoreBtn?.addEventListener('click', () => setMoreFiltersOpen(!mfMore.classList.contains('is-open')));
+  if (document.getElementById('sf-joindate').value || document.getElementById('sf-addedby')?.value) {
+    setMoreFiltersOpen(true);
+  }
 
   const tableWrap = document.getElementById('members-table-wrap');
   if (tableWrap) {
