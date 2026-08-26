@@ -53,6 +53,21 @@ if (typeof window !== 'undefined') window._navTo = nav;
 
 // ── Main entry point ─────────────────────────────────
 export async function renderGymDashboard(router) {
+  // The FAB (and its "Add Member" menu) is created with
+  // document.body.appendChild(), not inside #root — every other
+  // dashboard element dies for free when the router overwrites
+  // #root.innerHTML on the next page, but a body-level node doesn't.
+  // Nothing used to tell it to go away, so navigating gym -> member
+  // (e.g. the owner opening the member portal, or a shared device
+  // switching sessions) left the owner/staff "Add Member" FAB sitting
+  // on screen in the member portal, overlapping the bottom nav's
+  // Visits tab and offering an action a member must never see. Register
+  // it with the router's cleanup registry every time the dashboard
+  // mounts, so window.__sculptRunCleanup() (called by router.go() before
+  // every navigation — see app.js) removes it the instant the user
+  // leaves, the same way member/index.js tears down its scanner.
+  window.__sculptRegisterCleanup?.(cleanupFAB);
+
   const root = document.getElementById('root');
   const sessionData = window.__sculptSession;
 
@@ -491,6 +506,16 @@ function updateFAB(section) {
     document.body.appendChild(fab);
     fab.addEventListener('click', toggleFABMenu);
   }
+}
+
+// Router cleanup hook — see the call in renderGymDashboard() for why this
+// exists. Must remove both the button and any open menu; leaving the menu
+// behind would strand an "Add Member" click handler bound to a detached-
+// looking but still-in-DOM node on whatever page loads next.
+function cleanupFAB() {
+  document.getElementById('sculpt-fab')?.remove();
+  document.getElementById('sculpt-fab-menu')?.remove();
+  fabMenuOpen = false;
 }
 
 function toggleFABMenu() {

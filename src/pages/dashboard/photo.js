@@ -261,3 +261,31 @@ async function removeAadharPhoto(gymId, memberId) {
     throw new Error(dbErr.message);
   }
 }
+
+// memberPhotoExistsInStorage() — test-only helper. A "remove photo" flow
+// has to be checked in two places: the members.photo_url column cleared
+// AND the storage.objects row actually gone (otherwise an orphaned file
+// sits in the bucket and, worse, a stale signed/public URL cached
+// anywhere still resolves to real image bytes). list() with a `search`
+// filter is the supported way to check "does this exact object exist"
+// without guessing at storage error message text.
+async function memberPhotoExistsInStorage(gymId, memberId) {
+  if (!gymId || !memberId) return false;
+  const path = `${memberId}.jpg`;
+  const { data, error } = await supabase.storage.from('member-photos').list(gymId, { search: path });
+  if (error) return false;
+  return (data || []).some((f) => f.name === path);
+}
+
+// Test-only hook, same convention as window.__sculptMembers in
+// lib/members.js — lets tests/member-photo-persist.spec.js drive an
+// upload/replace/remove cycle against the real storage bucket + members
+// row without having to automate the canvas-based cropper UI in
+// photo-picker.js. saveMemberPhoto/removeMemberPhoto are exactly the
+// functions member-modals.js calls (via setPhotoHandler), so this
+// exercises the real bug class (migration 126 — members.photo_url did
+// not exist as a column, so every upload "succeeded" in storage but the
+// DB write silently failed and nothing ever rendered on reload).
+if (typeof window !== 'undefined') {
+  window.__sculptPhoto = { saveMemberPhoto, removeMemberPhoto, memberPhotoExistsInStorage };
+}
