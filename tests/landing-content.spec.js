@@ -112,12 +112,18 @@ test('the active nav link tracks the section in view (scrollspy)', async ({ page
   // Scroll all the way to the bottom — #contact (the footer) is the last
   // section on the page, so it is guaranteed to cross the scrollspy's
   // trigger band regardless of exact section heights/viewport size, unlike
-  // scrolling to an arbitrary middle section.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(400); // IntersectionObserver callback settle
+  // scrolling to an arbitrary middle section. scrollIntoViewIfNeeded (via
+  // the footer's own #contact element) is used instead of a raw
+  // window.scrollTo, which was flaky under parallel test load — occasionally
+  // firing before the page's full layout height had settled.
+  await page.locator('#contact').scrollIntoViewIfNeeded();
 
   await page.locator('#sc-burger').click();
-  await expect(page.locator('a.sc-navlink[href="#contact"]')).toHaveClass(/is-active/);
+  // The IntersectionObserver callback + class toggle can lag a busy CI
+  // worker by more than a fixed sleep would cover — these assertions poll
+  // on their own (default 5s), which is the point of using them instead of
+  // another waitForTimeout.
+  await expect(page.locator('a.sc-navlink[href="#contact"]')).toHaveClass(/is-active/, { timeout: 5000 });
   await expect(page.locator('a.sc-navlink[href="#contact"]')).toHaveAttribute('aria-current', 'true');
 });
 
