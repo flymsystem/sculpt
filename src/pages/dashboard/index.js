@@ -27,7 +27,7 @@ import { renderAnalytics } from './analytics.js';
 import { renderCheckinDisplay, stopCheckinDisplay } from './checkin-display.js';
 import { renderCheckinScan, stopCheckinScan } from './checkin-scan.js';
 import { renderCheckins, stopCheckinsRealtime } from './checkins.js';
-import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload } from './sidebar.js';
+import { buildSidebar, bindSidebar, bindThemeToggle, setSidebarNav, setSidebarReload, closeMobileSidebar } from './sidebar.js';
 import { saveMemberPhoto } from './photo.js';
 
 // Notifications + one-tap calling
@@ -97,7 +97,7 @@ export async function renderGymDashboard(router) {
       <div id="gym-sidebar"></div>
       <div class="app-main">
         <div class="topbar">
-          <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">
+          <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu" aria-expanded="false" aria-controls="gym-sidebar">
             <span></span><span></span><span></span>
           </button>
           <div class="topbar-title" id="topbar-title">Dashboard${branchIndicator}</div>
@@ -279,6 +279,12 @@ function nav(id, opts = {}) {
 
   // Highlight sidebar
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+
+  // A browser-back that lands on a different dashboard section bypasses
+  // bindSidebar()'s click handler entirely (window._navTo calls nav()
+  // directly — see app.js's popstate listener), so the mobile drawer, if
+  // open, would otherwise stay open behind the newly-rendered section.
+  closeMobileSidebar();
 
   // ── Role-based access guard ──
   const role = S.role || 'owner';

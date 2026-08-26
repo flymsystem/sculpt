@@ -3,10 +3,56 @@ import { signOut, switchGym, getAuthUser, getMyProfile } from '../../lib/auth.js
 import { showToast } from '../../components/toast.js';
 import { escHtml, memberStatus } from './helpers.js';
 import { hasAccess } from '../../lib/permissions.js';
+import { openModal, closeModal } from '../../components/modal.js';
 
-let _nav, _reloadDashboard;
+const APP_VERSION = '1.0.0'; // keep in sync with package.json "version"
+
+function openSupportModal() {
+  const gymPhone = S.gym?.phone ? escHtml(S.gym.phone) : '';
+  openModal({
+    title: 'Help &amp; Support',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px;color:var(--text-secondary);line-height:1.6;">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-quaternary);margin-bottom:4px;">Report a problem</div>
+          <a href="mailto:support@dsculptfitness.com?subject=D%20Sculpt%20Fitness%20-%20Support" style="color:var(--brand-text);text-decoration:none;">support@dsculptfitness.com</a>
+        </div>
+        ${gymPhone ? `<div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-quaternary);margin-bottom:4px;">Gym contact on file</div>
+          <div style="color:var(--text-primary);">${gymPhone}</div>
+        </div>` : ''}
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-quaternary);margin-bottom:4px;">App version</div>
+          <div style="color:var(--text-primary);font-variant-numeric:tabular-nums;">${APP_VERSION}</div>
+        </div>
+      </div>`,
+    footer: `<button class="btn btn-secondary" id="support-modal-close" type="button">Close</button>`,
+    size: 'sm',
+    onOpen: () => { document.getElementById('support-modal-close')?.addEventListener('click', () => closeModal()); },
+  });
+}
+
+let _nav, _reloadDashboard, _escHandler;
 export function setSidebarNav(fn) { _nav = fn; }
 export function setSidebarReload(fn) { _reloadDashboard = fn; }
+
+// Body scroll lock for the mobile drawer. `.app-content` is the element
+// that actually scrolls (see dashboard.css — it, not `body`, carries the
+// height/overflow rules), so locking `body` alone would leave the page
+// scrollable underneath the open drawer. Saving/restoring scrollTop keeps
+// the user's place instead of snapping back to the top on close.
+let _lockedScrollTop = 0;
+function lockBodyScroll() {
+  const scroller = document.querySelector('.app-content');
+  _lockedScrollTop = scroller ? scroller.scrollTop : window.scrollY;
+  document.body.classList.add('sidebar-scroll-lock');
+  if (scroller) scroller.style.overflow = 'hidden';
+}
+function unlockBodyScroll() {
+  document.body.classList.remove('sidebar-scroll-lock');
+  const scroller = document.querySelector('.app-content');
+  if (scroller) { scroller.style.overflow = ''; scroller.scrollTop = _lockedScrollTop; }
+}
 
 function bindThemeToggle() {
   const btn = document.getElementById('theme-toggle');
@@ -185,8 +231,12 @@ function buildSidebar(gymName, gymCode, logoUrl) {
     if (isNavVisible('backup'))    navItems.push(`<div class="nav-item" data-id="backup" role="button" tabindex="0">${navIco('lock')}Data &amp; Backup</div>`);
   }
 
-  // Support — always visible
+  // Support — always visible. Used to render a heading with nothing under
+  // it (the section label was pushed but no item ever followed) — either
+  // populate it or drop the heading; a Help & Support entry opening a
+  // small modal with contact + app version was the smaller change.
   navItems.push(`<div class="nav-section-label">Support</div>`);
+  navItems.push(`<div class="nav-item" data-id="support" role="button" tabindex="0">${navIco('bell')}Help &amp; Support</div>`);
 
   return `<div class="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-logo">
@@ -219,7 +269,9 @@ function buildSidebar(gymName, gymCode, logoUrl) {
 
 function bindSidebar(router) {
   document.querySelectorAll('#gym-sidebar .nav-item').forEach(item => {
-    const activate = () => { _nav(item.dataset.id); closeMobileSidebar(); };
+    // "support" isn't a routable dashboard section — nav() would fall back
+    // to overview for any id it doesn't recognize — it opens a modal instead.
+    const activate = () => { if (item.dataset.id === 'support') { openSupportModal(); } else { _nav(item.dataset.id); } closeMobileSidebar(); };
     item.addEventListener('click', activate);
     item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
   });
@@ -249,8 +301,24 @@ function bindSidebar(router) {
   const hamburger = document.getElementById('hamburger-btn');
   const overlay = document.getElementById('sidebar-overlay');
   const sidebar = document.querySelector('#gym-sidebar .sidebar');
-  hamburger?.addEventListener('click', () => { const open = sidebar?.classList.toggle('sidebar-open'); overlay?.classList.toggle('active', open); hamburger.classList.toggle('open', open); });
+  hamburger?.addEventListener('click', () => {
+    const open = sidebar?.classList.toggle('sidebar-open');
+    overlay?.classList.toggle('active', open);
+    hamburger.classList.toggle('open', open);
+    hamburger.setAttribute('aria-expanded', String(!!open));
+    if (open) lockBodyScroll(); else unlockBodyScroll();
+  });
   overlay?.addEventListener('click', closeMobileSidebar);
+
+  // Escape closes the drawer, same as tapping the overlay or navigating —
+  // the overlay swallows outside clicks but a keyboard/screen-reader user
+  // has no equivalent unless Escape is wired up explicitly.
+  document.addEventListener('keydown', _escHandler = (e) => {
+    if (e.key === 'Escape' && sidebar?.classList.contains('sidebar-open')) closeMobileSidebar();
+  });
+  if (typeof window.__sculptRegisterCleanup === 'function') {
+    window.__sculptRegisterCleanup(() => { document.removeEventListener('keydown', _escHandler); unlockBodyScroll(); });
+  }
 
   // Swipe gestures
   if (window.__sculptTouchStart) document.removeEventListener('touchstart', window.__sculptTouchStart);
@@ -275,6 +343,7 @@ function closeMobileSidebar() {
   document.querySelector('#gym-sidebar .sidebar')?.classList.remove('sidebar-open');
   document.getElementById('sidebar-overlay')?.classList.remove('active');
   const h = document.getElementById('hamburger-btn'); if (h) { h.classList.remove('open'); h.setAttribute('aria-expanded', 'false'); }
+  unlockBodyScroll();
 }
 
 export { bindThemeToggle, buildSidebar, bindSidebar, closeMobileSidebar };
