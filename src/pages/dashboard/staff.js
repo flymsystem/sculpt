@@ -227,6 +227,36 @@ function staffRow(s) {
 // ═══════════════════════════════════════════════════════════════════
 // ATTENDANCE TAB
 // ═══════════════════════════════════════════════════════════════════
+// A skeleton row per staff member — renders the names immediately (they're
+// already in S.staff, no fetch needed) so the page shows real content
+// while the attendance *records* for the selected date load in the
+// background, instead of one "Loading attendance..." line over an
+// otherwise-empty area.
+function attendanceSkeleton(staff) {
+  return `<div style="display:flex;flex-direction:column;gap:8px;" aria-busy="true">
+    ${staff.map(s => `<div class="att-row settings-card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:0;">
+      <div class="member-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${av2(s.full_name)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:500;font-size:14px;color:var(--text-primary);">${escHtml(s.full_name)}</div>
+        <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)}</div>
+      </div>
+      <div class="skeleton-pulse" style="width:100px;height:28px;border-radius:var(--radius-sm);background:var(--surface-3);"></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// Attendance fetches shouldn't hang the page forever if the network is
+// slow or the request silently never resolves — AUDIT.md C7 called out
+// the page sitting on "Loading attendance..." indefinitely with no way
+// out. 10s is generous for a single-table select but short enough that
+// staff aren't left staring at a skeleton for a whole minute.
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out loading attendance')), ms)),
+  ]);
+}
+
 async function renderAttendance(c) {
   const gymId = S.gym?.id;
   const today = new Date().toISOString().split('T')[0];
@@ -238,26 +268,50 @@ async function renderAttendance(c) {
       <input type="date" class="form-input" id="att-date" value="${today}" style="width:auto;max-width:180px;flex-shrink:0;">
       <button class="btn btn-ghost btn-sm" id="att-today" type="button" style="flex-shrink:0;">Today</button>
       <div style="flex:1;min-width:8px;"></div>
-      <button class="btn btn-primary btn-sm" id="att-save-all" type="button" style="flex-shrink:0;">Save Attendance</button>
+      <button class="btn btn-primary btn-sm" id="att-save-all" type="button" style="flex-shrink:0;" disabled title="Loads with today's attendance">Save Attendance</button>
     </div>
-    <div id="att-grid">${staff.length ? '<div style="color:var(--text-tertiary);font-size:13px;">Loading attendance...</div>' : '<div style="color:var(--text-tertiary);font-size:13px;">No staff to show attendance for.</div>'}</div>
+    <div id="att-error" style="display:none;margin-bottom:14px;padding:12px 14px;background:var(--red-fade);border:1px solid var(--red-strong);border-radius:var(--radius-md);color:var(--red);font-size:13px;display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span id="att-error-msg">Couldn't load attendance for this date.</span>
+      <button class="btn btn-sm" id="att-retry" type="button" style="background:var(--red);color:#fff;border:none;flex-shrink:0;">Retry</button>
+    </div>
+    <div id="att-grid">${staff.length ? attendanceSkeleton(staff) : '<div class="empty-state" style="padding:32px;"><span class="empty-icon">👥</span><div class="empty-title">No staff yet</div><p>Add staff on the Roster tab to start tracking attendance.</p></div>'}</div>
   </div>`;
 
   const dateEl = document.getElementById('att-date');
+  const saveBtn = document.getElementById('att-save-all');
+  const errorBar = document.getElementById('att-error');
+  const errorMsg = document.getElementById('att-error-msg');
+
   const loadAttendance = async () => {
     const date = dateEl?.value || today;
     if (!gymId || !staff.length) return;
+    if (errorBar) errorBar.style.display = 'none';
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.title = 'Loads with today\'s attendance'; }
+    const grid = document.getElementById('att-grid');
+    if (grid && !grid.querySelector('.att-row')) grid.innerHTML = attendanceSkeleton(staff);
     try {
-      const records = await getAttendance(gymId, date);
+      const records = await withTimeout(getAttendance(gymId, date));
       renderAttendanceGrid(records, staff, date);
-    } catch(e) { console.error('[Staff] Attendance load:', e); }
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.title = ''; }
+    } catch(e) {
+      console.error('[Staff] Attendance load:', e);
+      if (errorBar && errorMsg) {
+        errorMsg.textContent = e?.message === 'Timed out loading attendance'
+          ? "Attendance is taking too long to load — check your connection and retry."
+          : "Couldn't load attendance for this date.";
+        errorBar.style.display = 'flex';
+      }
+      // Save stays disabled — saving over a date whose existing marks we
+      // never actually loaded risks silently overwriting them.
+    }
   };
 
   dateEl?.addEventListener('change', loadAttendance);
   document.getElementById('att-today')?.addEventListener('click', () => {
     if (dateEl) { dateEl.value = today; loadAttendance(); }
   });
-  document.getElementById('att-save-all')?.addEventListener('click', () => saveAllAttendance(dateEl?.value || today));
+  document.getElementById('att-retry')?.addEventListener('click', loadAttendance);
+  saveBtn?.addEventListener('click', () => saveAllAttendance(dateEl?.value || today));
 
   if (staff.length) loadAttendance();
 }
