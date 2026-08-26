@@ -39,9 +39,18 @@ async function openKiosk(page) {
 // Playwright's OS-level mouse/touch emulation — this gives the test exact
 // control over pointerId and timing, which is what's needed to prove the
 // interruption paths (cancel, a second stray pointer) actually cancel.
+//
+// A completed hold fires at the EXIT_HOLD_MS mark itself (inside the rAF
+// loop in checkin-display.js), independent of a pointerup — it does not
+// wait for the finger to lift. So a test that holds past the threshold and
+// then dispatches a trailing pointerup is dispatching into a kiosk that has
+// already torn itself down and navigated away; #checkin-exit is gone by
+// then. That's correct product behaviour, not a bug, so this helper is a
+// no-op once the button no longer exists rather than throwing.
 async function dispatchExitPointerEvent(page, type, pointerId = 1, extra = {}) {
   await page.evaluate(({ type, pointerId, extra }) => {
     const btn = document.getElementById('checkin-exit');
+    if (!btn) return;
     const ev = new PointerEvent(type, {
       pointerId,
       bubbles: true,
