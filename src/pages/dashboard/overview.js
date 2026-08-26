@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { daysLeft, memberStatus, outstandingAmount, isNewThisMonth, escHtml, fmtCurrency, fmtCurrencyShort, timeAgo, pctChange, isSameLocalDay } from './helpers.js';
+import { daysLeft, memberStatus, outstandingAmount, isNewThisMonth, escHtml, fmtCurrency, fmtCurrencyShort, fmtNumber, thisMonthLabel, timeAgo, pctChange, isSameLocalDay } from './helpers.js';
 import { hasAccess, can } from '../../lib/permissions.js';
 
 let _nav, _filterTable;
@@ -28,6 +28,9 @@ function renderOverview(c) {
   const thisMonthMembers=S.members.filter(m=>{const d=new Date(m.join_date||m.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}).length;
   const lastMonthMembers=S.members.filter(m=>{const d=new Date(m.join_date||m.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).length;
   const growthPct=pctChange(thisMonthMembers,lastMonthMembers);
+  const lastMonthName=new Date(lastMonthYear,lastMonth,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const growthTooltip=`New members 1–${today.getDate()} ${today.toLocaleDateString('en-IN',{month:'short'})} (${thisMonthMembers}) vs all of ${lastMonthName} (${lastMonthMembers})`;
+  const periodLabel=thisMonthLabel(today);
 
   const pendingAmount=S.members.filter(m=>!m.cancelled_at&&(m.payment_status==='Due'||m.payment_status==='Partial'))
     .reduce((s,m)=>s+outstandingAmount(m),0);
@@ -70,23 +73,23 @@ function renderOverview(c) {
     })()}
 
     <div class="grid-4" style="margin-bottom:var(--space-5);">
-      ${scard('Total Members',tot,'var(--brand)',growthPct!==0?`<span class="${growthPct>0?'trend-up':'trend-down'}">${Math.abs(growthPct)}%</span> vs last month`:`+${newThisMo} this month`,'','members','',trends.total,'var(--brand)')}
-      ${scard('Active',act,'var(--green)',`${activeRate}% active rate`,'','members','Active',trends.active,'var(--green)')}
-      ${scard('Payment Due',due,'var(--red)',due>0 && showFinancials ?fmtCurrency(pendingAmount)+' pending':due>0?due+' members pending':'All clear',due>0?'down':'','alerts','',trends.due,'var(--red)')}
-      ${scard('Expiring Soon',exp,'var(--amber)',trial>0?`${trial} on trial`:`Next ${S.gym?.reminder_days||7} days`,'','alerts','',trends.exp,'var(--amber)')}
+      ${scard('Total Members',fmtNumber(tot),'var(--brand)',growthPct!==0?`<span class="${growthPct>0?'trend-up':'trend-down'}">${Math.abs(growthPct)}%</span> vs last month`:`+${fmtNumber(newThisMo)} this month`,'','members','',trends.total,'var(--brand)','All time',growthTooltip)}
+      ${scard('Active',fmtNumber(act),'var(--green)',`${activeRate}% active rate`,'','members','Active',trends.active,'var(--green)','Right now','Active members ÷ total members, as of today')}
+      ${scard('Payment Due',fmtNumber(due),'var(--red)',due>0 && showFinancials ?fmtCurrency(pendingAmount)+' pending':due>0?due+' members pending':'All clear',due>0?'down':'','alerts','',trends.due,'var(--red)','Right now','Members with a Due or Partial payment status, as of today')}
+      ${scard('Expiring Soon',fmtNumber(exp),'var(--amber)',trial>0?`${trial} on trial`:`Next ${S.gym?.reminder_days||7} days`,'','alerts','',trends.exp,'var(--amber)',`Next ${S.gym?.reminder_days||7} days`,`Memberships expiring within the gym's configured reminder window (${S.gym?.reminder_days||7} days)`)}
     </div>
 
     ${showFinancials ? `<div class="mini-stat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-7);min-width:0;">
-      ${miniStat("Today’s Revenue",fmtCurrency(todayRevenue),'var(--green)','finance',true)}
-      ${miniStat('This Month',fmtCurrency(thisMonthRevenue),'var(--brand)','finance')}
-      ${miniStat('Admissions Today',todayAdmissions,'var(--purple)','members')}
-      ${miniStat('Expenses Today',fmtCurrency(todayExpenses),'var(--amber)','expenses')}
-      ${miniStat("Today’s Profit",fmtCurrency(todayProfit),todayProfit>=0?'var(--green)':'var(--red)','finance',true)}
-      ${miniStat('Total Staff',(S.staff||[]).length,'var(--brand-text)','staff')}
+      ${miniStat("Today’s Revenue",fmtCurrency(todayRevenue),'var(--green)','finance',true,`Payments recorded today, ${today.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)}
+      ${miniStat(`This Month (${periodLabel})`,fmtCurrency(thisMonthRevenue),'var(--brand)','finance',false,`Payments recorded ${periodLabel}`)}
+      ${miniStat('Admissions Today',fmtNumber(todayAdmissions),'var(--purple)','members',false,`Members joined today, ${today.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)}
+      ${miniStat('Expenses Today',fmtCurrency(todayExpenses),'var(--amber)','expenses',false,`Expenses recorded today, ${today.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)}
+      ${miniStat("Today’s Profit",fmtCurrency(todayProfit),todayProfit>=0?'var(--green)':'var(--red)','finance',true,"Today's revenue minus today's expenses")}
+      ${miniStat('Total Staff',fmtNumber((S.staff||[]).length),'var(--brand-text)','staff',false,'Active staff on record')}
     </div>` : `<div class="mini-stat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-7);min-width:0;">
-      ${miniStat('Admissions Today',todayAdmissions,'var(--purple)','members')}
-      ${miniStat('New This Month',newThisMo,'var(--brand)','members')}
-      ${miniStat('Total Staff',(S.staff||[]).length,'var(--brand-text)','staff')}
+      ${miniStat('Admissions Today',fmtNumber(todayAdmissions),'var(--purple)','members',false,`Members joined today, ${today.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}`)}
+      ${miniStat(`New This Month (${periodLabel})`,fmtNumber(newThisMo),'var(--brand)','members',false,`Members joined ${periodLabel}`)}
+      ${miniStat('Total Staff',fmtNumber((S.staff||[]).length),'var(--brand-text)','staff',false,'Active staff on record')}
     </div>`}
 
     ${showFinancials ? (() => {
@@ -103,7 +106,7 @@ function renderOverview(c) {
             <div style="font-size:12px;color:var(--text-tertiary);">${next30.length} member${next30.length!==1?'s':''} due for renewal</div>
           </div>
         </div>
-        <div style="font-size:24px;font-weight:700;color:var(--brand-text);font-variant-numeric:tabular-nums;">${fmtCurrency(forecastAmt)}</div>
+        <div style="font-size:24px;font-weight:700;color:var(--brand-text);font-variant-numeric:tabular-nums;" title="Sum of plan prices for members expiring in the next 30 calendar days">${fmtCurrency(forecastAmt)}</div>
       </div>`;
     })() : ''}
 
@@ -111,7 +114,7 @@ function renderOverview(c) {
       <div>
         <div class="overview-section-header">
           <div class="section-title-sm">Recent Activity</div>
-          <span class="section-meta">${activityCount} event${activityCount!==1?'s':''}</span>
+          <span class="section-meta">${fmtNumber(activityCount)} event${activityCount!==1?'s':''}</span>
         </div>
         <div class="activity-feed">${activityHtml}</div>
       </div>
@@ -224,10 +227,10 @@ function renderOverview(c) {
  * money figures (today's revenue, today's profit) get a bigger value and
  * a faint accent wash; the rest are unchanged.
  */
-function miniStat(label, value, color, navKey = '', emphasize = false) {
+function miniStat(label, value, color, navKey = '', emphasize = false, tooltip = '') {
   const clickable = navKey
-    ? `class="mini-stat-clickable" data-mini-nav="${escHtml(navKey)}" role="button" tabindex="0" title="Open ${escHtml(label)}"`
-    : '';
+    ? `class="mini-stat-clickable" data-mini-nav="${escHtml(navKey)}" role="button" tabindex="0" title="${escHtml(tooltip || ('Open ' + label))}"`
+    : (tooltip ? `title="${escHtml(tooltip)}"` : '');
   // Emphasis is carried by the tinted border and the value colour below.
   // A thick single-edge accent bar was the previous treatment; it read as
   // decoration rather than meaning, and the value is already in `color`.
@@ -276,13 +279,17 @@ function sparkline(values,color){
   return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="color:${color};"><path class="sparkline-fill" d="${fillPath}"></path><path d="${linePath}" stroke="${color}" style="stroke-linecap:round;stroke-linejoin:round;"></path></svg>`;
 }
 
-function scard(label,value,accent,sub,_subCls='',navKey='',navFilter='',trend=null,trendColor='var(--brand)'){
+function scard(label,value,accent,sub,_subCls='',navKey='',navFilter='',trend=null,trendColor='var(--brand)',periodLabel='',tooltip=''){
   const clickable=navKey?`data-nav="${navKey}" data-filter="${navFilter}"`:'';
+  // Every KPI card carries a period chip so "Total Members" vs "Payment
+  // Due" don't silently mean two different windows (one all-time, one
+  // "as of now") without saying so — AUDIT.md C2.
+  const periodChip=periodLabel?`<span class="stat-card-period" title="${escHtml(tooltip||periodLabel)}">${escHtml(periodLabel)}</span>`:'';
   return `<div class="stat-card ${navKey?'stat-card-clickable':''}" ${clickable} style="--stat-dot:${accent};">
     <div class="stat-card-accent" style="background:${accent};"></div>
-    <div class="stat-card-label">${label}</div>
+    <div class="stat-card-label">${label}${periodChip}</div>
     <div class="stat-card-value">${value}</div>
-    <div class="stat-card-sub">${sub}</div>
+    <div class="stat-card-sub"${tooltip?` title="${escHtml(tooltip)}"`:''}>${sub}</div>
     ${trend?sparkline(trend,trendColor):''}
   </div>`;
 }

@@ -258,6 +258,23 @@ function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
 }
 function fmtCurrency(n) { return '₹' + (parseFloat(n)||0).toLocaleString('en-IN'); }
+// Plain integer counts (member counts, staff counts, etc.) used bare
+// template interpolation everywhere, so a gym crossing 1,000 members
+// would show "1234" instead of "1,234" — fmtCurrency already used
+// en-IN grouping for money, this is the same rule for unit-less counts.
+function fmtNumber(n) { return (Number(n)||0).toLocaleString('en-IN'); }
+// "This month" period label, e.g. "1–26 Aug 2026" when the range is
+// partial (today mid-month) or "Aug 2026" for a completed month —
+// AUDIT.md C2: cards said "This month" with no indication of which
+// dates that covers, or whether it's the completed month or the
+// still-in-progress one.
+function thisMonthLabel(refDate = new Date()) {
+  const d = refDate;
+  const monthShort = d.toLocaleDateString('en-IN', { month: 'short' });
+  const year = d.getFullYear();
+  const today = d.getDate();
+  return `1–${today} ${monthShort} ${year}`;
+}
 function fmtCurrencyShort(n) {
   const num = parseFloat(n)||0;
   if (num >= 100000) return '₹' + (num/100000).toFixed(1) + 'L';
@@ -415,6 +432,7 @@ export {
   expiryDate, daysLeft, memberStatus, outstandingAmount, isNewThisMonth, memberTotal,
   computeRenewalBase,
   genInvoiceNo, escHtml, escAttr, fmtDate, fmtDateShort, fmtCurrency, fmtCurrencyShort,
+  fmtNumber, thisMonthLabel,
   av2, timeAgo, ico,
   demoPlans, demoMembers, showSectionLoading, renderEmpty, renderError,
   setFieldError, clearFieldError,

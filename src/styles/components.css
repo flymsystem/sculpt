@@ -43,6 +43,10 @@
 .stat-card-accent{position:absolute;top:0;left:0;right:0;height:2px;opacity:0.7;}
 .stat-card-label{display:flex;align-items:center;gap:6px;font-size:var(--text-sm);color:var(--text-secondary);font-weight:500;margin-bottom:var(--space-3);letter-spacing:0;text-transform:none;}
 .stat-card-label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--stat-dot,var(--brand));}
+/* Explicit period chip on each KPI card — AUDIT.md C2: cards had no
+   indication of whether a number was "as of now" or "all time", or
+   which exact dates a "this month" figure covered. */
+.stat-card-period{margin-left:auto;font-size:var(--text-xs);font-weight:600;color:var(--text-quaternary);background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:var(--radius-pill);padding:1px 8px;white-space:nowrap;cursor:default;}
 .stat-card-value{font-size:var(--text-4xl);font-weight:600;color:var(--text-primary);line-height:1;letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;}
 .stat-card-sub{font-size:var(--text-sm);color:var(--text-tertiary);margin-top:var(--space-3);display:flex;align-items:center;gap:6px;}
 .stat-card-sub .up{color:var(--green);font-weight:500;}.stat-card-sub .down{color:var(--red);font-weight:500;}
