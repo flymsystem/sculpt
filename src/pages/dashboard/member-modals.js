@@ -1000,15 +1000,16 @@ function openEditModal(id) {
               payment_status:updates.paymentStatus, member_type:updates.memberType, notes:updates.notes,
               discount_amount:updates.discountAmount, balance_due:updates.balanceDue};
           }
-          // Save photo if changed — wait for it before closing
-          const editPhotoDataUrl = window.__pendingEditPhoto?.();
-          if (editPhotoDataUrl && m.id && S.gym?.id) {
-            btn.textContent = 'Saving photo…';
-            try {
-              await _saveMemberPhoto(editPhotoDataUrl, S.gym.id, m.id);
-              S.members = await getMembers(S.gym.id);
-            } catch (err) { showToast('Photo save failed', 'amber'); }
-          }
+          // NOTE: photo upload is handled above, inside the `if (S.gym?.id)`
+          // branch, right after updateMember() resolves. A second block used
+          // to sit here re-reading window.__pendingEditPhoto and uploading
+          // again — the same photo, twice, on every edit that included one.
+          // window.__pendingEditPhoto isn't cleared after being consumed
+          // (the modal is about to close anyway), so this block always saw
+          // the same pending data URL as the one above and fired a redundant
+          // second upload + a redundant full S.members refetch. Removed;
+          // the block above already updates S.members[idx] with the saved
+          // row (photo_url included) without a second round trip.
           closeModal(); _nav('members'); showToast('Member updated!','green');
         } catch(err) { errEl.textContent=err.message; errEl.style.display='block'; btn.disabled=false; btn.textContent='Save Changes →'; }
       });
