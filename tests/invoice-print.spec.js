@@ -78,6 +78,13 @@ for (const [label, [member, gym]] of Object.entries(FIXTURES)) {
 
       const m = await page.evaluate(() => {
         const sheet = document.querySelector('.page');
+        // The sheet is deliberately SCALED with zoom, not restretched with
+        // width:100% — those are different things and this test must not
+        // conflate them. getBoundingClientRect() reports the post-zoom
+        // *rendered* size (what lands on paper); getComputedStyle().width
+        // reports the pre-zoom *authored* CSS value, which is the actual
+        // thing this test is guarding — it must stay 660px, zoom or no zoom.
+        const authoredWidth = parseFloat(getComputedStyle(sheet).width);
         const r = sheet.getBoundingClientRect();
         let left = r.left;
         let right = r.right;
@@ -87,17 +94,34 @@ for (const [label, [member, gym]] of Object.entries(FIXTURES)) {
           left = Math.min(left, b.left);
           right = Math.max(right, b.right);
         }
-        return { sheet: Math.round(r.width), left: Math.round(left), right: Math.round(right) };
+        return {
+          authoredWidth: Math.round(authoredWidth),
+          renderedWidth: Math.round(r.width),
+          left: Math.round(left),
+          right: Math.round(right),
+        };
       });
 
       expect(
-        m.sheet,
-        'The print sheet must stay at the previewed width. A width:100% here ' +
+        m.authoredWidth,
+        'The print sheet\'s authored CSS width must stay 660px. A width:100% here ' +
         'reflows the invoice into a shape nobody has ever looked at.'
       ).toBe(SHEET_WIDTH);
 
       expect(m.left, 'Invoice content ran off the left edge of the paper').toBeGreaterThanOrEqual(0);
       expect(m.right, 'Invoice content ran off the right edge of the paper').toBeLessThanOrEqual(paper.width);
+
+      // The scaling fix this test also guards: a raw 660px sheet only
+      // covers ~83% of A4's width, floating as a small block in the middle
+      // of the page. zoom:1.18 should now fill most of the paper's width —
+      // assert the rendered sheet covers at least 90% of it, on every paper
+      // size this fixture set is checked against.
+      const fillRatio = m.renderedWidth / paper.width;
+      expect(
+        fillRatio,
+        `Printed sheet only fills ${Math.round(fillRatio * 100)}% of ${paper.name} — ` +
+        'that is the "floating in the middle of a mostly white page" bug this scaling fix addresses.'
+      ).toBeGreaterThanOrEqual(0.9);
     });
   }
 }

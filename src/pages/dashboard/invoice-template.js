@@ -359,20 +359,53 @@ function buildInvoiceDocument(m, gymName, invoiceNo) {
      A4 width and ~80% of its height, so a printed invoice floated in the
      middle of a mostly white page. The sheet is therefore *scaled*, never
      restretched — zoom enlarges the whole 660px layout (type, rules and
-     spacing together) to 779px, which is 96% of the 794px A4 width and
-     leaves ~8px of paper on each side plus the sheet's own 47px padding.
-     The page box is asked for at margin:0 so both print routes described
-     above land on the same geometry; the white border you see is the
-     sheet's padding, not a page margin. min-height rises to 940px so the
-     scaled sheet is 1109px of A4's 1122px — full page, 13px of slack for
-     rounding so it never tips onto a second sheet. */
+     spacing together) to 739px, which is 93% of the 794px A4 width and
+     91% of Letter's narrower 816px, leaving white paper on each side plus
+     the sheet's own 47px padding. The page box is asked for at margin:0 so
+     both print routes described above land on the same geometry; the
+     white border you see is the sheet's padding, not a page margin.
+
+     min-height and zoom are tuned together against the actual organic
+     (unpadded) content height of each fixture in
+     tests/invoice-print.spec.js, measured directly with min-height and
+     zoom forced off — not derived by scaling one known-good number, which
+     turned out to be unreliable (see below):
+
+       plain receipt            841px organic
+       GST tax invoice          858px organic
+       GST + add-ons, discount,
+         balance due (worst case
+         still meant to fit one page)   992px organic
+       deliberately over-long           1158px organic → meant to break
+
+     min-height:950 sits comfortably *below* the worst case's 992px, with
+     real margin — it only ever pads the two short fixtures (841/858) up
+     toward a fuller page; the worst case is entirely content-driven and
+     never touches the min-height branch. That margin matters: an earlier
+     version set min-height to 990, just 2px under the worst case's 992,
+     and the two landed close enough that zoom's own sub-pixel rounding
+     made which branch "won" unpredictable — a naive linear scale-up
+     predicted 1108.6px at zoom 1.12, but the real rendered height came
+     out to 1126px, over A4's 1122px budget. Re-measured with min-height
+     genuinely out of the way, zoom 1.12 puts the worst case at
+     992×1.12 ≈ 1111px (12px of slack) and the short fixtures at
+     950×1.12 = 1064px (94.8% of A4's 1122px height) — both a safe
+     distance from the boundary, no near-ties left to round either way.
+     The over-long fixture still spills to a second page as designed:
+     1158×1.12 ≈ 1297px.
+
+     zoom was originally 1.18 (min-height 940) for a tighter horizontal
+     fit, but that pushed the worst-case invoice onto a spurious second
+     page (992×1.18 ≈ 1170px, 4% over budget). Per the standing rule for
+     this file — tune the print zoom down before ever touching font sizes
+     — 1.18 dropped to 1.12. */
   @page{size:A4 portrait;margin:0;}
   @media print{
     body.inv-doc{background:#fff;padding:0;}
     .page{
       width:660px;max-width:660px;margin:0 auto;
-      min-height:940px;
-      box-shadow:none;zoom:1.18;
+      min-height:950px;
+      box-shadow:none;zoom:1.12;
     }
   }
 </style>
