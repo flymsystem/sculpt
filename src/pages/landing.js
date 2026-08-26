@@ -39,17 +39,41 @@ const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'SCULPT01';
 // ── Gym details ───────────────────────────────────────────────────
 // An empty string means "not supplied yet" and renders as a visible
 // to-be-supplied chip. Fill these in and the chips vanish.
+//
+// PHASE E (2026-08): filled from the client's real details. `phone` is the
+// primary contact number and is what the footer's `tel:` link uses;
+// `phone2` is a second reachable line — shown as a second link when
+// present, but never required (see orTbd / tbd, which only gate on the
+// primary fields below). `whatsapp` is deliberately the number the client
+// asked WhatsApp traffic to land on, which is not the same as `phone`.
 const GYM = {
-  addressLine1: 'Malagala',
-  addressLine2: 'Bangalore',
-  phone: '',
-  whatsapp: '',
-  email: '',
-  hoursWeekday: '',
-  hoursWeekend: '',
-  instagram: '',
-  mapsUrl: '',
+  addressLine1: 'No.13, 20th Cross, Malagala,',
+  addressLine2: 'Nagarbhavi 2nd Stage, Bangalore - 560091',
+  phone: '+91 78921 31996',
+  phone2: '+91 88678 78946',
+  whatsapp: '+91 88678 78946',
+  email: 'dsculptfitness5@gmail.com',
+  hoursWeekday: '5:00 AM – 10:00 PM',
+  hoursWeekend: '7:00 AM – 12:00 PM',
+  instagram: 'https://www.instagram.com/d_sculptfitness?igsi=MWZnMmN3eXJmeXdjbA==',
+  mapsUrl: 'https://maps.google.com/maps?q=12.974279403686523%2C77.51455688476562&z=17&hl=en',
 };
+
+// The classic (non-JS-API) Google Maps embed — appending output=embed to
+// the same maps.google.com URL the client gave us renders it inside an
+// iframe with no API key required. Built once from GYM.mapsUrl rather than
+// hardcoded so the two never drift apart if the address ever changes.
+const MAP_EMBED_URL = GYM.mapsUrl ? `${GYM.mapsUrl}&output=embed` : '';
+
+// A single WhatsApp deep link builder so the prefilled message text lives
+// in one place. Every "Contact us" CTA on the page uses this — the brief
+// is explicit that "Contact us" must fire off a real action immediately,
+// not land the visitor on the footer to go find a number themselves.
+const waLink = (text) =>
+  GYM.whatsapp
+    ? `https://wa.me/${GYM.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(text)}`
+    : '';
+const WA_CTA_TEXT = "Hi! I'd like to know more about training at D Sculpt Fitness.";
 
 const PROGRAMMES = [
   {
@@ -168,8 +192,16 @@ export function renderLanding(router) {
   };
 
   const telHref = GYM.phone ? `tel:${GYM.phone.replace(/[^\d+]/g, '')}` : '';
-  const waHref = GYM.whatsapp ? `https://wa.me/${GYM.whatsapp.replace(/[^\d]/g, '')}` : '';
+  const tel2Href = GYM.phone2 ? `tel:${GYM.phone2.replace(/[^\d+]/g, '')}` : '';
+  const waHref = waLink(WA_CTA_TEXT);
   const mailHref = GYM.email ? `mailto:${GYM.email}` : '';
+  // The "Contact us" CTAs (hero + closing band) fire the WhatsApp deep
+  // link directly when we have a number, per the brief: those buttons must
+  // do something immediately, not drop the visitor on the footer to hunt
+  // for a number themselves. Falls back to the in-page #contact anchor
+  // only in the no-WhatsApp-number-yet state, so the button is never dead.
+  const ctaHref = waHref || '#contact';
+  const ctaTarget = waHref ? ' target="_blank" rel="noopener"' : '';
 
   document.getElementById('root').innerHTML = `
   <div class="sc-land">
@@ -180,11 +212,11 @@ export function renderLanding(router) {
         <img src="/logo-128.png" alt="D Sculpt Fitness" width="56" height="56" decoding="async">
       </a>
       <nav class="sc-nav-links" id="sc-nav-links" aria-label="Primary">
-        <a href="#why">Why us</a>
-        <a href="#programmes">Training</a>
-        <a href="#membership" class="sc-nav-membership" hidden>Membership</a>
-        <a href="#about">About</a>
-        <a href="#contact">Contact</a>
+        <a href="#why" class="sc-navlink">Why us</a>
+        <a href="#programmes" class="sc-navlink">Training</a>
+        <a href="#membership" class="sc-navlink sc-nav-membership" hidden>Membership</a>
+        <a href="#about" class="sc-navlink">About</a>
+        <a href="#contact" class="sc-navlink">Contact</a>
         <div class="sc-nav-divider" role="separator" aria-hidden="true"></div>
         <button class="sc-nav-login-member" id="sc-nav-member-login" type="button">Member Login</button>
         <button class="sc-nav-login-staff" id="sc-nav-staff-login" type="button">Staff &amp; Owner Login</button>
@@ -201,7 +233,7 @@ export function renderLanding(router) {
          by gradient scrims, rather than sitting in a box beside the text. -->
     <section class="sc-hero" id="top">
       <div class="sc-hero-media" aria-hidden="true">
-        <img src="/img/hero.jpg" alt="" fetchpriority="high" decoding="async">
+        <img src="/img/hero.jpg" width="1400" height="1034" alt="" fetchpriority="high" decoding="async">
         <div class="sc-hero-scrim"></div>
       </div>
       <div class="sc-hero-inner">
@@ -216,7 +248,7 @@ export function renderLanding(router) {
           watches your form.
         </p>
         <div class="sc-cta-row">
-          <a class="sc-btn sc-btn-lg" href="#contact">Contact us</a>
+          <a class="sc-btn sc-btn-lg" href="${escHtml(ctaHref)}"${ctaTarget}>Contact us</a>
           <a class="sc-btn sc-btn-lg sc-btn-ghost" href="#membership" id="sc-hero-plans">View memberships</a>
         </div>
       </div>
@@ -242,7 +274,7 @@ export function renderLanding(router) {
         ${PROGRAMMES.map(p => `
           <article class="sc-prog">
             <figure class="sc-duo sc-prog-img">
-              <img src="${p.img}" alt="" loading="lazy" decoding="async">
+              <img src="${p.img}" width="900" height="675" alt="" loading="lazy" decoding="async">
             </figure>
             <h3>${p.name}</h3>
             <p>${p.body}</p>
@@ -275,10 +307,10 @@ export function renderLanding(router) {
           chosen for serious training, and the room stays welcoming enough
           that a first-timer and a seasoned lifter can train side by side.
         </p>
-        <a class="sc-btn sc-btn-lg" href="#contact">Come and see the floor</a>
+        <a class="sc-btn sc-btn-lg" href="${escHtml(ctaHref)}"${ctaTarget}>Come and see the floor</a>
       </div>
       <figure class="sc-duo sc-about-img">
-        <img src="/img/about.jpg" alt="The D Sculpt Fitness training floor" loading="lazy" decoding="async">
+        <img src="/img/about.jpg" width="1190" height="1322" alt="The D Sculpt Fitness training floor" loading="lazy" decoding="async">
       </figure>
     </section>
 
@@ -289,7 +321,7 @@ export function renderLanding(router) {
         Train with purpose. Build the discipline.
       </p>
       <div class="sc-cta-row sc-cta-center">
-        <a class="sc-btn sc-btn-lg" href="#contact">Contact us</a>
+        <a class="sc-btn sc-btn-lg" href="${escHtml(ctaHref)}"${ctaTarget}>Contact us</a>
       </div>
     </section>
 
@@ -316,6 +348,9 @@ export function renderLanding(router) {
             ${telHref
               ? `<a class="sc-link" href="${escHtml(telHref)}">${escHtml(GYM.phone)}</a>`
               : tbd('Phone number')}
+            ${tel2Href
+              ? `<a class="sc-link" href="${escHtml(tel2Href)}">${escHtml(GYM.phone2)}</a>`
+              : ''}
             ${waHref
               ? `<a class="sc-link" href="${escHtml(waHref)}" target="_blank" rel="noopener">WhatsApp us</a>`
               : tbd('WhatsApp number')}
@@ -331,12 +366,30 @@ export function renderLanding(router) {
         <div class="sc-foot-col">
           <h3>Opening hours</h3>
           <p class="sc-hours">
-            <span>Mon–Fri</span> ${orTbd(GYM.hoursWeekday, 'Weekday hours')}<br>
-            <span>Sat–Sun</span> ${orTbd(GYM.hoursWeekend, 'Weekend hours')}
+            <span>Mon–Sat</span> ${orTbd(GYM.hoursWeekday, 'Weekday hours')}<br>
+            <span>Sunday</span> ${orTbd(GYM.hoursWeekend, 'Weekend hours')}
           </p>
         </div>
 
       </div>
+
+      <!-- MAP — the iframe src is deliberately NOT set here. It is loaded
+           by an IntersectionObserver in the wiring below, the first time
+           this box actually scrolls into view. The footer sits at the very
+           bottom of a long page, so an eager iframe here would still cost
+           the Maps handshake on every visit even though almost nobody
+           scrolls this far before deciding to leave — and an unconditional
+           embed would compete with the hero photo for the same loading
+           budget on a slow connection. loading="lazy" is kept on the
+           <iframe> too as defense in depth for browsers that honour it
+           before JS finishes booting. -->
+      ${MAP_EMBED_URL ? `
+      <div class="sc-map" id="sc-map" data-src="${escHtml(MAP_EMBED_URL)}">
+        <a class="sc-map-fallback" href="${escHtml(GYM.mapsUrl)}" target="_blank" rel="noopener">
+          Open location in Google Maps
+        </a>
+      </div>` : ''}
+
       <div class="sc-foot-bar">
         <small>© ${new Date().getFullYear()} D Sculpt Fitness</small>
         <button class="sc-foot-login" id="sc-foot-login" type="button">Staff &amp; owner login</button>
@@ -377,6 +430,70 @@ export function renderLanding(router) {
   const onScroll = () => nav?.classList.toggle('is-stuck', window.scrollY > 12);
   onScroll();
   window.addEventListener('scroll', onScroll, { passive: true });
+
+  // Active nav state (scrollspy). Tracks which section is currently
+  // crossing a horizontal band roughly a third of the way down the
+  // viewport and marks the matching drawer link — the only "visible active
+  // state" a burger-drawer nav can meaningfully show, since the links
+  // themselves are not on screen at the same time as the content unless
+  // the drawer is open. rootMargin biases the trigger line up from centre
+  // so a short section (Membership, before any plans load) still gets a
+  // turn as "current" instead of being skipped between its taller
+  // neighbours.
+  const navLinks = [...document.querySelectorAll('.sc-navlink')];
+  const sectionEls = navLinks
+    .map(a => document.getElementById(a.getAttribute('href').slice(1)))
+    .filter(Boolean);
+  let spyObs = null;
+  if (sectionEls.length && typeof IntersectionObserver !== 'undefined') {
+    spyObs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const id = entry.target.id;
+        navLinks.forEach((a) => {
+          const match = a.getAttribute('href') === `#${id}`;
+          a.classList.toggle('is-active', match);
+          if (match) a.setAttribute('aria-current', 'true');
+          else a.removeAttribute('aria-current');
+        });
+      });
+    }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+    sectionEls.forEach(el => spyObs.observe(el));
+  }
+
+  // Contact map — loaded only once the footer box actually enters the
+  // viewport (see the HTML comment above .sc-map for why). A one-shot
+  // observer: once the iframe is created it disconnects itself, there is
+  // nothing left to watch.
+  const mapBox = document.getElementById('sc-map');
+  let mapObs = null;
+  const loadMap = () => {
+    if (!mapBox || mapBox.querySelector('iframe')) return;
+    const src = mapBox.getAttribute('data-src');
+    if (!src) return;
+    const iframe = document.createElement('iframe');
+    iframe.src = src;
+    iframe.loading = 'lazy';
+    iframe.title = 'D Sculpt Fitness location';
+    iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    mapBox.prepend(iframe);
+  };
+  if (mapBox) {
+    if (typeof IntersectionObserver === 'undefined') {
+      // No lazy-load signal available in this browser — load immediately
+      // rather than never show the map at all.
+      loadMap();
+    } else {
+      mapObs = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          loadMap();
+          mapObs.disconnect();
+        });
+      }, { rootMargin: '200px 0px' });
+      mapObs.observe(mapBox);
+    }
+  }
 
   // Reveal-on-scroll. Guarded by prefers-reduced-motion: when the visitor
   // asks for less motion the elements are simply already visible, rather
@@ -430,6 +547,8 @@ export function renderLanding(router) {
     cancelled = true;
     window.removeEventListener('scroll', onScroll);
     if (obs) obs.disconnect();
+    if (spyObs) spyObs.disconnect();
+    if (mapObs) mapObs.disconnect();
     // Leaving mid-fade must not strand the plate over the next route.
     document.getElementById('sc-intro')?.remove();
   };
@@ -527,9 +646,17 @@ function injectLandingStyles() {
   flex-direction:column;gap:0;background:rgba(5,5,7,0.98);backdrop-filter:blur(10px);
   border-bottom:1px solid rgba(200,205,214,0.12);padding:8px var(--sc-gut) 16px;}
 .sc-nav-links.is-open{display:flex;}
-.sc-nav-links a{color:${CHROME};text-decoration:none;font-size:16px;font-weight:500;
-  padding:14px 0;border-bottom:1px solid rgba(200,205,214,0.07);transition:color .18s ease;}
+.sc-nav-links a{position:relative;color:${CHROME};text-decoration:none;font-size:16px;font-weight:500;
+  padding:14px 0 14px 14px;border-bottom:1px solid rgba(200,205,214,0.07);transition:color .18s ease;}
 .sc-nav-links a:hover,.sc-nav-links a:focus-visible{color:#fff;}
+/* Active-section indicator (scrollspy, wired in renderLanding). A left
+   bar rather than a colour-only change — colour alone fails a glance test
+   for anyone with reduced colour vision, and this nav already reserves
+   ${BLUE_LIGHT} for the member-login CTA, so reusing it here plus a shape
+   cue keeps the two visually distinct rather than both just "blue text". */
+.sc-navlink.is-active{color:#fff;}
+.sc-navlink.is-active::before{content:'';position:absolute;left:0;top:18px;bottom:18px;
+  width:3px;border-radius:2px;background:${BLUE};}
 /* Visual separation between "browse the site" and "sign in" — a member
    must never land on the staff/owner login by accident. The divider
    plus two deliberately different button treatments (filled brand pill
@@ -593,12 +720,18 @@ function injectLandingStyles() {
 .sc-cta-center{justify-content:center;}
 
 /* SECTIONS */
-.sc-sec{padding-block:clamp(48px,7vw,88px);}
+/* 2026-08: trimmed from clamp(48px,7vw,88px). Two adjacent sections each
+   paying the full block padding stacked into ~176px of empty black between,
+   say, the last "why" card and the first programme heading — enough that a
+   visitor scrolling past it on a laptop could plausibly think the page had
+   ended. The hero keeps its own much taller min-height, so it stays the
+   dominant band regardless of how tight the sections below it run. */
+.sc-sec{padding-block:clamp(40px,5.5vw,64px);}
 .sc-sec-alt{background:#0A0B0E;}
 /* Membership specifically runs tighter still — a pricing grid reads best
    compact, and the hero stays the tallest, most visually dominant band
    on the page precisely because every section below it is this measured. */
-.sc-sec-tight{padding-block:clamp(32px,5vw,56px);}
+.sc-sec-tight{padding-block:clamp(28px,4vw,44px);}
 .sc-h2{font-size:clamp(28px,5vw,48px);margin:0 0 16px;}
 .sc-sec-sub{color:#8A929F;font-size:14px;line-height:1.6;margin:0 0 20px;max-width:60ch;}
 .sc-grid{display:grid;gap:16px;margin-top:8px;}
@@ -708,6 +841,20 @@ function injectLandingStyles() {
 .sc-tbd{display:inline-block;color:#6B727E;font-size:12.5px;font-weight:500;
   background:rgba(200,205,214,0.05);border:1px dashed rgba(200,205,214,0.20);
   border-radius:6px;padding:3px 9px;}
+/* MAP — an aspect-ratio box so the layout does not jump by the iframe's
+   height the moment the IntersectionObserver in renderLanding fills it in;
+   the fallback link sits underneath the box the whole time (not just while
+   the iframe is absent) since Google's own "Open in Maps" affordance
+   inside the embed is small and easy to miss on a touch screen. */
+.sc-map{position:relative;margin-top:36px;border-radius:var(--sc-card);overflow:hidden;
+  aspect-ratio:16/7;background:#0E1013;border:1px solid rgba(200,205,214,0.10);}
+.sc-map iframe{position:absolute;inset:0;width:100%;height:100%;border:0;filter:grayscale(0.25) contrast(1.05);}
+.sc-map-fallback{position:absolute;left:14px;bottom:14px;z-index:1;
+  background:rgba(5,5,7,0.82);backdrop-filter:blur(6px);color:#F2F4F8;
+  font-size:13px;font-weight:600;text-decoration:none;padding:9px 14px;
+  border-radius:999px;border:1px solid rgba(200,205,214,0.22);}
+.sc-map-fallback:hover{border-color:${BLUE};color:#fff;}
+@media (max-width:560px){.sc-map{aspect-ratio:4/3;}}
 .sc-foot-bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;
   margin-top:44px;padding-top:22px;border-top:1px solid rgba(200,205,214,0.08);}
 .sc-foot-bar small{color:#6B727E;font-size:12.5px;}

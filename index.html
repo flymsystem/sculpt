@@ -12,15 +12,17 @@
   <meta name="format-detection" content="telephone=no">
 
   <!-- SEO
-       HANDOVER: the following still need real values from the client —
-         · the live domain, for <link rel="canonical">, og:url and og:image
-         · the city/area, to append to the title and description
-         · a social share image (1200x630) once photography exists
-       canonical/og:url/og:image are deliberately ABSENT rather than guessed:
-       a wrong canonical URL actively harms search ranking. -->
-  <title>D Sculpt Fitness</title>
-  <meta name="description" content="D Sculpt Fitness — strength training, personal coaching and group classes. Come train with us.">
-  <meta name="keywords" content="gym, fitness centre, strength training, personal training, group classes, weight training, D Sculpt Fitness">
+       PHASE E (2026-08): city/area and social share image are filled in
+       below (Malagala, Bangalore; /img/og-share.jpg — built by
+       scripts/prep-landing-images.mjs from the real hero photo + logo).
+       HANDOVER: the live domain for <link rel="canonical"> and og:url is
+       still missing and is deliberately left OFF rather than guessed — a
+       wrong canonical URL actively harms search ranking, and og:image
+       below is given as a root-relative path for exactly this reason: it
+       resolves correctly once a domain exists without another edit here. -->
+  <title>D Sculpt Fitness — Malagala, Bangalore</title>
+  <meta name="description" content="D Sculpt Fitness — strength training, personal coaching and group classes in Malagala, Nagarbhavi 2nd Stage, Bangalore. Come train with us.">
+  <meta name="keywords" content="gym, fitness centre, strength training, personal training, group classes, weight training, D Sculpt Fitness, Nagarbhavi, Bangalore">
   <meta name="author" content="D Sculpt Fitness">
   <meta name="robots" content="index, follow">
 
@@ -34,23 +36,34 @@
   <meta name="theme-color" content="#050507" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="D Sculpt Fitness">
-  <meta property="og:description" content="Strength training, personal coaching and group classes. Come train with us.">
+  <!-- Open Graph
+       og:image is root-relative (no scheme/host) since og:url/canonical are
+       still absent — see the SEO comment above. Most crawlers resolve a
+       relative og:image against the page URL fine; once a domain exists,
+       swap this for an absolute one at the same time as adding og:url. -->
+  <meta property="og:title" content="D Sculpt Fitness — Malagala, Bangalore">
+  <meta property="og:description" content="Strength training, personal coaching and group classes in Malagala, Nagarbhavi 2nd Stage, Bangalore. Come train with us.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="D Sculpt Fitness">
   <meta property="og:locale" content="en_IN">
+  <meta property="og:image" content="/img/og-share.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="D Sculpt Fitness training floor">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="D Sculpt Fitness">
-  <meta name="twitter:description" content="Strength training, personal coaching and group classes.">
+  <meta name="twitter:title" content="D Sculpt Fitness — Malagala, Bangalore">
+  <meta name="twitter:description" content="Strength training, personal coaching and group classes in Malagala, Bangalore.">
+  <meta name="twitter:image" content="/img/og-share.jpg">
 
   <!-- Structured Data (JSON-LD)
-       HANDOVER: add "address", "telephone", "geo" and
-       "openingHoursSpecification" once the client supplies them. They are
-       omitted rather than stubbed — publishing invented location data to
-       search engines is worse than publishing none. -->
+       PHASE E (2026-08): address, telephone, geo and opening hours filled
+       in from the client's real details (the same GYM object values used
+       in src/pages/landing.js — kept in sync by hand since this file has
+       no import from the JS bundle). geo coordinates come from the same
+       Google Maps link the footer's "Open in Maps" link and embedded map
+       use, so all three point at the same pin. -->
 
   <script type="application/ld+json">
   {
@@ -58,7 +71,38 @@
     "@type": "HealthClub",
     "name": "D Sculpt Fitness",
     "description": "Strength training, personal coaching and group classes.",
-    "currenciesAccepted": "INR"
+    "currenciesAccepted": "INR",
+    "telephone": "+91 78921 31996",
+    "email": "dsculptfitness5@gmail.com",
+    "sameAs": ["https://www.instagram.com/d_sculptfitness?igsi=MWZnMmN3eXJmeXdjbA=="],
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "No.13, 20th Cross, Malagala, Nagarbhavi 2nd Stage",
+      "addressLocality": "Bangalore",
+      "postalCode": "560091",
+      "addressRegion": "Karnataka",
+      "addressCountry": "IN"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 12.974279403686523,
+      "longitude": 77.51455688476562
+    },
+    "hasMap": "https://maps.google.com/maps?q=12.974279403686523%2C77.51455688476562&z=17&hl=en",
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opens": "05:00",
+        "closes": "22:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Sunday",
+        "opens": "07:00",
+        "closes": "12:00"
+      }
+    ]
   }
   </script>
 
