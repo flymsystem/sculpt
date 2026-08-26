@@ -137,12 +137,31 @@ body{width:100%;overflow-x:hidden;position:relative;}
 .members-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-5);}
 .members-filters{display:flex;gap:var(--space-2);margin-bottom:var(--space-4);flex-wrap:wrap;}
 .members-table-wrap{background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;}
-.members-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+/* The scroller itself is the table's own scroll container (not the
+   page), so a `position:sticky` header sticks to the TOP OF THIS BOX,
+   not the viewport — that's what makes it usable while a long member
+   list scrolls underneath a capped-height table, not a full-page sticky
+   header (which would need a different containing block). */
+.members-table-scroll{overflow-x:auto;overflow-y:auto;max-height:min(72vh,720px);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
 .members-table{width:100%;border-collapse:collapse;min-width:580px;}
 .members-table thead tr{background:var(--surface-2);}
-.members-table th{padding:11px 14px;text-align:left;font-size:var(--text-sm);color:var(--text-tertiary);font-weight:500;border-bottom:1px solid var(--border-subtle);white-space:nowrap;letter-spacing:0;}
+.members-table th{padding:11px 14px;text-align:left;font-size:var(--text-sm);color:var(--text-tertiary);font-weight:500;border-bottom:1px solid var(--border-subtle);white-space:nowrap;letter-spacing:0;position:sticky;top:0;background:var(--surface-2);z-index:2;}
 .members-table td{padding:12px 14px;font-size:var(--text-md);color:var(--text-primary);border-bottom:1px solid var(--border-subtle);vertical-align:middle;}
 .members-table tr:last-child td{border-bottom:none;}.member-row:hover td{background:var(--surface-2);}
+/* Sticky Actions column — the row's only column a user still needs once
+   they've scrolled the table horizontally to read a mid-table value. */
+.members-table th:last-child,.members-table td.col-actions{position:sticky;right:0;background:var(--surface-1);z-index:1;box-shadow:-6px 0 8px -6px rgba(0,0,0,0.25);}
+.members-table thead th:last-child{background:var(--surface-2);z-index:3;}
+.member-row:hover td.col-actions{background:var(--surface-2);}
+
+/* Row overflow menu (⋯) — appended to <body>, positioned via JS
+   (members.js toggleOverflowMenu) since the table's own horizontal
+   scroller would clip an absolutely-positioned dropdown. */
+.row-overflow-menu{position:fixed;z-index:var(--z-overlay,500);background:var(--surface-1);border:1px solid var(--border-default);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);min-width:200px;padding:4px;display:flex;flex-direction:column;animation:fadeDown var(--duration-fast) var(--ease-out);}
+.row-overflow-item{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 12px;font-size:13px;font-family:var(--font-sans);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer;}
+.row-overflow-item:hover,.row-overflow-item:focus-visible{background:var(--surface-2);color:var(--text-primary);outline:none;}
+.row-overflow-item.danger{color:var(--red);}
+.row-overflow-item.danger:hover,.row-overflow-item.danger:focus-visible{background:var(--red-fade);}
 
 /* HAMBURGER + OVERLAY */
 .hamburger-btn{display:none;flex-direction:column;justify-content:center;gap:5px;background:none;border:none;cursor:pointer;padding:6px;margin-right:4px;width:36px;height:36px;flex-shrink:0;}
