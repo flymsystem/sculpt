@@ -368,7 +368,12 @@ function injectMemberPortalStyles() {
   const style = document.createElement('style');
   style.id = 'member-portal-styles';
   style.textContent = `
-    #page-member { display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; background:var(--surface-bg); }
+    /* height (not just min-height) pins this flex column to exactly the
+       viewport — see the min-height:0 comment on .mp-content below for
+       why both sides of this pairing are required before a long list's
+       own overflow-y:auto actually engages instead of pushing the whole
+       shell (and the bottom nav bar with it) taller than the screen. */
+    #page-member { display:flex; flex-direction:column; height:100vh; height:100dvh; background:var(--surface-bg); }
     .mp-topbar { display:flex; align-items:center; gap:12px; padding:14px 18px; padding-top:max(14px, env(safe-area-inset-top,0px)); border-bottom:1px solid var(--border-subtle); flex-shrink:0; background:var(--surface-1); }
     .mp-topbar-badge { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border-subtle); flex-shrink:0; overflow:hidden; }
     .mp-topbar-logo { width:100%; height:100%; object-fit:contain; }
@@ -376,7 +381,18 @@ function injectMemberPortalStyles() {
     .mp-signout { background:none; border:1px solid var(--border-default); color:var(--text-tertiary); border-radius:var(--radius-pill); padding:8px 14px; font-size:var(--text-sm); cursor:pointer; min-height:36px; }
     .mp-signout:hover { color:var(--text-primary); border-color:var(--border-focus); }
 
-    .mp-content { flex:1; overflow-y:auto; display:flex; flex-direction:column; padding:20px 16px 24px; }
+    /* min-height:0 overrides the flex default of min-height:auto, which
+       sizes a flex:1 child to its content's intrinsic height rather than
+       letting it shrink to the space actually available. Without it, a
+       long list (many receipts, a member with months of visit history)
+       never triggers this element's own overflow-y:auto — it just grows
+       past the viewport and pushes the WHOLE #page-member column taller,
+       taking the bottom nav bar down with it. On a bottom-nav layout
+       that's worse than a plain double scrollbar: the tab bar — the only
+       way back to Check In / My Plan — scrolls out of reach entirely and
+       only reappears after scrolling all the way to the end of the list.
+       See tests/member-portal-responsive.spec.js for the regression check. */
+    .mp-content { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; padding:20px 16px 24px; }
 
     /* Bottom nav — the active tab gets a filled pill behind its icon
        rather than just a colour swap, so "where am I" reads at a glance
