@@ -316,6 +316,16 @@ export const router = {
   }
 };
 
+// Test-only hook, same convention as window._navTo (dashboard/index.js)
+// and window.__sculptCheckin (lib/checkin.js) — lets Playwright drive a
+// lazy route directly against the BUILT preview server (hashed chunk
+// filenames rule out a plain dynamic import() from a test file) without
+// needing a real login for pages, like the member portal, that expose
+// their own fixture-mount hook once loaded. Never read by production code.
+if (typeof window !== 'undefined') {
+  window.__sculptRouter = router;
+}
+
 // ── Back/forward button support ───────────────────────────────────
 window.addEventListener('popstate', (e) => {
   const page = (e.state && e.state.page)
