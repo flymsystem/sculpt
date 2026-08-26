@@ -161,6 +161,36 @@ Applied to production (run by hand in the SQL editor, verified):
   `sculpt_renew_member` never set `expiry_date` itself. Now computes and
   sets it explicitly in the same UPDATE, so it's correct regardless of
   whether the trigger's guard fires.
+- `125_fix_gym_display_name.sql` — the live `gyms.name` was `"D fitness"`;
+  fixed to `"D Sculpt Fitness"` everywhere it's surfaced (member portal
+  header, member login, `auth-flow.spec.js`'s expectation). Applied and
+  live-verified (2026-08-26).
+- `126_member_photo_url_column.sql` — `members.photo_url` never existed
+  as a live column, so a member photo upload's storage write succeeded
+  but the follow-up `members` row update silently failed; `photo_url`
+  also had to be added to `members_with_status`'s explicit SELECT list
+  (appended at the end — `CREATE OR REPLACE VIEW` can't insert a column
+  mid-list, error `42P16`). Applied and live-verified.
+- `127_gym_audit_identity_fields.sql` — adds `gyms.pan`, `legal_name`,
+  `registered_address` for the "Financial & GST Audit Support Report"
+  (see `HANDOVER.md`'s 2026-08-26 entry). `gyms.gstin`/`address`/`city`
+  already existed and were left untouched. Applied via
+  `npx supabase db push` failing (`LegacyDbPushMissingRemoteError` — see
+  the "process note" below) and `npx supabase db query --linked`
+  succeeding instead; live-verified via `information_schema.columns`.
+
+**`npx supabase db push` is currently broken for this project** — a
+process note, not specific to any one migration. `npx supabase migration
+list` shows the remote's tracked migration history has diverged from
+local files starting at `102`: every migration `102`–`127` shows
+`remote: ""` even though their schema changes are demonstrably live
+(confirmed via `information_schema.columns`/`pg_proc` directly). This
+predates migrations 126/127 and wasn't introduced by them. Repairing
+`supabase_migrations.schema_migrations` is a separate, riskier job;
+until then, apply new migrations' SQL directly with
+`npx supabase db query --linked` and independently verify against live
+`information_schema.columns`/`pg_get_functiondef`/`pg_get_viewdef` rather
+than trusting `db push` to report success or failure correctly.
 
 **Edge Functions to (re)deploy alongside 114–116:**
 

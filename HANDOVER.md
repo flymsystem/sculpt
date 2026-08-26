@@ -267,21 +267,144 @@ the skip count is credential-gated tests, unchanged), and
 
 ---
 
+## 2026-08-26: Batch 3 — dashboard UI/UX overhaul, member portal fixes,
+audit report, real landing content + photos, invoice/mobile follow-ups
+
+Pushed to `sculpt-whitelabel` (`fd76f98`). Run in phases (A–F, see the
+per-phase status files below), then two follow-up fixes found only by
+actually driving the live app with real owner credentials. Full detail,
+including every migration applied and independently re-verified against
+the live DB (not just the migration files), is in `STATUS-BATCH-3.md`,
+`STATUS-PHASE-A-B.md`, `STATUS-PHASE-C.md`, `STATUS-PHASE-D.md` and
+`STATUS-PHASE-EF.md` in the repo root — kept as the permanent record
+rather than summarised away here.
+
+- **Member photo persistence fixed** — `members.photo_url` never existed
+  as a live column; uploads succeeded but the DB write silently failed.
+  `126_member_photo_url_column.sql`.
+- **Kiosk hold-to-exit rewritten** with Pointer Events + capture; fixed a
+  latent bug where the hold ran 2.5s while the UI claimed 3s.
+- **Backup/export filenames** are now `dsculpt-<type>-<date>` instead of
+  all being the gym's name.
+- **The dashboard's "Add Member" FAB was leaking into the member portal**
+  (appended to `document.body`, never torn down on navigation) — fixed
+  at the root, which also fixed it overlapping the member portal's
+  Visits tab.
+- **Full dashboard UI/UX pass**: mobile sidebar (scroll lock,
+  Escape/back-close, populated the empty Support section), overview KPI
+  period labels, All Members overflow menu + sticky header, member modal
+  footer hierarchy (Renew/Invoice primary, Edit/Remind secondary,
+  Cancel/Remove destructive), enquiries card rebuild, staff attendance
+  loading/error states, alerts, finance.
+- **Year-end report rebuilt into a "Financial & GST Audit Support
+  Report"** — real computed report period, a "not a tax filing"
+  disclaimer, 14 audit sections each with its own CSV export, honest
+  "not recorded" states anywhere the schema genuinely has no such data
+  (B2B/B2C split, SAC-wise, ITC, credit/debit notes) rather than
+  fabricated rows. New `gyms.pan` / `legal_name` / `registered_address`
+  columns (`127_gym_audit_identity_fields.sql`) feed a new Settings →
+  GST & Tax → "Legal & Audit Identity" card.
+- **Landing page**: real phone/WhatsApp/email/Instagram/address/hours
+  (the `GYM` object in `landing.js`), a real lazy-loaded map, real
+  footer links, real photos from `PHOTOS/` for hero/about + 2 of 4
+  training slots (Personal Training and Group Classes are still stock —
+  no source photo supplied for them), a 1200×630 social share image.
+- **Three real bugs caught only by driving the live app with the real
+  owner login Steven supplied mid-session** — none of these were visible
+  from code review, build, lint, or the non-credentialed test suite:
+  1. The new "Help & Support" modal invented a support email,
+     `support@dsculptfitness.com` — no such mailbox exists. Fixed to the
+     real, confirmed `dsculptfitness5@gmail.com`.
+  2. The audit report's "Registered Address" silently fell back to
+     `gyms.address`, which contains a typo'd email
+     (`sculptfit@gmail.com`) in this gym's real data — printing it as the
+     registered address on an audit document. Now only the dedicated
+     `registered_address` column counts; unset renders "Not supplied",
+     same as PAN.
+  3. `checkin-kiosk-exit.spec.js` had a test bug (not a product bug): the
+     kiosk's hold-to-exit fires at the 3-second mark itself, independent
+     of `pointerup` — two tests dispatched a trailing `pointerup` into a
+     kiosk that had already torn down and navigated away. Fixed the test
+     helper; this also gave A3 its first genuine end-to-end pass (it
+     could previously only skip without credentials).
+- **A separate, unscheduled follow-up in the same session** (not part of
+  the Batch 3 brief, done at the owner's direct request afterward):
+  - Found and fixed a **build-breaking bug**: an unescaped backtick in
+    `invoice-template.js`'s print-scaling comment was closing the file's
+    template literal early, breaking every build with a syntax error.
+    Caught immediately by `npm run build` failing outright.
+  - Verified (by actually rendering, not reading CSS) an already-present
+    invoice print-scaling fix and found it pushed a legitimate
+    single-page invoice (GST + add-ons + discount + balance due) onto a
+    spurious 2nd page. Measured real organic content heights per fixture
+    rather than extrapolating linearly across zoom values (that
+    extrapolation was itself wrong once tried — see the new CLAUDE.md
+    convention on this) and retuned `zoom:1.18→1.12`,
+    `min-height:990→950` in `invoice-template.js`'s `@media print` block.
+  - Fixed the All Members page's mobile filter row rendering as ~145px
+    boxes with the table several scrolls down, and the topbar title
+    truncating to "All Me…" — see the new CLAUDE.md convention on the
+    root cause (two stylesheets defining the same class at the same
+    breakpoint) and `tests/members-mobile-filters.spec.js`.
+
+**Verified before push:** `npm run build`, `npm run lint` (same 12
+pre-existing errors, 0 new — checked after every commit), the full
+credentialed Playwright suite with real owner credentials
+(`SCULPT_TEST_EMAIL=sculptfit@gmail.com`, `--workers=1`) — 88 passed, 1
+pre-existing failure (`security.spec.js:201`, needs a staff login — see
+Pending), 6 skipped / 6 did-not-run (same staff-credential gap),
+`node scripts/verify-schema.mjs`, `qa-responsive.mjs`, `qa-nav.mjs`, and
+real browser screenshots (before/after, mobile and desktop) inspected by
+hand, not just generated.
+
+---
+
 ## Pending
 
-Genuinely open items, as of 2026-08-23:
+Genuinely open items, as of 2026-08-26:
 
-- **Gym display name.** `gyms.name` is currently `"D fitness"`, which is
-  why `tests/auth-flow.spec.js` (expects `"D Sculpt Fitness"`) fails —
-  that's a stale test expectation vs. real data, not a code bug. The
-  owner confirmed the correct name in session on 2026-08-24, and
-  `supabase/migrations/125_fix_gym_display_name.sql` is written and
-  committed — **not yet applied**, since this environment only has the
-  anon key, not the database password. Run it via the Supabase SQL
-  editor or `npx supabase db push` to fix the name everywhere it's
-  surfaced (member portal header, member login, `auth-flow.spec.js`).
-- **`manoj.sculpt@gmail.com` password unknown** — see above; reset it
-  through the app when someone needs to actually test as that account.
+- **`security.spec.js:201`** ("a token older than 90 seconds... is
+  rejected") still needs a real staff login to pass — it currently
+  returns `NOT_STAFF` when run with owner-only credentials.
+- **`tests/checkin.spec.js`, `tests/security.spec.js`'s other check-in
+  tests, `tests/staff-login-management.spec.js`'s third test** — need
+  `SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` to run at all; currently
+  skipped/did-not-run whenever only owner credentials are provided. This
+  is the single remaining thing standing between the credentialed suite
+  and fully green — see `STATUS-BATCH-3.md`'s "How to get this pushed"
+  for the two ways to clear it.
+- **`manoj.sculpt@gmail.com` password unknown** — reset it through the
+  app (Staff page → this row → Manage Login → Reset Password) when
+  someone needs a real staff login for the item above.
+- **Settings → General → Address currently contains `sculptfit@gmail.com`**
+  — an email, not a street address. Pre-existing data-entry error, not
+  a code bug, but live and customer-facing: it's what prints on member
+  invoices today, and it's what an unfixed audit-report bug used to
+  silently fall back to as "Registered Address" before this session's
+  fix (see the 2026-08-26 entry above). Fix directly in Settings.
+- **The GSTIN on file, `22AARGAR4763132`, doesn't match the standard
+  15-character GSTIN pattern** (2-digit state code + 10-char PAN + entity
+  code + 'Z' + checksum). Nothing has touched or "corrected" it — that
+  would be inventing a value — but it feeds the audit report's GST
+  sections. Worth checking against the actual GST registration
+  certificate.
+- **Settings → GST & Tax → "Legal & Audit Identity" is empty** — Legal
+  Name, PAN and Registered Address all show "Not supplied" on the audit
+  report until Steven fills them in.
+- **`npx supabase db push` is broken for this project.**
+  `supabase migration list` shows the remote's tracked migration history
+  has diverged from local files starting at migration `102` — every
+  migration `102`–`127` shows `remote: ""` even though their schema
+  changes are demonstrably live. Predates this session; not introduced
+  or fixed by it (repairing `supabase_migrations.schema_migrations` is a
+  separate, riskier job). Migrations `126` and `127` were both applied
+  directly via `npx supabase db query --linked` and independently
+  re-verified against live `information_schema.columns` instead of
+  `db push`. Future migrations will hit the same wall until this is
+  repaired — plan for the manual-apply workaround, not `db push`.
+- **Two of the six landing-page photo slots** (Personal Training, Group
+  Classes) still use the original stock images — `PHOTOS/` only had 4
+  real photos, not the 6 needed to fill hero/about/train-1..4.
 - **`scripts/verify-schema.mjs`'s RPC section is unreliable.** Supabase
   now returns `401 Invalid API key — Only service_role can be used for
   this endpoint` on `/rest/v1/` (the OpenAPI spec endpoint the script
@@ -294,77 +417,66 @@ Genuinely open items, as of 2026-08-23:
   function existence a different way (e.g. `pg_proc` via a
   `service_role`-authenticated call, or the Supabase CLI's
   `db query --linked`).
-- **`security.spec.js:201`** ("a token older than 90 seconds... is
-  rejected") still needs a real staff login to pass — it currently
-  returns `NOT_STAFF` when run with owner-only credentials. Same root
-  cause as the `checkin.spec.js` note above.
-- **tests/checkin.spec.js, tests/security.spec.js's other check-in
-  tests** — need `SCULPT_STAFF_EMAIL`/`SCULPT_STAFF_PASSWORD` to run at
-  all; currently skipped whenever only owner credentials are provided.
 
 ---
 
 ## 5. What the client still owes
 
-Everything below renders as a muted "to be supplied" chip on the live
-site. Nothing was invented — no fake address, no made-up class times, no
-fictional trainers, no invented member counts, and no placeholder phone
-number dressed up as a real `tel:` link.
+Updated 2026-08-26 — most of this list is now resolved by Batch 3's
+Phase E/F (see that dated entry above). Nothing was invented to close
+any of it — no fake address, no made-up class times, no fictional
+trainers, no invented member counts, and no placeholder phone number
+dressed up as a real `tel:` link. What's still genuinely open:
 
 **All of these live in one place:** the `GYM` object at the top of
-`src/pages/landing.js`. Replace the values and rebuild. An empty string
-means "not supplied" and renders the chip; a filled-in value renders the
-real link and the chip disappears.
+`src/pages/landing.js`. An empty string means "not supplied" and renders
+the chip; a filled-in value renders the real link and the chip
+disappears — every one of these is now filled in.
 
-- [x] Street address — Malagala, Bangalore
-- [ ] Phone number
-- [ ] WhatsApp number
-- [ ] Email address
-- [ ] Weekday opening hours
-- [ ] Weekend opening hours
-- [ ] Google Maps link
-- [ ] Instagram / social link
-- [ ] Confirm the four programmes match what the gym actually offers
+- [x] Street address — No.13, 20th Cross, Malagala, Nagarbhavi 2nd
+      Stage, Bangalore - 560091
+- [x] Phone number — +91 78921 31996 and +91 88678 78946
+- [x] WhatsApp number — +91 88678 78946
+- [x] Email address — dsculptfitness5@gmail.com
+- [x] Weekday opening hours — Mon–Sat 5:00 AM – 10:00 PM
+- [x] Weekend opening hours — Sunday 7:00 AM – 12:00 PM
+- [x] Google Maps link — wired to the real coordinates, embedded as a
+      lazy-loaded map in the Contact section
+- [x] Instagram / social link — wired in the footer
+- [ ] Confirm the four programmes (Strength & Conditioning, Personal
+      Training, Group Classes, Cardio & Conditioning) still match what
+      the gym actually offers — never explicitly re-confirmed with
+      Steven, just carried forward.
 
-**Photography.** The landing page currently ships stock gym photography
-extracted from the Figma reference in `reference/`, regenerated into
-`public/img/` by `scripts/prep-landing-images.mjs`. Two consequences:
+**Photography.** Real D Sculpt photos have replaced the Figma-derived
+stock images for 4 of 6 slots — see `scripts/prep-landing-images.mjs`,
+now reading from `PHOTOS/` instead of the old reference.
 
-- [ ] **Check the licence before going live.** These came from a Figma
-      community template; they are not D Sculpt's own photographs.
-- [ ] **Replace with real D Sculpt photos** when they exist. Drop them in
-      as `public/img/hero.jpg`, `about.jpg` and `train-1…4.jpg` and
-      nothing else needs to change. Every interior shot is rendered
-      black-and-blue duotone in CSS (`.sc-duo`), which is what removes the
-      original gym's yellow branding — real photos will pick up the same
-      treatment automatically. The hero is deliberately full colour.
+- [x] Licence concern resolved — the hero, about, and 2 of the 4 training
+      photos are D Sculpt's own, sourced from `PHOTOS/`.
+- [ ] **2 training slots still stock** (Personal Training, Group
+      Classes) — `PHOTOS/` only ever had 4 real photos (main + 3 sub),
+      not the 6 needed for hero/about/train-1..4. Drop 2 more training
+      photos into `PHOTOS/` and re-run the prep script to finish this.
 
-**One migration still needs running.**
-
-`supabase/migrations/102_public_plans_showcase.sql` makes the landing
-page's Membership section show the plans you configure under Plan
-Settings, so pricing lives in one place instead of two. It is additive
-and safe to run more than once.
-
-- [ ] Run it in the Supabase SQL editor (paste the file, execute).
-
-Until it runs, the Membership section simply does not appear — the page
-logs one console warning and carries on. Nothing else depends on it. If
-you would rather not publish pricing publicly, set
-`gyms.public_plans_enabled = false` and the section stays hidden.
+**Migration 102 — resolved.** `102_public_plans_showcase.sql` is applied
+and live (`gyms.public_plans_enabled = true`, `public_gym_plans()`
+exists) — the Membership section on the live site shows real plan
+pricing from Plan Settings.
 
 **Also outstanding, elsewhere:**
 
 - [ ] **The domain.** `index.html` has no `canonical`, `og:url` or
-      `og:image` tag. That is deliberate — a wrong canonical URL harms
-      search ranking more than having none. Add them once the domain
-      exists (there is a comment in `index.html` marking the spot).
-- [ ] **Address in structured data.** `index.html`'s JSON-LD omits
-      `address`, `telephone` and opening hours rather than stubbing them.
-      Publishing invented location data to Google is worse than none.
-- [ ] **A social share image** (1200×630) for link previews.
-- [ ] **Owner name** — the gym record says `[PLACEHOLDER: owner name]`.
-      Fix in the app under Gym Settings.
+      `og:image` tag (`og:image` itself is now wired, pointing at the new
+      1200×630 social share image generated from the hero + logo —
+      `canonical`/`og:url` alone are deliberately still absent). That is
+      deliberate — a wrong canonical URL harms search ranking more than
+      having none. Add `canonical`/`og:url` once the domain exists.
+- [x] **Address in structured data** — `index.html`'s JSON-LD now carries
+      the real address, phone, geo coordinates and opening hours.
+- [x] **A social share image** (1200×630) — generated from the hero +
+      logo, wired to `og:image`.
+- [x] **Owner name** — set in Gym Settings (`gyms.owner_name`).
 
 ---
 
@@ -467,6 +579,35 @@ built from.
   reads or writes a column is only half the change — grep for the CHECK
   constraint on that column and widen it in the same migration, not a
   later one.
+- **Two stylesheets must never redeclare the same class at the same
+  media breakpoint.** `components.css` (static import from `app.js`,
+  always loads first) and `dashboard.css` (lazy import from
+  `dashboard/index.js`, so it always loads second, once the dashboard
+  route mounts) both had a `@media(max-width:768px){ .members-filters{…} }`
+  rule. Same specificity, dashboard.css later in the cascade, so it
+  silently won and threw away components.css's correct 2-up grid —
+  `display:flex;flex-direction:column` with no children reset meant
+  every child's `flex:1 1 130px` (authored for a row, where flex-basis
+  means width) got reinterpreted along the now-vertical main axis
+  instead, producing ~145px-tall filter boxes with `flex-grow:1`
+  stretching them further. The rule was individually correct in each
+  file; the bug was two files owning the same selector at the same
+  breakpoint at all. Grep both `components.css` and `dashboard.css` for
+  a class before adding a mobile override to it in either.
+- **`zoom` on the invoice sheet changes what `getBoundingClientRect()`
+  reports, non-linearly across different zoom values.** Scaling
+  `invoice-template.js`'s `.page` down from `zoom:1.18` to `1.12` to fix
+  a spurious page break, a naive `renderedHeight / 1.18 * 1.12` predicted
+  1108.6px for the worst-case fixture; the real rendered height came out
+  17px higher, because `min-height:990px` (chosen by scaling down from
+  the old `940`) landed only 2px under that same fixture's true organic
+  content height, and zoom's own sub-pixel rounding made which one "won"
+  unpredictable. Fixed by measuring true organic content height directly
+  (zoom and min-height both forced to `0`/`1` via inline style overrides)
+  for every fixture, then picking a `min-height` with real margin below
+  the tallest single-page fixture, not a value derived by scaling one
+  known-good number. See `tests/invoice-print.spec.js` and the comment
+  above `@media print{ .page{…} }` for the actual measured numbers.
 
 ### PowerShell notes (your terminal)
 

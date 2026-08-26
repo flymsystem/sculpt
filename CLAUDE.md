@@ -185,6 +185,22 @@ Read from it; don't thread it through parameters.
   `landing.js` duplicates `parsePlanData()`'s unwrap logic locally
   rather than importing it, since `pages/dashboard -> pages/landing` is
   not an allowed import direction (see "Layout and boundaries" above).
+- **Never redeclare a class at the same `@media` breakpoint in both
+  `src/styles/components.css` and `src/styles/dashboard.css`.**
+  `components.css` is a static import from `app.js`, so it always loads
+  first; `dashboard.css` is a lazy import from `dashboard/index.js`, so
+  it always loads second, once the dashboard route mounts — same
+  specificity, later file wins, silently. `.members-filters` had a
+  correct `@media(max-width:768px){ display:grid;… }` rule in
+  `components.css` and a *different* `display:flex;flex-direction:column`
+  rule for the same class at the same breakpoint in `dashboard.css`; the
+  second one always won, and switching the container to
+  `flex-direction:column` reinterpreted every child's `flex:1 1 130px`
+  (authored for a row, where flex-basis means width) along the
+  now-vertical main axis instead — that's what produced ~145px-tall
+  filter boxes with `flex-grow:1` stretching them further, not a sizing
+  bug in either rule alone. Grep both files for a class before adding a
+  mobile override to either one.
 
 ## Invoices and printable documents
 
@@ -205,12 +221,32 @@ PDF blob that gets uploaded and WhatsApp'd. Three constraints are load-bearing:
    injects this markup with `innerHTML` into the *live app document*, and
    `innerHTML` keeps `<style>` blocks — a bare `body { }` rule here repaints
    the dashboard for the duration of the render.
-3. **The A4 budget is 933px of content** (660 × 297/210). A single-plan
-   invoice lands around 896px. Measure after any edit; a GST invoice with
-   several add-ons legitimately runs to a controlled second page, which is why
-   `break-inside: avoid` sits in the *base* stylesheet and not inside
-   `@media print` — html2canvas renders in screen mode and never sees print
-   rules.
+3. **The A4 budget is 933px of content** (660 × 297/210) for the base
+   (non-print) `.page` rule that the html2pdf/WhatsApp export path uses —
+   `invoice-pdf.js` forces `target.style.zoom = '1'`, so this path never
+   sees the `@media print` zoom described below. Base `min-height` is
+   925px (a plain/GST invoice's true organic content is 841-858px, so
+   min-height pads it up); measure after any edit. A GST invoice with
+   several add-ons legitimately runs to a controlled second page, which
+   is why `break-inside: avoid` sits in the *base* stylesheet and not
+   inside `@media print` — html2canvas renders in screen mode and never
+   sees print rules.
+4. **`@media print`'s `zoom` and `min-height` are a *separate* pair of
+   numbers from the base rule above, tuned against real content
+   measurements, not derived by scaling one known value.** The sheet
+   only covers ~83% of A4's width at a raw 660px, so it's scaled with
+   `zoom` (never restretched with `width:100%` — that clips content off
+   the page edge, see the note above the print rules in
+   `invoice-template.js`). `zoom` genuinely changes what
+   `getBoundingClientRect()` reports, and not linearly across different
+   zoom values when a fixture's organic height lands close to
+   `min-height` — measure organic content height directly (force
+   `zoom:1;min-height:0` via inline style overrides) for every fixture
+   before picking `min-height`, don't extrapolate. Current values:
+   `zoom:1.12`, `min-height:950px` — see the long comment above
+   `@media print{ .page{…} }` for the measured numbers behind them and
+   `tests/invoice-print.spec.js` for the fill-ratio/no-clip regression
+   tests.
 
 Anything scoped to `@media screen and (max-width: …)` must stay **below**
 660px, or it fires during PDF export. `invoice-pdf.js` also forces
@@ -235,10 +271,17 @@ standalone document with no access to the app's stylesheets.
 
 ```bash
 npm run build                 # must succeed
-npx playwright test           # 20 pass, 4 skip without credentials
+npx playwright test           # 60 pass, 28 skip without credentials
 npm run lint                  # 12 pre-existing errors; add none
 node scripts/verify-schema.mjs
 ```
+
+With real owner credentials (`SCULPT_TEST_EMAIL`/`SCULPT_TEST_PASSWORD`,
+`--workers=1` — see README.md/HANDOVER.md §4): 88 pass, 1 pre-existing
+failure (`security.spec.js:201`, needs a *staff* login specifically), 6
+skip / 6 did-not-run (same staff-credential gap). These counts drift as
+tests are added — treat them as "does this shape still look right", not
+a number to chase exactly.
 
 Hard-refresh a deep route such as `/dashboard/finance` against
 `npm run preview` before shipping — that failure mode is silent.
