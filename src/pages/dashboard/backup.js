@@ -6,6 +6,39 @@ import { showToast } from '../../components/toast.js';
 import { showPrintPreview } from '../../components/print-preview.js';
 import { attendanceReportCardHTML, bindAttendanceReport } from './attendance-report.js';
 
+// ── EXPORT FILENAME HELPER ──────────────────────────────────────────
+// Every real download this page produces — the CSV and JSON exports
+// below, which set a.download on a Blob URL — used to come out named
+// "D_Sculpt_Fitness_members.csv", "sculpt-backup-d-sculpt-fitness-
+// 2026-08-26.json", "expenses-d-sculpt-fitness-aug-2026.csv": every
+// filename led with the gym's name. That's dead weight here — this is
+// a single-gym app (see CLAUDE.md "What this is"), so S.gym.name is
+// the same on every export the owner will ever produce — and it pushed
+// the one thing that actually tells two exports apart (which report,
+// which day) to the far end of the string, past where a narrow
+// downloads list or a file picker truncates. Two different reports
+// downloaded minutes apart looked identical at a glance.
+// Lead with the export type instead: dsculpt-<type>-<date>[-HHmm].<ext>.
+// Note this only covers the CSV/JSON downloads that actually set
+// a.download — the "PDF Report" buttons hand off to the browser's own
+// Print dialog (see exportPDF()/showPrintPreview below) and take their
+// suggested filename from that printed document's own <title>, not
+// from anything constructed here.
+function buildExportFilename(type, ext, { withTime = false } = {}) {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // -HHmm is only worth adding for exports an owner could plausibly
+  // trigger more than once in the same day (the full backup — someone
+  // pulling it before making a risky change, then again after). The
+  // filtered CSV reports are already scoped to a single month/category
+  // via the on-screen selectors, so same-day reruns are rare and a
+  // bare date keeps the filename readable; add withTime if that stops
+  // being true for a given export type.
+  const timePart = withTime ? `-${pad(d.getHours())}${pad(d.getMinutes())}` : '';
+  return `dsculpt-${type}-${datePart}${timePart}.${ext}`;
+}
+
 function renderBackup(c) {
   const gymName = S.gym?.name || 'My Gym';
   const gymCode = S.gym?.gym_code || '';
@@ -474,9 +507,8 @@ ${summaryBlock}
       csvRows.push(`,,Total,${total},`);
       const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const monthLabel = new Date(month+'-01').toLocaleDateString('en-IN',{month:'short',year:'numeric'}).replace(' ','-');
       const a = document.createElement('a');
-      a.href = url; a.download = `expenses-${gymName.replace(/\s+/g,'-').toLowerCase()}-${monthLabel}.csv`;
+      a.href = url; a.download = buildExportFilename('expenses', 'csv');
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
       showToast('CSV downloaded', 'green');
     } catch(err) { console.error('Expense CSV error:', err); showToast('Failed to export CSV', 'red');
@@ -576,7 +608,7 @@ ${summaryBlock}
         discount || '', balance || '',
         exp ? fmtDate(exp.toISOString().split('T')[0]) : '', m.payment_mode||'', m.payment_status||'', m.member_type||'Paid'];
     });
-    downloadCSV(headers, rows, gymName.replace(/\s+/g,'_') + '_members');
+    downloadCSV(headers, rows, buildExportFilename('members', 'csv'));
     showToast('CSV downloaded — open in Excel', 'green');
   });
 
@@ -655,6 +687,11 @@ ${summaryBlock}
   });
 
   // ── CSV DOWNLOAD HELPER ───────────────────────────────────────
+  // `filename` is expected complete, extension included (see
+  // buildExportFilename above) — this helper only turns rows into a
+  // Blob and clicks it. It used to append '.csv' itself onto a bare
+  // gym-name-prefixed base; now that callers build the full sortable
+  // name up front, appending here would double the extension.
   function downloadCSV(headers, rows, filename) {
     const BOM = '﻿'; // Excel UTF-8 BOM
     const escape = (v) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -662,7 +699,7 @@ ${summaryBlock}
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = filename + '.csv';
+    a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
@@ -688,9 +725,13 @@ ${summaryBlock}
       };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const dateStr = new Date().toISOString().slice(0,10);
       const a = document.createElement('a');
-      a.href = url; a.download = `sculpt-backup-${gymName.replace(/\s+/g,'-').toLowerCase()}-${dateStr}.json`;
+      // -HHmm: unlike the filtered CSV reports, a full backup is the kind
+      // of export someone re-triggers more than once in a day — right
+      // before a risky change and again right after — so the date alone
+      // isn't enough to tell two same-day backups apart or stop one
+      // silently overwriting the other in the downloads folder.
+      a.href = url; a.download = buildExportFilename('full-backup', 'json', { withTime: true });
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
       showToast('Backup downloaded', 'green');
     } catch(err) { console.error('Backup error:', err); showToast('Failed to create backup', 'red');
@@ -797,4 +838,8 @@ ${summaryBlock}
 }
 
 
-export { renderBackup };
+// buildExportFilename is exported alongside renderBackup purely so a test
+// can assert its output shape without booting the dashboard (real login +
+// gym data) just to click a download button — see
+// tests/export-filenames.spec.js.
+export { renderBackup, buildExportFilename };
