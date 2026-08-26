@@ -186,7 +186,10 @@ function buildInvoiceDocument(m, gymName, invoiceNo) {
 
   .page{
     box-sizing:border-box;width:660px;max-width:660px;margin:0 auto;
-    min-height:896px;                 /* 660 : 933 is A4 portrait */
+    min-height:925px;                 /* 660 : 933 is A4 portrait — sit just
+                                         inside it so the html2pdf export
+                                         fills the sheet without tipping
+                                         onto a blank second page */
     padding:32px 40px 24px;background:#fff;color:${INK};
     font-size:12.5px;line-height:1.5;
     display:flex;flex-direction:column;
@@ -350,13 +353,26 @@ function buildInvoiceDocument(m, gymName, invoiceNo) {
      page margins, so every print route lands on the layout you previewed.
      @page is kept for engines that do honour it here; its 12mm still leaves
      703px of printable width for a 660px sheet, so it can only ever add
-     white space, never clip. */
-  @page{size:A4 portrait;margin:12mm;}
+     white space, never clip.
+
+     Filling the paper: at a raw 660px the sheet only covers ~83% of the
+     A4 width and ~80% of its height, so a printed invoice floated in the
+     middle of a mostly white page. The sheet is therefore *scaled*, never
+     restretched — zoom enlarges the whole 660px layout (type, rules and
+     spacing together) to 779px, which is 96% of the 794px A4 width and
+     leaves ~8px of paper on each side plus the sheet's own 47px padding.
+     The page box is asked for at margin:0 so both print routes described
+     above land on the same geometry; the white border you see is the
+     sheet's padding, not a page margin. min-height rises to 940px so the
+     scaled sheet is 1109px of A4's 1122px — full page, 13px of slack for
+     rounding so it never tips onto a second sheet. */
+  @page{size:A4 portrait;margin:0;}
   @media print{
     body.inv-doc{background:#fff;padding:0;}
     .page{
       width:660px;max-width:660px;margin:0 auto;
-      box-shadow:none;zoom:1;
+      min-height:940px;
+      box-shadow:none;zoom:1.18;
     }
   }
 </style>
