@@ -39,6 +39,29 @@ function buildExportFilename(type, ext, { withTime = false } = {}) {
   return `dsculpt-${type}-${datePart}${timePart}.${ext}`;
 }
 
+// ── AUDIT CSV TYPE VOCABULARY ───────────────────────────────────────
+// One entry per audit table the Financial & GST Audit Support Report
+// covers (see buildAuditDataset() below for how each is computed, and
+// which of these have real underlying data in this schema vs. an honest
+// "not implemented" placeholder). `id` feeds buildExportFilename('type', …)
+// directly, so it doubles as the downloaded file's type segment.
+const AUDIT_CSV_TYPES = [
+  { id: 'gst-reconciliation',      label: 'GST Reconciliation' },
+  { id: 'tax-breakup',             label: 'Tax Breakup (CGST/SGST)' },
+  { id: 'b2b-b2c-split',           label: 'B2B / B2C Split' },
+  { id: 'sac-wise',                label: 'SAC-wise Data' },
+  { id: 'place-of-supply',         label: 'Place of Supply' },
+  { id: 'itc-information',         label: 'ITC Information' },
+  { id: 'invoice-register',        label: 'Invoice Register' },
+  { id: 'expense-register',        label: 'Purchase / Expense Register' },
+  { id: 'invoice-sequence-audit',  label: 'Invoice Sequence Audit' },
+  { id: 'cancelled-invoices',      label: 'Cancelled Invoices' },
+  { id: 'credit-debit-notes',      label: 'Credit / Debit Notes' },
+  { id: 'payment-reconciliation',  label: 'Payment Reconciliation' },
+  { id: 'outstanding-balances',    label: 'Outstanding Balances' },
+  { id: 'audit-trail',             label: 'Audit Trail' },
+];
+
 function renderBackup(c) {
   const gymName = S.gym?.name || 'My Gym';
   const gymCode = S.gym?.gym_code || '';
@@ -196,11 +219,17 @@ function renderBackup(c) {
       <!-- RIGHT COLUMN: Year-end + Attendance + Full backup + Info -->
       <div style="display:flex;flex-direction:column;gap:var(--space-4);">
 
-        <!-- YEAR-END SUMMARY -->
+        <!-- FINANCIAL & GST AUDIT SUPPORT REPORT -->
         <div class="settings-card">
-          <div class="settings-card-title" style="margin-bottom:14px;">Year-End Summary</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6;">
-            Complete financial overview for your CA at ITR time. Revenue, expenses, profit, and category breakdown — all in one PDF.
+          <div class="settings-card-title" style="margin-bottom:14px;">Financial &amp; GST Audit Support Report</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;line-height:1.6;">
+            A working paper for your CA or auditor — revenue, expenses, GST
+            reconciliation, invoice/expense registers and reconciliation
+            detail for the selected year.
+          </div>
+          <div style="font-size:12px;color:var(--amber);margin-bottom:14px;line-height:1.5;font-weight:500;">
+            Prepared for audit review — this is not a tax filing and is not
+            a substitute for GSTR/ITR returns filed with the department.
           </div>
           <div style="margin-bottom:12px;">
             <label style="font-size:11px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Year</label>
@@ -208,10 +237,16 @@ function renderBackup(c) {
               ${yearOpts.join('')}
             </select>
           </div>
-          <button class="btn btn-primary" id="btn-export-yearend" style="width:100%;">
+          <button class="btn btn-primary" id="btn-export-yearend" style="width:100%;margin-bottom:14px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export Year-End Summary (PDF)
+            Generate Audit Report (PDF)
           </button>
+          <div style="font-size:11px;color:var(--text-quaternary);margin-bottom:8px;">
+            Excel/CSV — each is also downloadable individually inside the PDF preview, behind its table:
+          </div>
+          <div id="audit-csv-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            ${AUDIT_CSV_TYPES.map(t => `<button class="btn btn-ghost" data-audit-csv="${t.id}" style="font-size:11px;padding:6px 8px;justify-content:flex-start;">${t.label}</button>`).join('')}
+          </div>
         </div>
 
         <!-- FINANCIAL REPORTS -->
@@ -515,78 +550,349 @@ ${summaryBlock}
     } finally { if (btn) { btn.disabled = false; btn.textContent = 'CSV for Accountant'; } }
   });
 
-  // ── YEAR-END SUMMARY ───────────────────────────────────────────
+  // ── FINANCIAL & GST AUDIT SUPPORT REPORT ────────────────────────
+  // Root cause this whole section exists (Phase D, see STATUS-PHASE-D.md):
+  // the report this replaced called itself "Year-End Financial Summary"
+  // for "Financial Year <year>" no matter how little of that year had
+  // actually happened yet, and its only GST content was a rough 18% split
+  // of total revenue with no invoice/expense register, no reconciliation
+  // detail, and no way for an auditor to trace a total back to source
+  // rows. This gym has no invoices table and no persisted invoice
+  // sequence (see helpers.js genInvoiceNo() — it mints a fresh random
+  // number on every render, never stored) — so "invoice register" and
+  // "invoice sequence audit" below are derived from payment_history, and
+  // sections with genuinely no backing data (B2B/B2C split, SAC codes,
+  // ITC, credit/debit notes) render an explicit "not recorded — feature
+  // not implemented" row instead of a fabricated one. Never remove that
+  // honesty to make a table look fuller.
+
+  // buildAuditDataset() computes every section once per (year) so the PDF
+  // button and all 14 individual CSV buttons stay in sync and never
+  // duplicate a query.
+  async function buildAuditDataset(year) {
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    const [yearExpenses, allPayments, allM] = await Promise.all([
+      getExpensesByRange(S.gym.id, startDate, endDate),
+      getPaymentHistory(S.gym.id).catch(() => []),
+      exportMembers(),
+    ]);
+    const yearPayments = (allPayments || [])
+      .filter(p => p.paid_at && new Date(p.paid_at).getFullYear() === year)
+      .sort((a, b) => new Date(a.paid_at) - new Date(b.paid_at));
+
+    const gstEnabled = !!S.gym?.gst_enabled;
+    const gstPct = parseFloat(S.gym?.gst_percentage) || 18;
+    const halfPct = gstPct / 2;
+
+    // ── Report period: real computed dates, never a blind "Financial
+    // Year N" label. If `year` is the current year, the data can only
+    // possibly cover Jan 1 through today — calling that a completed FY
+    // would misrepresent a partial period as a closed one.
+    const today = new Date();
+    const isCurrentYear = year === today.getFullYear();
+    const paidDates = yearPayments.map(p => new Date(p.paid_at)).filter(d => !isNaN(d));
+    const earliestTxn = paidDates.length ? new Date(Math.min(...paidDates)) : null;
+    const latestTxn = paidDates.length ? new Date(Math.max(...paidDates)) : null;
+    const todayIso = today.toISOString().split('T')[0];
+    const periodLabel = isCurrentYear
+      ? `Year-to-date — 01 Jan ${year} to ${fmtDate(todayIso)} (current year, in progress)`
+      : `Full calendar year — 01 Jan ${year} to 31 Dec ${year}`;
+    const dataExtentLabel = earliestTxn && latestTxn
+      ? `Recorded transactions span ${fmtDate(earliestTxn.toISOString().split('T')[0])} to ${fmtDate(latestTxn.toISOString().split('T')[0])}`
+      : 'No payment transactions recorded in this period';
+
+    // ── Monthly summary (kept from the prior report — this part was
+    // already correct) ────────────────────────────────────────────
+    const monthlyData = [];
+    for (let mo = 0; mo < 12; mo++) {
+      const mStart = new Date(year, mo, 1);
+      const mEnd = new Date(year, mo + 1, 0, 23, 59, 59, 999);
+      const label = mStart.toLocaleDateString('en-IN', { month: 'short' });
+      const rev = yearPayments.filter(p => { const pd = new Date(p.paid_at); return pd >= mStart && pd <= mEnd; })
+        .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      const mKey = `${year}-${String(mo + 1).padStart(2, '0')}`;
+      const exp = yearExpenses.filter(e => e.expense_month === mKey).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+      monthlyData.push({ label, mKey, rev, exp, profit: rev - exp });
+    }
+    const totalRev = monthlyData.reduce((s, m) => s + m.rev, 0);
+    const totalExp = monthlyData.reduce((s, m) => s + m.exp, 0);
+    const totalProfit = totalRev - totalExp;
+
+    const catTotals = {};
+    yearExpenses.forEach(e => { catTotals[e.category] = (catTotals[e.category] || 0) + (parseFloat(e.amount) || 0); });
+    const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+
+    const totalMembers = allM.length;
+    const activeMembers = allM.filter(m => memberStatus(m) === 'Active').length;
+    const newThisYear = allM.filter(m => m.join_date && m.join_date.startsWith(String(year))).length;
+
+    const summary = {
+      headers: ['Month', 'Revenue', 'Expenses', 'Net Profit'],
+      rows: [
+        ...monthlyData.map(m => [m.label, '₹' + m.rev.toLocaleString('en-IN'), '₹' + m.exp.toLocaleString('en-IN'), '₹' + m.profit.toLocaleString('en-IN')]),
+        ['TOTAL', '₹' + totalRev.toLocaleString('en-IN'), '₹' + totalExp.toLocaleString('en-IN'), '₹' + totalProfit.toLocaleString('en-IN')],
+      ],
+      meta: { 'Revenue': '₹' + totalRev.toLocaleString('en-IN'), 'Expenses': '₹' + totalExp.toLocaleString('en-IN'), 'Net Profit': '₹' + totalProfit.toLocaleString('en-IN'), 'Members': totalMembers, 'Active': activeMembers, ['New (' + year + ')']: newThisYear },
+    };
+    const expenseCategoryBreakdown = {
+      headers: ['Category', 'Amount', 'Share of Expenses'],
+      rows: sortedCats.map(([cat, amt]) => {
+        const pct = totalExp > 0 ? Math.round((amt / totalExp) * 100) : 0;
+        const catLabel = EXPENSE_CATEGORIES.find(x => x.id === cat || x.label === cat);
+        return [catLabel ? catLabel.label : cat, '₹' + amt.toLocaleString('en-IN'), pct + '%'];
+      }),
+    };
+
+    // ── GST reconciliation + tax breakup ────────────────────────────
+    // Revenue is GST-inclusive (member plan prices are the amount actually
+    // charged); base/tax is backed out the same way the existing GST
+    // Summary report already does, just per month for the whole year.
+    const gstMonths = monthlyData.filter(m => m.rev > 0).map(m => {
+      const base = m.rev / (1 + gstPct / 100);
+      const gst = m.rev - base;
+      return [m.label, '₹' + m.rev.toLocaleString('en-IN'), '₹' + base.toFixed(0), '₹' + (gst / 2).toFixed(0), '₹' + (gst / 2).toFixed(0), '₹' + gst.toFixed(0)];
+    });
+    const gstReconciliation = {
+      headers: ['Month', 'Gross Revenue', 'Taxable Value', 'CGST', 'SGST', 'Total GST'],
+      rows: gstEnabled ? gstMonths : [],
+      note: gstEnabled ? null : 'GST is not marked as enabled for this gym in Settings → GST & Tax. Figures below are illustrative only until GST is enabled and a GSTIN is entered.',
+    };
+    const taxBreakup = {
+      headers: ['Month', 'CGST @' + halfPct + '%', 'SGST @' + halfPct + '%', 'Total GST'],
+      rows: gstEnabled ? gstMonths.map(r => [r[0], r[3], r[4], r[5]]) : [],
+      note: gstEnabled ? null : 'GST is not enabled for this gym — no tax breakup to report.',
+    };
+
+    // ── Sections this schema has no backing data for. Each of these was
+    // checked directly against the live schema (see STATUS-PHASE-D.md)
+    // before being marked "not implemented" — none are a fabrication, all
+    // are an accurate statement of what this app currently records.
+    const notImplemented = (why) => ({ headers: ['Note'], rows: [], note: why });
+    const b2bB2cSplit = notImplemented('Not recorded — members have no GSTIN/business-registration field, so this app cannot distinguish a B2B sale from a B2C one. Every sale is currently treated as B2C (retail) by default.');
+    const sacWise = notImplemented('Not recorded — plans/add-ons have no SAC (Services Accounting Code) field. All revenue is membership/fitness services; add a SAC field to plans if SAC-wise reporting becomes required.');
+    const itcInformation = notImplemented('Not recorded — expenses have no input-GST/vendor-GSTIN fields, so no Input Tax Credit can be computed from this data. Only the gross expense amount is captured.');
+    const invoiceSequenceAudit = notImplemented('Not implemented — invoice numbers (see genInvoiceNo() in helpers.js) are generated fresh, at random, every time an invoice PDF is rendered, and are never written back to a database row. There is no persisted sequence to audit for gaps or duplicates. If sequential, auditable invoice numbers are required, that needs a new invoices table with a gym-scoped counter — out of scope for this report.');
+    const creditDebitNotes = notImplemented('Not implemented — this app has no credit note / debit note feature. Refunds, corrections and balance adjustments are not currently tracked as distinct documents.');
+
+    // ── Place of supply — derivable only from what's actually configured
+    const gstin = S.gym?.gstin || '';
+    const stateCode = /^\d{2}/.test(gstin) ? gstin.slice(0, 2) : '';
+    const regAddr = S.gym?.registered_address || S.gym?.address || '';
+    const placeOfSupply = (stateCode || regAddr)
+      ? { headers: ['Field', 'Value'], rows: [
+          ['Place of Supply (single location)', regAddr || 'Not supplied'],
+          ['GSTIN State Code', stateCode || 'Not supplied — GSTIN not entered'],
+        ], note: 'This gym operates from a single registered location, so every supply shares one place of supply.' }
+      : notImplemented('Not supplied — no GSTIN or registered address is configured in Settings → GST & Tax / Legal & Audit Identity yet.');
+
+    // ── Invoice register — derived from payment_history. "Reference ID"
+    // is the payment row's own id, NOT an invoice number (none persisted
+    // — see invoiceSequenceAudit above) so this never fabricates a
+    // sequence that doesn't exist.
+    const invoiceRegister = {
+      headers: ['Date', 'Reference ID', 'App #', 'Member', 'Plan', 'Amount', 'Mode'],
+      rows: yearPayments.map(p => {
+        const linked = allM.find(m => m.id === p.member_id);
+        return [fmtDate(p.paid_at), (p.id || '').slice(0, 8), linked?.application_number || '—', p.members?.full_name || linked?.full_name || '—', p.plan_name || '—', '₹' + Number(parseFloat(p.amount) || 0).toLocaleString('en-IN'), p.payment_mode || '—'];
+      }),
+      note: 'Reference ID is the payment record’s own id (first 8 characters), not an invoice number — this app does not persist invoice numbers (see the Invoice Sequence Audit section).',
+    };
+
+    // ── Purchase / expense register — full year, not the month-scoped
+    // Expenses Report already available on this page.
+    const expenseRegister = {
+      headers: ['Date', 'Category', 'Description', 'Amount', 'Recurring'],
+      rows: yearExpenses.map(e => {
+        const catLabel = EXPENSE_CATEGORIES.find(c => c.id === e.category || c.label === e.category);
+        return [fmtDate(e.expense_date), catLabel ? catLabel.label : e.category, e.description || '—', '₹' + (parseFloat(e.amount) || 0).toLocaleString('en-IN'), e.is_recurring ? 'Yes' : 'No'];
+      }),
+    };
+
+    // ── Cancelled invoices — this schema tracks cancelled MEMBERSHIPS
+    // (members.cancelled_at), not cancelled invoices; there is no
+    // invoice-level cancellation concept. Reported honestly as the
+    // closest real proxy, not relabelled to look like the requested data.
+    const cancelledThisYear = allM.filter(m => m.cancelled_at && String(m.cancelled_at).startsWith(String(year)));
+    const cancelledInvoices = {
+      headers: ['Cancelled On', 'App #', 'Member', 'Plan', 'Plan Price'],
+      rows: cancelledThisYear.map(m => [fmtDate(m.cancelled_at), m.application_number || '—', m.full_name || '—', m.plan_name || '—', m.plan_price ? '₹' + Number(m.plan_price).toLocaleString('en-IN') : '—']),
+      note: 'This app has no invoice-level cancellation — the table below lists cancelled MEMBERSHIPS (members.cancelled_at) as the closest available proxy, not cancelled invoices.',
+    };
+
+    // ── Payment reconciliation — monthly totals by mode
+    const paymentReconciliation = {
+      headers: ['Month', 'Cash', 'Card', 'Online', 'Total'],
+      rows: (() => {
+        const out = [];
+        for (let mo = 0; mo < 12; mo++) {
+          const mStart = new Date(year, mo, 1), mEnd = new Date(year, mo + 1, 0, 23, 59, 59, 999);
+          const inMonth = yearPayments.filter(p => { const d = new Date(p.paid_at); return d >= mStart && d <= mEnd; });
+          if (!inMonth.length) continue;
+          const byMode = (mode) => inMonth.filter(p => p.payment_mode === mode).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+          const cash = byMode('Cash'), card = byMode('Card'), online = byMode('Online');
+          out.push([mStart.toLocaleDateString('en-IN', { month: 'short' }), '₹' + cash.toLocaleString('en-IN'), '₹' + card.toLocaleString('en-IN'), '₹' + online.toLocaleString('en-IN'), '₹' + (cash + card + online).toLocaleString('en-IN')]);
+        }
+        return out;
+      })(),
+    };
+
+    // ── Outstanding balances — point-in-time, not year-scoped (a due
+    // balance doesn't belong to the year the plan was sold, it's owed
+    // as of report generation time).
+    const outstandingMembers = allM.filter(m => !m.cancelled_at && (m.payment_status === 'Due' || m.payment_status === 'Partial'));
+    const outstandingBalances = {
+      headers: ['App #', 'Member', 'Plan', 'Balance Due', 'Status', 'Join Date'],
+      rows: outstandingMembers.map(m => [m.application_number || '—', m.full_name || '—', m.plan_name || '—', '₹' + outstandingAmount(m).toLocaleString('en-IN'), m.payment_status || 'Due', fmtDate(m.join_date)]),
+      meta: { 'Members with balance due': outstandingMembers.length, 'Total outstanding': '₹' + outstandingMembers.reduce((s, m) => s + outstandingAmount(m), 0).toLocaleString('en-IN') },
+    };
+
+    // ── Audit trail — payment_history is the only per-transaction trail
+    // this schema has. It carries no supporting-document reference
+    // (receipt/invoice PDF is generated on demand and never linked back
+    // to the payment row it was generated for), so that gap is called
+    // out explicitly rather than pretending a reference column exists.
+    const auditTrail = {
+      headers: ['Date', 'Reference ID', 'Member', 'Amount', 'Mode', 'Plan'],
+      rows: yearPayments.map(p => {
+        const linked = allM.find(m => m.id === p.member_id);
+        return [fmtDate(p.paid_at), (p.id || '').slice(0, 8), p.members?.full_name || linked?.full_name || '—', '₹' + Number(parseFloat(p.amount) || 0).toLocaleString('en-IN'), p.payment_mode || '—', p.plan_name || '—'];
+      }),
+      note: 'payment_history has no supporting-document reference field — receipts/invoices are generated on demand from this same data and are not linked back to a specific payment row.',
+    };
+
+    return {
+      year, periodLabel, dataExtentLabel, isCurrentYear, gstEnabled, gstPct,
+      summary, expenseCategoryBreakdown,
+      sections: {
+        'gst-reconciliation': gstReconciliation,
+        'tax-breakup': taxBreakup,
+        'b2b-b2c-split': b2bB2cSplit,
+        'sac-wise': sacWise,
+        'place-of-supply': placeOfSupply,
+        'itc-information': itcInformation,
+        'invoice-register': invoiceRegister,
+        'expense-register': expenseRegister,
+        'invoice-sequence-audit': invoiceSequenceAudit,
+        'cancelled-invoices': cancelledInvoices,
+        'credit-debit-notes': creditDebitNotes,
+        'payment-reconciliation': paymentReconciliation,
+        'outstanding-balances': outstandingBalances,
+        'audit-trail': auditTrail,
+      },
+    };
+  }
+
+  // Cover-page identity block: legal name, GSTIN, PAN, registered
+  // address. Anything not filled in Settings renders "Not supplied" —
+  // never a guess, never left blank with no explanation (an auditor
+  // seeing a blank field can't tell "not applicable" from "forgot to
+  // check"; an explicit label can only mean one thing).
+  function auditIdentityBlock() {
+    const notSupplied = '<span style="color:#c00;">Not supplied</span>';
+    const g = S.gym || {};
+    const rows = [
+      ['Legal / Registered Name', g.legal_name ? escHtml(g.legal_name) : (g.name ? escHtml(g.name) + ' <span style="color:#999;">(display name — legal name not supplied)</span>' : notSupplied)],
+      ['GSTIN', g.gstin ? escHtml(g.gstin) : notSupplied],
+      ['PAN', g.pan ? escHtml(g.pan) : notSupplied],
+      ['Registered Address', (g.registered_address || g.address) ? escHtml(g.registered_address || g.address) : notSupplied],
+      ['Accounting Basis', 'Cash basis — revenue recognised on payment receipt date (payment_history.paid_at), not on invoice/plan-sale date'],
+    ];
+    return rows.map(([k, v]) => `<div style="padding:6px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:16px;"><span style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">${k}</span><span style="font-size:12px;color:#222;text-align:right;">${v}</span></div>`).join('');
+  }
+
+  function csvDataUri(headers, rows) {
+    const escape = (v) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+    return 'data:text/csv;charset=utf-8,' + encodeURIComponent('﻿' + csv);
+  }
+
+  function auditSectionHTML(title, section, filename) {
+    const hdr = section.headers.map(h => `<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#fff;background:#1A6FD4;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;">${escHtml(h)}</th>`).join('');
+    const body = section.rows.length
+      ? section.rows.map((r, i) => `<tr style="background:${i % 2 ? '#f9fafb' : '#fff'};page-break-inside:avoid;">${r.map(cell => `<td style="padding:6px 10px;font-size:10px;color:#222;border-bottom:1px solid #eee;">${escHtml(String(cell))}</td>`).join('')}</tr>`).join('')
+      : `<tr><td colspan="${section.headers.length}" style="padding:16px;text-align:center;color:#999;font-size:10px;">No records</td></tr>`;
+    const noteHtml = section.note ? `<div style="font-size:10px;color:#a05a00;background:#fff6e6;border:1px solid #ffe0a3;border-radius:4px;padding:8px 10px;margin-bottom:6px;">${escHtml(section.note)}</div>` : '';
+    const metaHtml = section.meta ? `<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px;font-size:11px;color:#444;">${Object.entries(section.meta).map(([k, v]) => `<div><strong>${escHtml(k)}:</strong> ${escHtml(String(v))}</div>`).join('')}</div>` : '';
+    const csvHref = section.rows.length ? csvDataUri(section.headers, section.rows) : '';
+    const downloadLink = section.rows.length
+      ? `<a href="${csvHref}" download="${escAttrLite(filename)}" style="font-size:10px;color:#1A6FD4;text-decoration:none;font-weight:600;">&#8681; Download CSV — ${escHtml(filename)}</a>`
+      : `<span style="font-size:10px;color:#999;">No data to download for this table</span>`;
+    return `<h2 style="font-size:14px;color:#1A6FD4;margin:18px 0 6px;border-bottom:2px solid #1A6FD4;padding-bottom:3px;display:flex;justify-content:space-between;align-items:baseline;"><span>${escHtml(title)}</span>${downloadLink}</h2>${metaHtml}${noteHtml}<table style="width:100%;border-collapse:collapse;margin-bottom:4px;"><thead><tr>${hdr}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+  // escHtml() covers text nodes; a download="" attribute needs quote-safe
+  // escaping only (no need to entity-encode & etc. beyond that).
+  function escAttrLite(s) { return String(s || '').replace(/"/g, '&quot;'); }
+
   document.getElementById('btn-export-yearend')?.addEventListener('click', async () => {
     const year = parseInt(document.getElementById('bk-year')?.value || curYear);
     const btn = document.getElementById('btn-export-yearend');
     if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
     try {
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-      const [yearExpenses, yearPayments] = await Promise.all([
-        getExpensesByRange(S.gym.id, startDate, endDate),
-        getPaymentHistory(S.gym.id).catch(() => []),
-      ]);
-
-      // Revenue by month — from actual payment_history, not member plan prices
-      const monthlyData = [];
-      for (let mo = 0; mo < 12; mo++) {
-        const mStart = new Date(year, mo, 1);
-        const mEnd = new Date(year, mo + 1, 0, 23, 59, 59, 999);
-        const label = mStart.toLocaleDateString('en-IN', { month: 'short' });
-        const rev = (yearPayments||[]).filter(p => {
-          if (!p.paid_at) return false;
-          const pd = new Date(p.paid_at);
-          return pd >= mStart && pd <= mEnd;
-        }).reduce((s,p) => s + (parseFloat(p.amount)||0), 0);
-        const mKey = `${year}-${String(mo+1).padStart(2,'0')}`;
-        const exp = yearExpenses.filter(e => e.expense_month === mKey).reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
-        monthlyData.push({ label, rev, exp, profit: rev - exp });
-      }
-
-      const totalRev = monthlyData.reduce((s,m) => s + m.rev, 0);
-      const totalExp = monthlyData.reduce((s,m) => s + m.exp, 0);
-      const totalProfit = totalRev - totalExp;
-
-      // Category breakdown
-      const catTotals = {};
-      yearExpenses.forEach(e => { catTotals[e.category] = (catTotals[e.category]||0) + (parseFloat(e.amount)||0); });
-      const sortedCats = Object.entries(catTotals).sort((a,b) => b[1]-a[1]);
-
-      // Member stats
-      const allM = await exportMembers();
-      const totalMembers = allM.length;
-      const activeMembers = allM.filter(m => memberStatus(m) === 'Active').length;
-      const newThisYear = allM.filter(m => m.join_date && m.join_date.startsWith(String(year))).length;
-
-      const headers = ['Month', 'Revenue', 'Expenses', 'Net Profit'];
-      const rows = monthlyData.map(m => [m.label, '₹'+m.rev.toLocaleString('en-IN'), '₹'+m.exp.toLocaleString('en-IN'), '₹'+m.profit.toLocaleString('en-IN')]);
-      rows.push(['TOTAL', '₹'+totalRev.toLocaleString('en-IN'), '₹'+totalExp.toLocaleString('en-IN'), '₹'+totalProfit.toLocaleString('en-IN')]);
-
-      if (sortedCats.length > 0) {
-        rows.push(['', '', '', '']);
-        rows.push(['Top Expense Categories', '', '', '']);
-        sortedCats.slice(0, 8).forEach(([cat, amt]) => {
-          const pct = totalExp > 0 ? Math.round((amt/totalExp)*100) : 0;
-          const catLabel = EXPENSE_CATEGORIES.find(c => c.id === cat || c.label === cat);
-          rows.push([catLabel ? catLabel.label : cat, '₹'+amt.toLocaleString('en-IN'), pct + '%', '']);
-        });
-      }
-
-      const newLabel = `New (${year})`;
-      const meta = {
-        'Revenue': '₹'+totalRev.toLocaleString('en-IN'),
-        'Expenses': '₹'+totalExp.toLocaleString('en-IN'),
-        'Net Profit': '₹'+totalProfit.toLocaleString('en-IN'),
-        'Members': totalMembers,
-        'Active': activeMembers,
-        [newLabel]: newThisYear,
+      const ds = await buildAuditDataset(year);
+      const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const sectionTitles = {
+        'gst-reconciliation': 'GST Reconciliation', 'tax-breakup': 'Tax Breakup (CGST / SGST)',
+        'b2b-b2c-split': 'B2B / B2C Split', 'sac-wise': 'SAC-wise Data', 'place-of-supply': 'Place of Supply',
+        'itc-information': 'Input Tax Credit (ITC) Information', 'invoice-register': 'Invoice Register',
+        'expense-register': 'Purchase / Expense Register', 'invoice-sequence-audit': 'Invoice Sequence Audit',
+        'cancelled-invoices': 'Cancelled Invoices', 'credit-debit-notes': 'Credit / Debit Notes',
+        'payment-reconciliation': 'Payment Reconciliation', 'outstanding-balances': 'Outstanding Balances',
+        'audit-trail': 'Audit Trail',
       };
-      const fn = gymName.replace(/\s+/g,'_') + '_year_end_' + year;
-      if (exportPDF('Year-End Financial Summary — ' + year, headers, rows, fn, meta, 'Financial Year ' + year))
-        showToast('Opening year-end summary…', 'green');
-    } catch(err) { console.error('Year-end export error:', err); showToast('Failed to generate year-end summary', 'red');
-    } finally { if (btn) { btn.disabled = false; btn.textContent = 'Export Year-End Summary (PDF)'; } }
+      const sectionsHtml = AUDIT_CSV_TYPES.map(t => auditSectionHTML(sectionTitles[t.id], ds.sections[t.id], buildExportFilename(t.id, 'csv'))).join('');
+
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${escHtml('Financial & GST Audit Support Report — ' + year)} — ${escHtml(gymName)}</title>
+<style>@page{size:A4;margin:14mm 12mm;}*{box-sizing:border-box;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#222;margin:0;padding:20px;background:#fff;font-size:11px;}table{width:100%;border-collapse:collapse;}tr{page-break-inside:avoid;}@media print{body{padding:0;}.no-print{display:none!important;}}</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:16px;border-bottom:2px solid #1A6FD4;">
+  <div><div style="font-size:16px;font-weight:700;letter-spacing:0.1em;color:#0A84FF;text-transform:uppercase;">D Sculpt Fitness</div><div style="font-size:10px;color:#888;letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;">Financial &amp; GST Audit Support Report</div></div>
+  <div style="text-align:right;font-size:11px;color:#666;line-height:1.7;"><strong style="color:#222;font-size:13px;">${escHtml(gymName)}</strong><br>Report generated: ${escHtml(dateStr)}</div>
+</div>
+<div style="background:#fff3cd;border:1px solid #ffe58f;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#7a5c00;font-weight:600;">
+  Prepared for audit review — this is not a tax filing and is not a substitute for GSTR/ITR returns filed with the tax department. Verify every figure against source records before relying on it.
+</div>
+<div style="display:flex;gap:24px;margin-bottom:18px;">
+  <div style="flex:1;padding:12px 14px;background:#f4f7fb;border-left:3px solid #1A6FD4;border-radius:4px;">${auditIdentityBlock()}</div>
+  <div style="flex:1;padding:12px 14px;background:#f4f7fb;border-left:3px solid #1A6FD4;border-radius:4px;">
+    <div style="padding:6px 0;border-bottom:1px solid #eee;"><span style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Report Period</span><div style="font-size:12px;color:#222;margin-top:2px;">${escHtml(ds.periodLabel)}</div></div>
+    <div style="padding:6px 0;border-bottom:1px solid #eee;"><span style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Data Coverage</span><div style="font-size:12px;color:#222;margin-top:2px;">${escHtml(ds.dataExtentLabel)}</div></div>
+    <div style="padding:6px 0;"><span style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Reconciliation Timestamp</span><div style="font-size:12px;color:#222;margin-top:2px;">${escHtml(dateStr)} (Asia/Kolkata)</div></div>
+  </div>
+</div>
+${auditSectionHTML('Monthly Summary — Revenue, Expenses, Net Profit', ds.summary, buildExportFilename('monthly-summary', 'csv'))}
+${auditSectionHTML('Expense Category Breakdown', ds.expenseCategoryBreakdown, buildExportFilename('expense-category-breakdown', 'csv'))}
+${sectionsHtml}
+<div style="margin-top:24px;padding-top:10px;border-top:1px solid #ddd;font-size:9px;color:#999;text-align:center;">Generated by D Sculpt Fitness &middot; ${escHtml(gymName)} &middot; ${escHtml(dateStr)} &middot; Confidential — for audit review only</div>
+</body></html>`;
+      showPrintPreview('Financial & GST Audit Support Report — ' + year, html);
+      showToast('Audit report ready', 'green');
+    } catch (err) { console.error('Audit report error:', err); showToast('Failed to generate audit report', 'red');
+    } finally { if (btn) { btn.disabled = false; btn.textContent = 'Generate Audit Report (PDF)'; } }
+  });
+
+  // ── AUDIT CSV BUTTONS ──────────────────────────────────────────
+  // One shared handler for all 14 buttons in #audit-csv-grid — each
+  // recomputes buildAuditDataset() for the currently selected year (kept
+  // simple over caching: this page is a low-frequency, owner-only export
+  // screen, not a hot path) and downloads just that section.
+  document.getElementById('audit-csv-grid')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-audit-csv]');
+    if (!btn) return;
+    const typeId = btn.dataset.auditCsv;
+    const year = parseInt(document.getElementById('bk-year')?.value || curYear);
+    const originalLabel = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Preparing…';
+    try {
+      const ds = await buildAuditDataset(year);
+      const section = ds.sections[typeId];
+      if (!section || !section.rows.length) {
+        showToast(section?.note || 'No data available for this export', 'amber');
+        return;
+      }
+      downloadCSV(section.headers, section.rows, buildExportFilename(typeId, 'csv'));
+      showToast('CSV downloaded — open in Excel', 'green');
+    } catch (err) { console.error('Audit CSV error:', err); showToast('Failed to export CSV', 'red');
+    } finally { btn.disabled = false; btn.textContent = originalLabel; }
   });
 
   // ── MEMBERS CSV EXPORT ──────────────────────────────────────────
