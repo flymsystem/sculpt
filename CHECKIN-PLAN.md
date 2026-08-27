@@ -255,7 +255,19 @@ src/pages/member/login.js              app number + phone → PIN
 src/pages/member/scan.js               camera + decode
 src/pages/member/receipts.js
 
-src/pages/dashboard/checkin-display.js desk kiosk QR screen
+src/pages/dashboard/checkin-display.js desk kiosk QR screen. Exit is a plain
+                                        single-tap "← Back" button (changed
+                                        2026-08-27 from a 3-second hold, at the
+                                        client's direction, after the hold
+                                        failed live during a demo — see
+                                        HANDOVER.md §6 "window._navTo" and
+                                        "kiosk exit" entries). No PIN gate
+                                        exists on exit; the kiosk's security
+                                        now depends entirely on physical
+                                        supervision of the tablet. A staff PIN
+                                        on exit and/or auto-return-to-kiosk
+                                        after inactivity were proposed and are
+                                        still open, unimplemented.
 src/pages/dashboard/checkins.js        owner: live list, denied list, history
 ```
 

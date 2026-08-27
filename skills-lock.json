@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "accessibility-testing": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/accessibility-testing/SKILL.md",
+      "computedHash": "0fd691f64780f5abd19503fbbbb05420a7aa044656fb631bed8d87bdfb1d0ca4"
+    },
+    "ai-bug-triage": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ai-bug-triage/SKILL.md",
+      "computedHash": "361fe20a5e43d1672efed458ef9dd07dacccf43bd42cd543f7e2e5bedfbc5c1c"
+    },
+    "bug-reproduction": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bug-reproduction/SKILL.md",
+      "computedHash": "2cfe5673465cf69132879e465160a4fd03156ab6ed379ad5d4507d37ac1e001d"
+    },
+    "database-testing": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/database-testing/SKILL.md",
+      "computedHash": "3cfdc86bdd1b9118a49e703da0e364881c547a72dafe0f1e70fc297f5d4d23d7"
+    },
+    "release-readiness": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/release-readiness/SKILL.md",
+      "computedHash": "7c9fe785e99bd4b242f3b9dfe1f9985fe2d591e4c90f52d02fffc954db2ff28e"
+    },
+    "security-testing": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security-testing/SKILL.md",
+      "computedHash": "74969f6b040d6eff2559777141da0f20364aea2be94b4393dbe58380fb730cd6"
+    },
+    "visual-testing": {
+      "source": "petrkindlmann/qa-skills",
+      "sourceType": "github",
+      "skillPath": "skills/visual-testing/SKILL.md",
+      "computedHash": "f9ec1ac4ac4aa07010cfbbe3526cb32d477fef83ad06dd83aa73928e3c9b9651"
+    }
+  }
+}

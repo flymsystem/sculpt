@@ -68,6 +68,20 @@ export async function renderGymDashboard(router) {
   // leaves, the same way member/index.js tears down its scanner.
   window.__sculptRegisterCleanup?.(cleanupFAB);
 
+  // Re-assign every render, not just on first module import. router.go()
+  // (app.js) deletes every LEGACY_GLOBALS entry — including _navTo — on
+  // EVERY navigation, but this module's top-level `window._navTo = nav`
+  // only ever runs once (dynamic import() caches the module, so a second
+  // `import('./pages/dashboard/index.js')` never re-executes its top
+  // level). Leave the dashboard once and come back, and every inline
+  // onclick="window._navTo(...)" handler (the alerts banner in
+  // overview.js, "Back to Dashboard" below) silently did nothing —
+  // exactly the bug the desk-display "Hold to exit" button hit during
+  // the 2026-08-27 client demo (checkin-display.js now imports `nav`
+  // directly instead of relying on this global at all, but these two
+  // inline-onclick call sites still need it).
+  window._navTo = nav;
+
   const root = document.getElementById('root');
   const sessionData = window.__sculptSession;
 
@@ -261,7 +275,7 @@ const VALID_SECTIONS = new Set([
 ]);
 
 // ── Navigation ───────────────────────────────────────
-function nav(id, opts = {}) {
+export function nav(id, opts = {}) {
   // Validate section ID — fall back to overview for unknown sections
   if (!VALID_SECTIONS.has(id)) id = 'overview';
 

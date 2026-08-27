@@ -492,6 +492,26 @@ export async function deleteMember(memberId, gymId) {
 }
 
 /**
+ * Hard delete — for a mistaken/test entry only. Unlike deleteMember()
+ * above, this also erases the member's payment_history (via ON DELETE
+ * CASCADE, migration 129_sculpt_delete_member_permanently), so it takes
+ * their money out of revenue totals for good. Owner-only; the RPC
+ * itself is the real gate (get_my_gym_id()), not this client check.
+ */
+export async function deleteMemberPermanently(memberId, gymId) {
+  const { data, error } = await supabase.rpc('sculpt_delete_member_permanently', {
+    p_member_id: memberId,
+    p_gym_id: gymId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || row.out_status !== 'OK') {
+    throw new Error(row?.out_message || 'Permanent delete failed.');
+  }
+  safeLog(gymId, 'member_deleted_permanently', `Member permanently deleted, including payment history (ID: ${memberId})`);
+}
+
+/**
  * Records a payment against a member's outstanding balance_due.
  * Supports partial settlement (amountPaid < balance_due) or full settle.
  * Inserts a payment_history row and flips payment_status to 'Paid' once

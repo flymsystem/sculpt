@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     const rawPhone = String(payload?.phone || '').trim();
 
     if (!gymCode || !rawAppNum || !rawPhone) {
+      console.error('[member-signin] MISSING_FIELDS');
       return json({ error: GENERIC_ERROR }, 400);
     }
 
@@ -102,12 +103,15 @@ Deno.serve(async (req) => {
     ]);
 
     if ((ipFails || 0) >= MAX_FAILED_ATTEMPTS || (appFails || 0) >= MAX_FAILED_ATTEMPTS) {
+      console.error('[member-signin] RATE_LIMITED', { ip, applicationNumber: rawAppNum });
       return json({ error: 'Too many attempts. Please try again in a few minutes.' }, 429);
     }
 
-    const logAttempt = (gymId: string | null, succeeded: boolean) =>
+    // reason is server-only diagnostics (migration 130) — never reflected
+    // in the client response, so it can't become an enumeration oracle.
+    const logAttempt = (gymId: string | null, succeeded: boolean, reason: string | null) =>
       admin.from('member_login_attempts')
-        .insert({ gym_id: gymId, application_number: rawAppNum, ip, succeeded })
+        .insert({ gym_id: gymId, application_number: rawAppNum, ip, succeeded, reject_reason: reason })
         .then(() => {}, () => {}); // logging must never throw past this point
 
     // ── Resolve gym, then member — same rejection path either way ──
@@ -115,7 +119,8 @@ Deno.serve(async (req) => {
       .from('gyms').select('id').eq('gym_code', gymCode).eq('is_active', true).maybeSingle();
 
     if (!gym) {
-      await logAttempt(null, false);
+      console.error('[member-signin] NO_GYM', { gymCode });
+      await logAttempt(null, false, 'NO_GYM');
       return json({ error: GENERIC_ERROR }, 400);
     }
 
@@ -131,7 +136,9 @@ Deno.serve(async (req) => {
     const phoneOk = !!member && normalizePhone(member.phone) === normalizePhone(rawPhone) && normalizePhone(rawPhone).length === 10;
 
     if (!member || !phoneOk) {
-      await logAttempt(gym.id, false);
+      const reason = !member ? 'NO_MEMBER' : 'PHONE_MISMATCH';
+      console.error(`[member-signin] ${reason}`, { gymId: gym.id, applicationNumber: rawAppNum });
+      await logAttempt(gym.id, false, reason);
       return json({ error: GENERIC_ERROR }, 400);
     }
 
@@ -193,7 +200,7 @@ Deno.serve(async (req) => {
       return json({ error: 'Could not sign you in. Please try again.' }, 500);
     }
 
-    await logAttempt(gym.id, true);
+    await logAttempt(gym.id, true, null);
 
     return json({
       access_token: verifyData.session.access_token,

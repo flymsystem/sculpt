@@ -84,8 +84,13 @@ function buildInvoiceDocument(m, gymName, invoiceNo) {
   // ── Money (unchanged) ──────────────────────────────────────────
   const memberAddons  = parseMemberAddons(m);
   const basePlan      = S.plans.find(p => m.plan_id ? String(p.id) === String(m.plan_id) : p.name === (m.plan_name || m.plan));
-  const basePlanPrice = basePlan ? parseFloat(basePlan.price) : (parseFloat(m.plan_price) || 0);
   const addonTotal    = memberAddons.reduce((s, a) => s + (parseFloat(a.price) || 0), 0);
+  // m.plan_price is written as the combined plan+add-ons total (see
+  // sculpt_add_member / collectMemberData in member-modals.js), so the
+  // fallback for a since-deleted plan must subtract addonTotal back out —
+  // adding it again on top would double-count every add-on. Same fix as
+  // member-modals.js's openMemberDetailModal, same root cause.
+  const basePlanPrice = basePlan ? parseFloat(basePlan.price) : Math.max(0, (parseFloat(m.plan_price) || 0) - addonTotal);
   const totalPrice    = basePlanPrice + addonTotal;
 
   const discount   = parseFloat(m.discount_amount) || 0;

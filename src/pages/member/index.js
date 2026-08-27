@@ -168,7 +168,7 @@ function renderCheckinTab(c) {
         <div class="mp-stat-card">
           <div class="mp-stat-label">Membership</div>
           <div class="mp-stat-value ${meta.tone}">${escHtml(meta.label.toUpperCase())}</div>
-          ${m.days_remaining != null ? `<div class="mp-stat-sub">${escHtml(String(m.days_remaining))} day${m.days_remaining === 1 ? '' : 's'} remaining</div>` : ''}
+          ${m.days_remaining != null ? `<div class="mp-stat-sub">${Math.abs(m.days_remaining)} day${Math.abs(m.days_remaining) === 1 ? '' : 's'} ${m.days_remaining < 0 ? 'ago' : 'remaining'}</div>` : ''}
         </div>
         ${balance > 0 ? `
           <div class="mp-stat-card mp-stat-card-warn">
@@ -251,8 +251,9 @@ function showCheckinResult(status, message) {
   if (ok) {
     const name = _membership.member_name || 'there';
     const meta = statusMeta(_membership.computed_status);
-    const daysLine = _membership.days_remaining != null
-      ? `${meta.label} · ${_membership.days_remaining} day${_membership.days_remaining === 1 ? '' : 's'} left`
+    const dr = _membership.days_remaining;
+    const daysLine = dr != null
+      ? `${meta.label} · ${Math.abs(dr)} day${Math.abs(dr) === 1 ? '' : 's'} ${dr < 0 ? 'ago' : 'left'}`
       : meta.label;
     stage.innerHTML = `
       <div class="mp-confirm mp-confirm-${meta.tone}">

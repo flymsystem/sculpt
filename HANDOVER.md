@@ -30,7 +30,7 @@ backend, installable as a phone app (PWA).
 | Dashboard | https://supabase.com/dashboard/project/acigxzbbchhisaymklld |
 | Region | `ap-northeast-2` (Seoul) |
 | Owner login (the app) | `sculptfit@gmail.com` |
-| Gym code | `SCULPT01` |
+| Gym code | `DSCULPT` (was documented here as `SCULPT01` until 2026-08-27 — that value was never correct and caused every member login to fail during the client demo; see the 2026-08-27 entry below) |
 
 > **The backend moved accounts on 2026-08-23.** The project used to sit in
 > Steven's personal Supabase account; it was **transferred** into the
@@ -359,6 +359,140 @@ hand, not just generated.
 
 ---
 
+## 2026-08-27: QA pass 2 — driving P0/P1 flows live, four real bugs found and fixed
+
+Follow-up to the 2026-08-26 Batch 3 session, run because that session's "no
+other bugs found" claim for P0/P1 was verified mostly by reading code and by
+direct `supabase.from()` probes rather than by actually driving the flows
+end-to-end in a browser. This pass did that: real clicks, real submits, real
+renders, on `npm run preview` with the owner login and the member portal
+(`SC-0145-2PW` / `7917282929`). All test data used a `ZZTEST-` name prefix,
+created and deleted by this session only, confirmed removed from the live DB
+(and, where storage was involved, the storage bucket — see caveat below).
+
+Four real bugs found, all fixed and re-verified live, none of them visible
+from code review or the automated suite alone:
+
+1. **Router race could silently turn the login screen back into the public
+   landing page.** `src/app.js`'s `router.go()` computed `thisNavId` but only
+   used it to guard clearing `_navigating` — the actual page render
+   (`load().then(render)` inside `lazyRoute()`) ran unconditionally once its
+   chunk import resolved, with no check that this navigation was still the
+   current one. A stale/invalid session in `localStorage` at boot can fire
+   Supabase's own async `SIGNED_OUT` event (which calls `router.go('landing')`)
+   racing against `boot()`'s own auth check (which correctly calls
+   `router.go('login')`) — whichever chunk import resolves *last* wins the
+   DOM, regardless of which `router.go()` call happened last. Reproduced
+   twice by seeding a garbage `sculpt-session` value and navigating to
+   `/login`. Fixed by passing an `isStale()` check into `lazyRoute()`'s
+   render step, keyed off `_navId`, so a superseded navigation's chunk
+   import becomes a no-op once it resolves. Regression: none — a manual
+   repro that reliably reproduced before the fix rendered the correct login
+   form after it, twice.
+2. **Member detail modal double-counted every add-on.** `members.plan_price`
+   is written as the *combined* plan+add-ons total (see
+   `sculpt_add_member`/`sculpt_renew_member` — the client always sends a
+   single `p_plan_price` that already includes add-ons). `member-modals.js`'s
+   `openMemberDetailModal()` read `m.plan_price` as if it were the base plan
+   price alone and added `addonTotal` again on top — a member with a ₹2,500
+   plan + a ₹300 add-on showed "Plan Price ₹2,800", "Net Total ₹3,100", and
+   "Amount Paid" derived from the wrong Net Total, all wrong, while the
+   actual DB row, payment history and invoice were all correct. Reproduced
+   live by adding a `ZZTEST-` member with a plan + add-on + partial payment
+   and comparing the modal against `payment_history`/`members` directly.
+   `invoice-template.js` had the same latent bug in its own fallback path
+   (only reachable if the plan has since been deleted from Plan Settings —
+   its normal path looks up the live catalog price and was already
+   correct). Fixed both to look up the current plan's base price first,
+   falling back to `plan_price − addonTotal` (not `plan_price` itself) only
+   if the plan no longer exists. Root cause: `plan_price`'s semantics
+   (combined vs. base-alone) drifted between the write path and one read
+   path, plus a not-yet-triggered fallback in a second read path — see
+   CLAUDE.md for the "look up the live catalog price first" convention this
+   established.
+3. **A member could never be renewed again at the same plan+price after
+   renewing while still active.** `sculpt_renew_member`'s "reject an
+   exact-repeat renewal within 5 seconds" duplicate guard compared
+   `now()` against `payment_history.paid_at` — but a renewal's `paid_at` is
+   deliberately set to the renewal's *effective join date*
+   (`toPaidAtTimestamp()`), which for a renew-while-active (the normal,
+   encouraged case — renewing before expiry) is always in the future.
+   `paid_at >= now() - interval '5 seconds'` is true for any future
+   `paid_at`, forever — so the very next renewal attempt at the same
+   plan+amount, even weeks later, was permanently rejected as a duplicate.
+   This is not an edge case: it's the single most common renewal pattern
+   (a repeat customer renewing the same plan every cycle). Found by
+   actually renewing a `ZZTEST-` member twice — once while active, once
+   after backdating its expiry — and hitting the block on a *second*,
+   genuinely distinct renewal. Fixed in `128_fix_renew_duplicate_guard_future_paid_at.sql`
+   — added `payment_history.created_at` (real insertion time,
+   defaults to `now()`) and switched the guard to check that instead of
+   `paid_at`. Re-verified live: the guard still correctly blocks a real
+   double-click (two calls ~1s apart) and no longer blocks a legitimate
+   renewal 32+ seconds after a prior one.
+4. **Member portal's Check In tab showed "-5 days remaining" for an expired
+   membership**, instead of "5 days ago" — `src/pages/member/index.js`'s
+   Check In tab card rendered `${m.days_remaining} days remaining` with no
+   sign handling, while the My Plan tab (`renderPlanTab()`) already had the
+   correct `Math.abs(days)` + "ago"/"left" pattern for the same field. Same
+   class of bug as #2: one call site correctly handled a value's full range,
+   a second call site elsewhere didn't. Fixed both the Check In tab card and
+   the post-scan confirmation screen (`showCheckinResult()`, same
+   unguarded-negative pattern, lower risk since a genuinely expired member's
+   scan is already rejected server-side before reaching that screen, but
+   fixed for consistency). Reproduced live with a backdated-expiry
+   `ZZTEST-` member logged into the member portal.
+
+Also investigated and ruled out (real testing, not just reading code):
+
+- **`member-portal-responsive.spec.js`'s occasional failure is a pre-existing
+  test-infrastructure artifact, not a product race.** Ran the flagged test
+  5× in isolation (5/5 pass) and 5× inside the full ~100-test suite at
+  Playwright's default full parallelism (failed 1–3 times per run, but a
+  *different* test each time, always the identical Playwright-level
+  "Execution context was destroyed, most likely because of a navigation"
+  error — never a product assertion failure). Isolating the same spec file
+  alone at 4 workers (3 clean runs) ruled out contention between its own
+  tests. Conclusion: CPU/resource contention from running many parallel
+  Chromium instances on this dev machine, not a router or app-level race.
+  No product fix applies; run the full suite at a lower worker count
+  (`--workers=4` or so) for a reliable local pass, same as the credentialed
+  suite already requires `--workers=1` for a different reason (auth rate
+  limits).
+- **`auth-flow.spec.js`'s "every dashboard section renders" test is
+  independently flaky for a different, pre-existing reason**: it calls
+  `window._navTo(...)` immediately after login without waiting for the
+  dashboard chunk to finish its own initial render first (unlike the first
+  test in the same file, which does wait for `#gym-content` to be
+  non-empty) — a real race in the *test*, present since the file was
+  written (single commit in its `git log`), not introduced by anything in
+  this session. Out of this pass's scope to fix; flagging for whoever next
+  touches that file.
+- Re-audited every HTML-attribute interpolation site across `src/pages/`
+  for the same class of gap as the 2026-08-26 XSS fix (`expenses-page.js`)
+  — none found; that one site was isolated.
+
+**Verified before calling this pass done:** `npm run build`, `npm run lint`
+(same 12 pre-existing errors, 0 new), `npx playwright test --workers=1` with
+real owner credentials (91 passed, 1 pre-existing failure —
+`security.spec.js:201`, needs a staff login, same as every prior batch — 6
+skipped/6 did-not-run for the same reason), `node scripts/qa-responsive.mjs`
+/ `qa-nav.mjs` / `qa-dashboard.mjs` (all clean at all 8 widths).
+
+**One known cleanup gap:** one test invoice PDF (`ZZTEST-Rajasekaran…`, no
+real data) uploaded to the `invoices` storage bucket during the html2canvas→
+WhatsApp path test could not be removed — `npx supabase storage rm` (with
+`--experimental`) accepted the command but reported `"deleted":[]` for a
+file `ls` confirms exists, on both the single-file and recursive-folder
+forms. Not a security issue (private bucket, synthetic test content, no real
+member's data), but the CLI issue itself is unresolved — whoever has
+dashboard storage-browser access should delete
+`invoices/7854b083-ce56-47ff-8339-79ebbd183fd5/65ede752-9fdf-421d-bc4f-0e5068e95bd9/`
+by hand. The member row itself and its payment history were deleted via SQL
+and confirmed gone.
+
+---
+
 ## Pending
 
 Genuinely open items, as of 2026-08-26:
@@ -531,12 +665,52 @@ built from.
   exception rolls back the transaction and takes the denied-attempt row
   with it — see `CLAUDE.md`'s "Conventions" section for the full
   rationale.
-- **The kiosk display's exit requires a 3-second hold, not a tap**, and
-  hides the real sidebar/topbar entirely (`.checkin-kiosk-active` in
-  `dashboard.css`) rather than just visually covering them — the tablet
-  it runs on sits unattended in a public area, signed into an account
-  that can see member phone numbers, Aadhaar photos and collect
-  payments. Don't turn that back into a single-tap Exit button.
+- **UPDATE 2026-08-27: the kiosk exit is now a plain single-tap "← Back"
+  button** (`src/pages/dashboard/checkin-display.js`) — the 3-second hold
+  described just below was removed at the client's explicit direction
+  after it failed live during a demo (root cause: `window._navTo?.()`
+  silently no-oping — see the `_navTo` entry lower in this section — not
+  the hold gesture itself, but the client's decision to drop the hold
+  stands regardless). **The kiosk is now only as safe as physical
+  supervision of the tablet** — anyone who walks up to it while it's
+  running can tap Back and land on an account that can see every
+  member's phone number, Aadhaar photo, and can collect payments. This
+  was flagged, not silently implemented: two mitigations were proposed
+  and are still open, unimplemented —
+  1. a 4-digit staff PIN required on exit, or
+  2. auto-return to the kiosk screen after N seconds of inactivity on
+     the dashboard.
+  Neither is built. If this tablet sits somewhere genuinely unsupervised,
+  raise this with the owner before treating the kiosk as safe.
+  `.checkin-kiosk-active` (hiding the real sidebar/topbar, `dashboard.css`)
+  is untouched and still matters — it stops the mobile swipe-open sidebar
+  gesture from sliding the real dashboard nav out from underneath the
+  full-screen overlay.
+  <details><summary>Original hold-to-exit rationale (historical, no longer implemented)</summary>
+
+  The kiosk display's exit used to require a 3-second hold, not a tap,
+  specifically because the tablet sits unattended in a public area,
+  signed into an account that can see member phone numbers, Aadhaar
+  photos and collect payments. Kept here so the reasoning isn't lost —
+  see the UPDATE above for the current, weaker state and what would
+  restore an equivalent gate.
+  </details>
+- **`window._navTo` (and anything else in `app.js`'s `LEGACY_GLOBALS`
+  that's assigned at a module's top level instead of inside its render
+  function) only gets set on that module's FIRST import.** `router.go()`
+  deletes every `LEGACY_GLOBALS` entry on every navigation, but a dynamic
+  `import()` of an already-loaded module doesn't re-run its top-level
+  code — so leaving the dashboard once and coming back left
+  `window._navTo` permanently `undefined` for the rest of the session.
+  This is exactly what broke the kiosk's exit button above. Fixed by
+  having `dashboard/index.js`'s `renderGymDashboard()` re-assign
+  `window._navTo = nav` on every render, not just relying on the
+  module-top-level assignment. `checkin-display.js` no longer depends on
+  the global at all — it imports `nav` directly. If you add a new inline
+  `onclick="window._navTo(...)"` (or add another global to
+  `LEGACY_GLOBALS`), assign it inside the render function that creates
+  that markup, not at module top level, or it will silently die the same
+  way after the first re-entry.
 - **The member login has no password, PIN or OTP.** Application number +
   phone number, verified entirely inside the `member-signin` Edge
   Function, is the whole security boundary. It rate-limits by IP and by
@@ -690,7 +864,7 @@ src/pages/member/                 the member portal — a second, much smaller a
   receipts.js                     payment history + any already-generated PDFs
 src/pages/dashboard/              the app itself, one file per section
   invoice-template.js             the invoice/receipt HTML — shared by the preview, print and PDF paths
-  checkin-display.js              full-screen desk kiosk QR screen (hold-to-exit)
+  checkin-display.js              full-screen desk kiosk QR screen (← Back to exit, no PIN — see §6)
   checkin-scan.js                 staff/trainer in-app camera scan
   checkins.js                     Check-ins section: attendance log + not-seen-recently list
 supabase/functions/

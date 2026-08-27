@@ -6,7 +6,16 @@ import { supabase } from './supabase.js';
 // before sign-in), so this is the one place that value is hardcoded
 // rather than read off state, mirroring the desk display's use of
 // S.gym.gym_code for the same SCULPT1:<gym_code>:<token> payload.
-export const GYM_CODE = 'SCULPT01';
+//
+// 2026-08-27 client demo: this was 'SCULPT01', which never matched
+// production's actual gyms.gym_code ('DSCULPT') — every member login
+// failed at the gym-lookup step (member-signin/index.ts logAttempt(null,
+// false)), for every member, regardless of their own data. Proven by
+// member_login_attempts: every row from the live demo had gym_id = null.
+// scripts/verify-schema.mjs now asserts this constant against the live
+// `gyms` row so this can't silently drift again — run it after touching
+// this value or the gym's gym_code.
+export const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'DSCULPT';
 
 /**
  * Application number + phone number only. No PIN, password or OTP —

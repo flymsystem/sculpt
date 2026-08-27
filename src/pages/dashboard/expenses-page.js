@@ -106,7 +106,7 @@ function renderExpenses(c) {
       title: isEdit?'Edit Expense':'Add Expense',
       body: `<div class="modal-form">
         <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="exp-cat">${catOpts}</select></div>
-        <div class="form-group"><label class="form-label">Description <span style="color:var(--text-quaternary);">(optional)</span></label><input class="form-input" id="exp-desc" value="${existing?.description||''}" placeholder="e.g. EB bill"></div>
+        <div class="form-group"><label class="form-label">Description <span style="color:var(--text-quaternary);">(optional)</span></label><input class="form-input" id="exp-desc" value="${escAttr(existing?.description||'')}" placeholder="e.g. EB bill"></div>
         <div class="form-group"><label class="form-label">Amount (\u20B9)</label><input class="form-input" id="exp-amt" type="number" min="0" value="${existing?existing.amount:''}" placeholder="0"></div>
         <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="exp-date" type="date" value="${existing?.expense_date||todayISO}"></div>
         <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;">

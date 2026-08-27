@@ -178,6 +178,59 @@ Applied to production (run by hand in the SQL editor, verified):
   `npx supabase db push` failing (`LegacyDbPushMissingRemoteError` — see
   the "process note" below) and `npx supabase db query --linked`
   succeeding instead; live-verified via `information_schema.columns`.
+- `128_fix_renew_duplicate_guard_future_paid_at.sql` — `sculpt_renew_member`'s
+  "reject an exact-repeat renewal within 5 seconds" guard compared
+  wall-clock `now()` against `payment_history.paid_at` — but `paid_at` for a
+  renewal is deliberately set to the renewal's *effective join date*
+  (`toPaidAtTimestamp(r.joinDate)` in `src/lib/members.js`), not the actual
+  submission time. Renewing a still-active membership (the normal case —
+  renewing before expiry) always computes a join_date in the future, so
+  `paid_at >= now() - interval '5 seconds'` was true forever, not just for
+  5 real seconds — permanently blocking every later renewal of the same
+  member at the same plan+price with "This renewal was already recorded a
+  moment ago". Found by actually driving a renew-while-active → renew-again
+  sequence live, not by reading the SQL. Fixed by adding
+  `payment_history.created_at` (defaults to `now()`, doesn't touch any
+  existing row's behaviour) and checking that instead. Applied via
+  `npx supabase db query --linked --file` and live-verified (2026-08-26/27).
+- `129_sculpt_delete_member_permanently.sql` — adds an owner-only hard
+  delete (`sculpt_delete_member_permanently`) alongside the existing
+  soft delete. Migration 121 made Remove (is_active=false) correctly
+  keep a departed member's historical revenue forever — but that left
+  no way to undo a genuine mistake or test entry, which is what staff
+  hit during the 2026-08-27 client demo (three test members, ₹2,500
+  each, stuck in Finance after being Removed). This function hard-DELETEs
+  the `members` row; every FK from `payment_history`/`reminder_logs`/
+  `member_checkins` to `members.id` is already `ON DELETE CASCADE`
+  (migration 001/033), so no separate cleanup step is needed. Applied
+  via `npx supabase db query --linked -f`; live-verified by inserting a
+  test member+payment, confirming the RPC's owner check rejects an
+  unauthenticated caller (`NOT_AUTHORIZED`), then deleting directly and
+  confirming `sculpt_revenue_summary`'s total dropped by exactly that
+  payment's amount. The three real demo test members (`SC-0002`,
+  `SC-0003`, `SC-0004`) were purged from production the same way on
+  2026-08-27 — `sculpt_revenue_summary` now correctly reads ₹0 (the gym
+  currently has zero real members).
+- `130_member_login_attempts_reject_reason.sql` — the client-visible
+  member login error is deliberately identical across five different
+  rejection paths (enumeration guard, see member-signin/index.ts), which
+  made the 2026-08-27 login outage slow to diagnose from the outside —
+  the actual cause (`src/lib/member-auth.js`'s `GYM_CODE` hardcoded to
+  `'SCULPT01'` while production's `gyms.gym_code` is `'DSCULPT'`, so
+  every login failed at the gym-lookup step) was only found by cross-
+  referencing `member_login_attempts.gym_id = null` across every attempt
+  by hand. Adds a server-only `reject_reason` column
+  (`NO_GYM`/`NO_MEMBER`/`PHONE_MISMATCH`/`MISSING_FIELDS`/`RATE_LIMITED`,
+  null on success), written by the redeployed `member-signin` function.
+  `member_login_attempts` has no client SELECT policy, so this doesn't
+  touch the enumeration boundary — the HTTP response is unchanged; only
+  console logs and this column carry the reason now. Applied via
+  `npx supabase db query --linked -f`; function redeployed via
+  `npx supabase functions deploy member-signin` same day. Live-verified:
+  a real member add→login round trip (`SC-TEST-LOGIN`) succeeded end to
+  end against the deployed function, and deliberately-wrong phone vs.
+  deliberately-wrong application number produced the identical client
+  error but distinct `PHONE_MISMATCH`/`NO_MEMBER` rows.
 
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration

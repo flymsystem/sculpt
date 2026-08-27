@@ -43,4 +43,37 @@ for (const f of ['flym_add_member','flym_renew_member','flym_clear_balance',
   console.log(`  ${ok ? 'OK     ' : 'MISSING'} ${f}`);
 }
 console.log('\n  all exposed rpcs:', rpcs.join(', '));
+console.log('\n=== member login gym code (must match src/lib/member-auth.js GYM_CODE) ===');
+// 2026-08-27: GYM_CODE was hardcoded to 'SCULPT01' while the live gyms
+// row was 'DSCULPT' — every member login failed at the gym-lookup step,
+// silently, because member-signin returns the same generic error for
+// that as for a wrong phone number. This check is the guard against
+// that drift recurring undetected.
+//
+// CLAUDE.md is explicit that `gyms` never gets a member/anon SELECT
+// policy — that's a real RLS boundary, not an oversight — so this can't
+// be checked with the anon key like the tables above. It shells out to
+// the Supabase CLI (`db query --linked`), which authenticates via the
+// CLI's own linked-project credentials, not the anon key.
+{
+  const src = readFileSync('src/lib/member-auth.js', 'utf8');
+  const m = src.match(/GYM_CODE\s*=\s*import\.meta\.env\.VITE_PUBLIC_GYM_CODE\s*\|\|\s*'([^']+)'/);
+  const codeInSource = m?.[1];
+  let liveCode = null;
+  try {
+    const { execSync } = await import('node:child_process');
+    const out = execSync(
+      `npx supabase db query --linked "select gym_code from gyms where is_active = true limit 1;" --output-format json`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    const parsed = JSON.parse(out);
+    liveCode = parsed?.rows?.[0]?.gym_code ?? null;
+  } catch (_) { /* CLI not linked/available in this environment — reported as MISMATCH below */ }
+  const ok = !!codeInSource && !!liveCode && codeInSource === liveCode;
+  if (!ok) bad++;
+  console.log(`  source fallback: ${codeInSource ?? '(not found)'}`);
+  console.log(`  live gyms.gym_code: ${liveCode ?? '(could not query — is the Supabase CLI linked?)'}`);
+  console.log(`  ${ok ? 'OK     ' : 'MISMATCH'} — every member login fails silently if these differ`);
+}
+
 console.log(bad === 0 ? '\nRESULT: schema matches the code.' : `\nRESULT: ${bad} problem(s).`);

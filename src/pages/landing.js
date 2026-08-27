@@ -34,7 +34,7 @@ const INK = '#050507';
 
 // Which gym's plans the marketing page advertises. Overridable so a
 // white-label deploy points at its own gym without a code change.
-const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'SCULPT01';
+const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'DSCULPT';
 
 // ── Gym details ───────────────────────────────────────────────────
 // An empty string means "not supplied yet" and renders as a visible

@@ -196,9 +196,23 @@ const LEGACY_GLOBALS = [
  * staring at a blank screen with no explanation.
  */
 function lazyRoute(load, render) {
-  return () => {
+  // isStale() is checked AFTER the chunk import resolves, not just before
+  // _navigating is cleared — two router.go() calls can legitimately race
+  // (e.g. boot()'s own auth check calling go('login') while a stale/invalid
+  // stored session makes the Supabase client fire its own async SIGNED_OUT
+  // event, whose listener calls go('landing')). Without this check, the
+  // import that resolves LAST always wins the DOM, even if its router.go()
+  // call happened first and a later call already moved router.current
+  // elsewhere — the login page a moment ago quietly turning back into the
+  // public landing page. router.current is not a reliable guard here: it
+  // is only ever set to whichever go() call happened most recently, not
+  // whichever render actually finished last.
+  return (isStale) => {
     showRouteLoading();
-    return load().then(render, (err) => {
+    return load().then((m) => {
+      if (isStale()) return;
+      return render(m);
+    }, (err) => {
       console.error('[Sculpt router] chunk load failed:', err);
       const e = new Error('Could not load this page.');
       e.__chunkLoad = true;
@@ -287,7 +301,7 @@ export const router = {
 
     const thisNavId = this._navId;
     try {
-      const result = render();
+      const result = render(() => this._navId !== thisNavId);
       if (result && typeof result.catch === 'function') {
         result.then(() => {
           // Only clear navigating if this is still the current nav

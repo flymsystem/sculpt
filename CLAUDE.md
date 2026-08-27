@@ -185,6 +185,38 @@ Read from it; don't thread it through parameters.
   `landing.js` duplicates `parsePlanData()`'s unwrap logic locally
   rather than importing it, since `pages/dashboard -> pages/landing` is
   not an allowed import direction (see "Layout and boundaries" above).
+- **`members.plan_price` is written as the combined plan + add-ons total,
+  never the base plan price alone.** `sculpt_add_member`/`sculpt_renew_member`
+  each take a single `p_plan_price` from the client, and the modal always
+  sends plan-price-plus-add-ons into it — there is no separate "base only"
+  column. Any reader that needs the base plan price alone (to add its own
+  `addonTotal` on top, e.g. for a "Plan Price" / "Net Total" breakdown) must
+  look up the *current* catalog price from `S.plans` by `plan_id` first —
+  `invoice-template.js`'s `basePlanPrice` is the reference pattern — and
+  only fall back to `plan_price − addonTotal` (never bare `plan_price`) if
+  the plan has since been deleted from Plan Settings. `member-modals.js`'s
+  `openMemberDetailModal()` shipped reading bare `plan_price` as base-only
+  and re-adding `addonTotal`, double-counting every add-on in the "Plan
+  Price"/"Net Total"/"Amount Paid" figures shown to staff — the underlying
+  `members` row, `payment_history` and invoice were all correct the whole
+  time, only this one display was wrong. Caught only by comparing the modal
+  against the DB for a member with a real add-on, not by reading the code.
+- **A router's "is this navigation still current" check must guard the
+  actual page render, not just an internal busy flag.** `src/app.js`'s
+  `router.go()` tracks `_navId` per call, but originally only used it to
+  decide whether to clear `_navigating` once a route's chunk import
+  resolved — the chunk's render call itself (`load().then(render)` inside
+  `lazyRoute()`) ran unconditionally. Two `router.go()` calls can race for
+  reasons outside the router's own control — e.g. a stale/invalid session
+  in `localStorage` at boot makes the Supabase client fire its own async
+  `SIGNED_OUT` event (→ `router.go('landing')`) while `boot()`'s own auth
+  check is independently resolving to `router.go('login')` — and whichever
+  chunk import finishes *last* wins the DOM, even if its `router.go()` call
+  happened first and `router.current` has already moved on to something
+  else. `lazyRoute()` now takes an `isStale()` callback (keyed off `_navId`)
+  and skips its render call once the navigation it belongs to is no longer
+  current. If you add another async gate before a route renders, thread
+  the same check through it.
 - **Never redeclare a class at the same `@media` breakpoint in both
   `src/styles/components.css` and `src/styles/dashboard.css`.**
   `components.css` is a static import from `app.js`, so it always loads
