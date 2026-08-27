@@ -665,23 +665,23 @@ built from.
   exception rolls back the transaction and takes the denied-attempt row
   with it — see `CLAUDE.md`'s "Conventions" section for the full
   rationale.
-- **UPDATE 2026-08-27: the kiosk exit is now a plain single-tap "← Back"
-  button** (`src/pages/dashboard/checkin-display.js`) — the 3-second hold
+- **UPDATE 2026-08-27: the kiosk exit is a "← Back" button with a confirm
+  dialog** (`src/pages/dashboard/checkin-display.js`) — the 3-second hold
   described just below was removed at the client's explicit direction
   after it failed live during a demo (root cause: `window._navTo?.()`
   silently no-oping — see the `_navTo` entry lower in this section — not
   the hold gesture itself, but the client's decision to drop the hold
-  stands regardless). **The kiosk is now only as safe as physical
-  supervision of the tablet** — anyone who walks up to it while it's
-  running can tap Back and land on an account that can see every
-  member's phone number, Aadhaar photo, and can collect payments. This
-  was flagged, not silently implemented: two mitigations were proposed
-  and are still open, unimplemented —
-  1. a 4-digit staff PIN required on exit, or
-  2. auto-return to the kiosk screen after N seconds of inactivity on
-     the dashboard.
-  Neither is built. If this tablet sits somewhere genuinely unsupervised,
-  raise this with the owner before treating the kiosk as safe.
+  stands regardless). A PIN-on-exit vs. auto-return-to-kiosk comparison
+  was presented; the client chose neither, explicitly preferring a
+  same-day confirm dialog ("Exit desk display?") instead. **Be clear
+  about what that does and doesn't do: it's a speed bump against an
+  ACCIDENTAL tap, not a gate against a DELIBERATE one** — anyone willing
+  to tap Exit twice gets the exact same access a single tap used to
+  grant, landing on an account that can see every member's phone number,
+  Aadhaar photo, and can collect payments. The kiosk is, in practice,
+  still only as safe as physical supervision of the tablet. This was the
+  client's informed choice, not an oversight — don't upgrade it to a
+  real gate (PIN, auto-return) without them asking for it again.
   `.checkin-kiosk-active` (hiding the real sidebar/topbar, `dashboard.css`)
   is untouched and still matters — it stops the mobile swipe-open sidebar
   gesture from sliding the real dashboard nav out from underneath the
@@ -718,6 +718,16 @@ built from.
   or the phone was wrong — never make those two cases distinguishable
   from the response, or the endpoint becomes a tool for enumerating
   valid application numbers.
+  **UPDATE 2026-08-27:** `member-signin` no longer accepts or trusts a
+  client-supplied `gymCode` at all — it resolves the sole `is_active`
+  gym itself (CLAUDE.md: there is exactly one gym). This is the
+  class-level fix for the login outage below: the previous design let a
+  hardcoded client constant (`GYM_CODE` in `member-auth.js`) silently
+  drift from the database and fail every login with no visible error.
+  If this ever becomes a real multi-gym product, don't bring back a
+  client-typed gym code with no server-side way to verify it — resolve
+  the gym from something the server actually controls (subdomain,
+  origin, a signed value), or this exact bug returns.
 - **`supabase/functions/member-signin` must never actually send email.**
   It uses `admin.generateLink()` + `verifyOtp()` specifically because
   that path only returns link data — `signInWithOtp`,
@@ -864,7 +874,7 @@ src/pages/member/                 the member portal — a second, much smaller a
   receipts.js                     payment history + any already-generated PDFs
 src/pages/dashboard/              the app itself, one file per section
   invoice-template.js             the invoice/receipt HTML — shared by the preview, print and PDF paths
-  checkin-display.js              full-screen desk kiosk QR screen (← Back to exit, no PIN — see §6)
+  checkin-display.js              full-screen desk kiosk QR screen (← Back + confirm dialog to exit, no PIN — see §6)
   checkin-scan.js                 staff/trainer in-app camera scan
   checkins.js                     Check-ins section: attendance log + not-seen-recently list
 supabase/functions/

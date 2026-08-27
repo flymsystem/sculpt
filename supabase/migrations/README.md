@@ -211,6 +211,18 @@ Applied to production (run by hand in the SQL editor, verified):
   `SC-0003`, `SC-0004`) were purged from production the same way on
   2026-08-27 — `sculpt_revenue_summary` now correctly reads ₹0 (the gym
   currently has zero real members).
+  **Same day, later revision:** the "alongside the existing soft delete"
+  framing above didn't survive first contact with the client — after
+  seeing this in the app, they were explicit that they didn't want a
+  separate "delete permanently" escalation with a typed confirmation at
+  all: Remove should just erase the member's money everywhere, full
+  stop. `deleteMember()` (soft-delete) was removed from every UI call
+  site — `member-modals.js`'s Remove-member modal and `members.js`'s
+  batch delete both now call `deleteMemberPermanently()` directly, no
+  extra step. `sculpt_delete_member_permanently` itself (this migration)
+  is unchanged; only which action the client-facing "Remove" button
+  performs changed. `deleteMember()` still exists in `src/lib/members.js`
+  purely as a test-cleanup convenience — see the comment above it.
 - `130_member_login_attempts_reject_reason.sql` — the client-visible
   member login error is deliberately identical across five different
   rejection paths (enumeration guard, see member-signin/index.ts), which
@@ -231,6 +243,23 @@ Applied to production (run by hand in the SQL editor, verified):
   end against the deployed function, and deliberately-wrong phone vs.
   deliberately-wrong application number produced the identical client
   error but distinct `PHONE_MISMATCH`/`NO_MEMBER` rows.
+- **Same day, follow-up hardening (no new migration file — a
+  `member-signin` code change):** the `GYM_CODE` fix above corrected the
+  *value*; this removes the whole bug *class*. `member-signin` no longer
+  reads or trusts a client-supplied `gymCode` at all — CLAUDE.md is
+  explicit that there is exactly one gym, so the function now resolves
+  the sole `is_active = true` gym itself. `NO_GYM` can now only fire if
+  the database genuinely has no active gym row; it can no longer be
+  triggered by any client-side drift. `src/lib/member-auth.js` no longer
+  exports or sends `GYM_CODE` for login. Redeployed and live-verified:
+  a fresh member (`SC-TEST-DIAG`) signed in successfully with no
+  `gymCode` field in the request body at all; a wrong application number
+  and a wrong phone number against that same member each produced the
+  identical client error with distinct `NO_MEMBER`/`PHONE_MISMATCH`
+  `reject_reason` rows. `checkin-display.js`'s QR payload and
+  `landing.js`'s public-plans lookup are unrelated call sites that still
+  read `gym_code` for their own reasons and still rely on
+  `scripts/verify-schema.mjs`'s drift check.
 
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration

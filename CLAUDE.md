@@ -330,7 +330,15 @@ browser's own print engine.
 - Sidebar animates `width` on purpose; the content margin animates in lockstep.
 - Old migration files still name the previous product (`is_flym_admin`). They
   are the record of what already ran. The live database uses `sculpt_*`.
-- Deleting sets `is_active = false` everywhere except expenses, which really
+- **UPDATE 2026-08-27:** deleting a member is a genuine hard delete
+  (`sculpt_delete_member_permanently`, migration 129) — it also erases
+  their `payment_history`, so Finance/Overview/Analytics/reports lose
+  that revenue too, with no Undo. This overrides migration 121's
+  soft-delete-keeps-revenue default, at the client's explicit direction;
+  see `HANDOVER.md`'s 2026-08-27 entry for the full history — 121 was
+  not wrong, the product decision changed after it shipped. Deleting
+  still sets `is_active = false` (never a hard delete) for everything
+  else — staff, plans, add-on templates — except expenses, which really
   are deleted.
 
 ## Environment

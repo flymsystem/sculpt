@@ -255,19 +255,22 @@ src/pages/member/login.js              app number + phone → PIN
 src/pages/member/scan.js               camera + decode
 src/pages/member/receipts.js
 
-src/pages/dashboard/checkin-display.js desk kiosk QR screen. Exit is a plain
-                                        single-tap "← Back" button (changed
-                                        2026-08-27 from a 3-second hold, at the
-                                        client's direction, after the hold
-                                        failed live during a demo — see
-                                        HANDOVER.md §6 "window._navTo" and
-                                        "kiosk exit" entries). No PIN gate
-                                        exists on exit; the kiosk's security
-                                        now depends entirely on physical
-                                        supervision of the tablet. A staff PIN
-                                        on exit and/or auto-return-to-kiosk
-                                        after inactivity were proposed and are
-                                        still open, unimplemented.
+src/pages/dashboard/checkin-display.js desk kiosk QR screen. Exit is a
+                                        "← Back" button with a confirm dialog
+                                        (changed 2026-08-27 from a 3-second
+                                        hold, at the client's direction, after
+                                        the hold failed live during a demo —
+                                        see HANDOVER.md §6 "window._navTo" and
+                                        "kiosk exit" entries). A PIN-on-exit /
+                                        auto-return-to-kiosk comparison was
+                                        presented; the client explicitly chose
+                                        the confirm dialog instead. This is a
+                                        speed bump against an accidental tap,
+                                        not a gate against a deliberate one —
+                                        the kiosk's real security still
+                                        depends on physical supervision of the
+                                        tablet. Client's informed choice, not
+                                        an oversight.
 src/pages/dashboard/checkins.js        owner: live list, denied list, history
 ```
 

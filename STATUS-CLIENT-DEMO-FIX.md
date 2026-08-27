@@ -118,26 +118,45 @@ this gym's data — there were no real members yet) had been Removed
 revenue in totals. There was no way to say "this was a mistake, actually
 erase it."
 
-**Fixed — per your direct instruction to resolve this now:**
+**Fixed — final shape, after one revision:**
 - `supabase/migrations/129_sculpt_delete_member_permanently.sql` — new
   owner-only Postgres function, hard-deletes a `members` row. Every FK
   from `payment_history`/`reminder_logs`/`member_checkins` to
   `members.id` is already `ON DELETE CASCADE`, so this genuinely removes
-  the member's money from revenue, unlike Remove.
-- `src/lib/members.js` + `member-modals.js` — `deleteMemberPermanently()`
-  and an owner-only "Delete permanently" escalation inside the existing
-  Remove-member modal (typed `DELETE` confirmation, no Undo). Remove
-  stays the default, unlabeled-as-"Delete" action it already was — no
-  rename was needed, the UI already said "Remove."
+  the member's money from revenue.
+- **First attempt** (superseded same day): kept Remove as the soft-delete
+  default and added a separate owner-only "Delete permanently" escalation
+  behind a typed `DELETE` confirmation. Explicitly rejected: "I DONT NEED
+  THAT TYPE DELETE THING, IT SHOULD JUST DELETE THE FINANCE DETAILS OF
+  DELETED MEMBER LITERALLY FROM EVERYWHERE."
+- **Final shape:** Remove itself calls `deleteMemberPermanently()`
+  directly — one modal, one click, no typed confirmation, no separate
+  escalation, no Undo. `deleteMember()` (soft-delete) is no longer
+  reachable from any UI action; it survives only as a test-cleanup
+  convenience (`window.__sculptMembers`).
+- While making this change, also found and fixed a second, unrelated real
+  bug: the Members page's batch-delete button called
+  `showConfirm({onConfirm: ...})`, but `showConfirm()` has no `onConfirm`
+  parameter and returns an un-awaited `Promise<boolean>` — batch delete
+  had been doing nothing at all when confirmed. Fixed alongside the
+  single-delete path.
 - The three real demo test members were purged from production directly.
-  `sculpt_revenue_summary` now reads ₹0 (the gym currently has zero real
-  members) — verified against the live database, not source.
 
-**Verified live against production:** owner-authorization gate confirmed
-(an unauthenticated call returns `NOT_AUTHORIZED`, member/payment
-untouched); a synthetic test member + payment was hard-deleted and
-`sculpt_revenue_summary`'s total dropped by exactly that amount; the
-three real demo members were removed and the gym's total reads ₹0.
+**Verified live against production, twice:** (1) SQL-level authorization
+— an impersonated non-owner caller gets `NOT_AUTHORIZED`, a real owner
+call succeeds and cascades correctly; (2) full UI round trip in a real
+browser with real owner credentials — added a real paid member (₹2,000)
+through the actual Add Member form, watched Finance All-Time revenue go
+₹4,000→₹6,000, clicked Remove once (no typing), watched it go back to
+₹4,000. `tests/member-remove-wipes-finance.spec.js` covers this as a
+permanent regression test.
+
+**Note:** during this work, "ZZTEST MOHAN"/"ZZTEST VINAY"-named members
+kept reappearing in production with new IDs, independent of anything run
+in this session — someone else was manually testing the app live at the
+same time. Not an automation/incident; each occurrence was cleaned up as
+found. Worth a final pass before the gym goes live with real members, to
+confirm nothing from anyone's testing is left behind.
 
 ## What you need to do / already true in production
 
