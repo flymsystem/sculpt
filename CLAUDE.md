@@ -1,8 +1,10 @@
 # CLAUDE.md
 
-Working notes for AI agents on this codebase. Read this first, then
-**[HANDOVER.md](HANDOVER.md) §6 "Things that will break it"** before changing
-anything. [README.md](README.md) has the commands.
+Working notes for AI agents on this codebase. Read this first — the
+"Conventions" section below and [PROJECT.md](PROJECT.md) §5 "Architecture &
+conventions" together are this file's "Things that will break it" — before
+changing anything. [README.md](README.md) has the commands; [PROJECT.md](PROJECT.md)
+is the full stack/architecture/file-map reference.
 
 ## What this is
 
@@ -88,7 +90,7 @@ Read from it; don't thread it through parameters.
   `member_read_own_payments` RLS policy (migration 104) scoped the same
   way — every existing owner/staff policy stays untouched.
 - **Members are never rows in `gym_users`, and `gyms` never gets a member
-  SELECT policy.** See HANDOVER.md §6 for why — this is the one rule in
+  SELECT policy.** See PROJECT.md §5 for why — this is the one rule in
   the whole feature that would quietly undo the RLS boundary above if
   broken.
 - **Application numbers are generated server-side, inside
@@ -309,7 +311,7 @@ node scripts/verify-schema.mjs
 ```
 
 With real owner credentials (`SCULPT_TEST_EMAIL`/`SCULPT_TEST_PASSWORD`,
-`--workers=1` — see README.md/HANDOVER.md §4): 88 pass, 1 pre-existing
+`--workers=1` — see README.md/PROJECT.md §7): 88 pass, 1 pre-existing
 failure (`security.spec.js:201`, needs a *staff* login specifically), 6
 skip / 6 did-not-run (same staff-credential gap). These counts drift as
 tests are added — treat them as "does this shape still look right", not
@@ -334,9 +336,8 @@ browser's own print engine.
   (`sculpt_delete_member_permanently`, migration 129) — it also erases
   their `payment_history`, so Finance/Overview/Analytics/reports lose
   that revenue too, with no Undo. This overrides migration 121's
-  soft-delete-keeps-revenue default, at the client's explicit direction;
-  see `HANDOVER.md`'s 2026-08-27 entry for the full history — 121 was
-  not wrong, the product decision changed after it shipped. Deleting
+  soft-delete-keeps-revenue default, at the client's explicit direction —
+  121 was not wrong, the product decision changed after it shipped. Deleting
   still sets `is_active = false` (never a hard delete) for everything
   else — staff, plans, add-on templates — except expenses, which really
   are deleted.
