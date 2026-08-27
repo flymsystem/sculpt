@@ -4,6 +4,7 @@ import { issueCheckinToken } from '../../lib/checkin.js';
 import { generateQR } from '../../lib/qr.js';
 import { escHtml } from './helpers.js';
 import { nav } from './index.js';
+import { showConfirm } from '../../components/confirm.js';
 
 // 2026-08-27 client demo: "Hold to exit (3s)" never worked. Root cause
 // (proven, not guessed): this button called `window._navTo?.('overview')`,
@@ -23,13 +24,16 @@ import { nav } from './index.js';
 //
 // SECURITY NOTE — read before touching this: the tablet this runs on
 // sits unattended in a public area, signed into an account that can see
-// member phone numbers, Aadhaar photos and collect payments. The 3-second
-// hold existed specifically so a passerby couldn't drop into that account
-// with one tap. A plain Back button removes that gate — see
-// HANDOVER.md §6 and CHECKIN-PLAN.md for what this means going forward
-// and the two mitigations raised there (staff PIN on exit; auto-return
-// to kiosk after inactivity). Neither is implemented — this kiosk is now
-// only as safe as physical supervision of the tablet.
+// member phone numbers, Aadhaar photos and collect payments. The
+// 3-second hold existed specifically so a passerby couldn't drop into
+// that account with one tap. Client's explicit decision (2026-08-27,
+// after a PIN-on-exit / auto-return-to-kiosk comparison was presented):
+// neither — just a confirm dialog on exit. Be clear about what this
+// does and doesn't do: it's a speed bump against an ACCIDENTAL tap, not
+// a gate against a DELIBERATE one — anyone willing to tap twice gets the
+// same access a single tap used to grant. See HANDOVER.md §6 for the
+// tradeoff stated in full; don't upgrade this to a real gate (PIN,
+// auto-return) without the client asking for it again.
 
 let _rotateTimer = null;
 let _wakeLock = null;
@@ -58,7 +62,17 @@ export function renderCheckinDisplay(container) {
       </div>
     </div>`;
 
-  document.getElementById('checkin-exit')?.addEventListener('click', () => {
+  document.getElementById('checkin-exit')?.addEventListener('click', async () => {
+    const ok = await showConfirm({
+      title: 'Exit desk display?',
+      message: 'This leaves the check-in screen and returns to the dashboard.',
+      confirmLabel: 'Exit',
+      confirmVariant: 'danger',
+    });
+    if (!ok) return;
+    // #checkin-kiosk (and this button) may already be gone if the kiosk
+    // was torn down by a navigation elsewhere while the confirm dialog
+    // was open — stopCheckinDisplay()/nav() are both safe to call again.
     stopCheckinDisplay();
     nav('overview');
   });

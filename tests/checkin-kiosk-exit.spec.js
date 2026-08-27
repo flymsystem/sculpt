@@ -1,19 +1,26 @@
-// tests/checkin-kiosk-exit.spec.js — the desk kiosk's exit button
+// tests/checkin-kiosk-exit.spec.js — the desk kiosk's exit flow
 // (checkin-display.js). Rewritten 2026-08-27: the "hold for 3 seconds"
-// gesture this file used to test was replaced with a plain single-tap
-// "← Back" button at the client's direction, after the hold silently did
-// nothing during a live demo. Root cause (see HANDOVER.md §6
-// "window._navTo"): `window._navTo` is assigned once, at
-// dashboard/index.js's module top level, which only runs on that
-// module's FIRST dynamic import — but app.js's router.go() deletes it on
-// EVERY navigation. So the very first time a session left the dashboard
-// and came back, the global was gone for good, and the button's
-// `window._navTo?.('overview')` call silently did nothing.
+// gesture this file used to test was replaced with a "← Back" button at
+// the client's direction, after the hold silently did nothing during a
+// live demo. Root cause (see HANDOVER.md §6 "window._navTo"):
+// `window._navTo` is assigned once, at dashboard/index.js's module top
+// level, which only runs on that module's FIRST dynamic import — but
+// app.js's router.go() deletes it on EVERY navigation. So the very first
+// time a session left the dashboard and came back, the global was gone
+// for good, and the button's `window._navTo?.('overview')` call silently
+// did nothing.
 //
-// The regression this file now guards against is specifically THAT decay
-// path — a same-session re-entry into the dashboard — not just "does the
-// button work once", since a naive fix (calling `nav` once more) can look
-// correct on a fresh page load and still be broken on the second visit.
+// Same day, second iteration: the client was offered a PIN-on-exit /
+// auto-return-to-kiosk comparison and explicitly chose neither — just a
+// confirm dialog ("Exit desk display?") on top of the Back button. This
+// is a speed bump against an accidental tap, not a security gate; see
+// the comment above the click handler in checkin-display.js.
+//
+// The regression this file guards against is specifically the decay
+// path proven above — a same-session re-entry into the dashboard — not
+// just "does the button work once", since a naive fix (calling `nav`
+// once more) can look correct on a fresh page load and still be broken
+// on the second visit.
 //
 // Needs SCULPT_TEST_EMAIL / SCULPT_TEST_PASSWORD (owner login) and
 // --workers=1, same as the rest of the credentialed suite.
@@ -40,14 +47,32 @@ async function openKiosk(page) {
   await page.waitForSelector('#checkin-exit', { state: 'visible' });
 }
 
-test('the exit button is a single tap, not a hold', async ({ page }) => {
+// Back opens the confirm dialog; this presses through it.
+async function tapBackAndConfirmExit(page) {
+  await page.locator('#checkin-exit').click();
+  await page.waitForSelector('#confirm-ok', { state: 'visible' });
+  await page.locator('#confirm-ok').click();
+}
+
+test('Back opens a confirm dialog, and confirming exits to Overview', async ({ page }) => {
   await loginAndReachDashboard(page);
   await openKiosk(page);
   await expect(page.locator('#checkin-exit')).toHaveText(/back/i);
-  await page.locator('#checkin-exit').click();
+  await tapBackAndConfirmExit(page);
   await expect(page.locator('#checkin-kiosk')).toHaveCount(0, { timeout: 5_000 });
   // Lands on the dashboard overview, not still inside the kiosk overlay.
   await expect(page.locator('#page-gym')).not.toHaveClass(/checkin-kiosk-active/);
+});
+
+test('cancelling the confirm dialog stays on the kiosk', async ({ page }) => {
+  await loginAndReachDashboard(page);
+  await openKiosk(page);
+  await page.locator('#checkin-exit').click();
+  await page.waitForSelector('#modal-cancel', { state: 'visible' });
+  await page.locator('#modal-cancel').click();
+  // The kiosk must still be there — a single tap must never exit on its own.
+  await expect(page.locator('#checkin-kiosk')).toHaveCount(1);
+  await expect(page.locator('#page-gym')).toHaveClass(/checkin-kiosk-active/);
 });
 
 test('exit still works after leaving the dashboard and coming back — regression for the window._navTo decay bug', async ({ page }) => {
@@ -68,7 +93,18 @@ test('exit still works after leaving the dashboard and coming back — regressio
   await page.waitForFunction(() => !!document.querySelector('#gym-content .content-inner'));
 
   await openKiosk(page);
-  await page.locator('#checkin-exit').click();
+  await tapBackAndConfirmExit(page);
+  await expect(page.locator('#checkin-kiosk')).toHaveCount(0, { timeout: 5_000 });
+});
+
+test('exit works twice in a row', async ({ page }) => {
+  await loginAndReachDashboard(page);
+  await openKiosk(page);
+  await tapBackAndConfirmExit(page);
+  await expect(page.locator('#checkin-kiosk')).toHaveCount(0, { timeout: 5_000 });
+
+  await openKiosk(page);
+  await tapBackAndConfirmExit(page);
   await expect(page.locator('#checkin-kiosk')).toHaveCount(0, { timeout: 5_000 });
 });
 
