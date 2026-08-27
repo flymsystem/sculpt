@@ -29,7 +29,7 @@ const PASSWORD = process.env.SCULPT_TEST_PASSWORD;
 
 test.skip(!EMAIL || !PASSWORD, 'Needs SCULPT_TEST_EMAIL/SCULPT_TEST_PASSWORD');
 
-test('a member added through the dashboard can sign in through member-login', async ({ page, context }) => {
+test('a member added through the dashboard can sign in through member-login', async ({ page, browser }) => {
   await page.goto('/login', { waitUntil: 'load' });
   await page.locator('#login-email').fill(EMAIL);
   await page.locator('#login-pass').fill(PASSWORD);
@@ -57,9 +57,15 @@ test('a member added through the dashboard can sign in through member-login', as
   expect(appNumber, `No application number found in modal text: ${modalText}`).toBeTruthy();
   await page.locator('#modal-cancel').click();
 
-  // Sign in as the member in a fresh browser context — a real login
-  // page, not an RPC call — so this proves the actual client-facing path.
-  const memberPage = await context.newPage();
+  // Sign in as the member in a genuinely separate browser context — not
+  // context.newPage(), which shares the owner's session/cookies within
+  // the same context and made this test hang: navigating a still-
+  // authenticated-as-owner tab to /member/login just bounces straight
+  // back to /dashboard via the app's own boot() redirect, so
+  // #member-appnum never renders. A fresh context has no session at all,
+  // exactly like a member's own device.
+  const memberContext = await browser.newContext();
+  const memberPage = await memberContext.newPage();
   await memberPage.goto('/member/login', { waitUntil: 'load' });
   await memberPage.locator('#member-appnum').fill(appNumber);
   await memberPage.locator('#member-phone').fill(phone);
@@ -69,14 +75,14 @@ test('a member added through the dashboard can sign in through member-login', as
   // error. /member (exactly, no trailing /login) is where
   // renderMemberPortal mounts — PAGE_TO_PATH in app.js.
   await expect(memberPage).toHaveURL(/\/member$/, { timeout: 15_000 });
-  await memberPage.close();
+  await memberContext.close();
 
   // Cleanup — don't leave the test member in the gym's real member list.
   await page.evaluate(async (n) => {
     const gymId = window.__sculptSession.gym.id;
     const members = await window.__sculptMembers.getMembers(gymId);
     for (const m of members.filter((x) => x.full_name === n)) {
-      await window.__sculptMembers.deleteMember(m.id, gymId).catch(() => {});
+      await window.__sculptMembers.deleteMemberPermanently(m.id, gymId).catch(() => {});
     }
   }, name);
 });

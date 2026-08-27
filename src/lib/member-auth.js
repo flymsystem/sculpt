@@ -1,21 +1,21 @@
 // src/lib/member-auth.js — member login, session, and portal data
 import { supabase } from './supabase.js';
 
-// One gym, one code — see CLAUDE.md "There is one gym." The member
-// login screen has no logged-in session to read S.gym from (it runs
-// before sign-in), so this is the one place that value is hardcoded
-// rather than read off state, mirroring the desk display's use of
-// S.gym.gym_code for the same SCULPT1:<gym_code>:<token> payload.
+// 2026-08-27 client demo: member-signin used to require a client-supplied
+// gymCode and match it against `gyms.gym_code` server-side. That constant
+// was hardcoded here as 'SCULPT01', which never matched production's
+// actual 'DSCULPT' — every member login failed at the gym-lookup step
+// (member-signin/index.ts logAttempt(null, false)), for every member,
+// regardless of their own data. Proven by member_login_attempts: every
+// row from the live demo had gym_id = null.
 //
-// 2026-08-27 client demo: this was 'SCULPT01', which never matched
-// production's actual gyms.gym_code ('DSCULPT') — every member login
-// failed at the gym-lookup step (member-signin/index.ts logAttempt(null,
-// false)), for every member, regardless of their own data. Proven by
-// member_login_attempts: every row from the live demo had gym_id = null.
-// scripts/verify-schema.mjs now asserts this constant against the live
-// `gyms` row so this can't silently drift again — run it after touching
-// this value or the gym's gym_code.
-export const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'DSCULPT';
+// Fixed at the class, not the instance: CLAUDE.md is explicit that there
+// is exactly one gym, so member-signin no longer reads or trusts a
+// client-supplied gym code at all — it resolves the sole active gym
+// itself. There is nothing left here to drift. (checkin-display.js's QR
+// payload and landing.js's public-plans lookup still read `gym_code`
+// for their own, unrelated reasons — scripts/verify-schema.mjs still
+// checks those against the live DB.)
 
 /**
  * Application number + phone number only. No PIN, password or OTP —
@@ -25,7 +25,6 @@ export const GYM_CODE = import.meta.env.VITE_PUBLIC_GYM_CODE || 'DSCULPT';
 export async function memberSignIn(applicationNumber, phone) {
   const res = await supabase.functions.invoke('member-signin', {
     body: {
-      gymCode: GYM_CODE,
       applicationNumber: (applicationNumber || '').trim(),
       phone: (phone || '').trim(),
     },

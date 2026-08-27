@@ -73,11 +73,23 @@ Deno.serve(async (req) => {
       return json({ error: 'Invalid request body' }, 400);
     }
 
-    const gymCode = String(payload?.gymCode || '').trim();
+    // gymCode used to be required and matched against `gyms.gym_code` —
+    // client-supplied, and it silently drifted from the live DB value on
+    // 2026-08-27 (src/lib/member-auth.js hardcoded 'SCULPT01' against a
+    // live 'DSCULPT' row), failing EVERY member login at this exact
+    // lookup step for as long as the two disagreed, with the client only
+    // ever shown the generic "phone number not recognised" error. Fixing
+    // the constant fixes the instance; this fixes the class — CLAUDE.md
+    // is explicit that there is exactly one gym, so this function now
+    // resolves it directly and no longer trusts (or even reads) anything
+    // the client claims the gym code is. If this ever becomes a real
+    // multi-gym product, gymCode needs to come back — as a value looked
+    // up server-side from the calling origin/tenant, not a client-typed
+    // string with no way to verify it against the DB except by hand.
     const rawAppNum = String(payload?.applicationNumber || '').trim().toUpperCase();
     const rawPhone = String(payload?.phone || '').trim();
 
-    if (!gymCode || !rawAppNum || !rawPhone) {
+    if (!rawAppNum || !rawPhone) {
       console.error('[member-signin] MISSING_FIELDS');
       return json({ error: GENERIC_ERROR }, 400);
     }
@@ -114,12 +126,14 @@ Deno.serve(async (req) => {
         .insert({ gym_id: gymId, application_number: rawAppNum, ip, succeeded, reject_reason: reason })
         .then(() => {}, () => {}); // logging must never throw past this point
 
-    // ── Resolve gym, then member — same rejection path either way ──
+    // ── Resolve the (single) gym, then member — same rejection path
+    // either way. Not filtered by any client-supplied code — see the
+    // comment above where gymCode used to be read.
     const { data: gym } = await admin
-      .from('gyms').select('id').eq('gym_code', gymCode).eq('is_active', true).maybeSingle();
+      .from('gyms').select('id').eq('is_active', true).limit(1).maybeSingle();
 
     if (!gym) {
-      console.error('[member-signin] NO_GYM', { gymCode });
+      console.error('[member-signin] NO_GYM');
       await logAttempt(null, false, 'NO_GYM');
       return json({ error: GENERIC_ERROR }, 400);
     }
