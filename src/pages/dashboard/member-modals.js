@@ -1,6 +1,6 @@
 import { S, DEFAULT_WA_TEMPLATE, DEFAULT_CREDENTIALS_WA_TEMPLATE } from './state.js';
 import { expiryDate, daysLeft, memberStatus, escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, parseMemberAddons, planTotalPrice, genInvoiceNo, memberTotal, parsePlanData, todayLocalISO, computeRenewalBase } from './helpers.js';
-import { getMembers, getPaymentHistory, addMember, updateMember, deleteMember, deleteMemberPermanently, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById, regenerateApplicationNumber } from '../../lib/members.js';
+import { getMembers, getPaymentHistory, addMember, updateMember, deleteMemberPermanently, logReminder, clearBalance, renewMember, cancelMembership, reactivateMembership, checkDuplicatePhone, generateMemberId, findMemberById, regenerateApplicationNumber } from '../../lib/members.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { supabase } from '../../lib/supabase.js';
@@ -1027,6 +1027,15 @@ function openEditModal(id) {
   });
 }
 
+// ════════════════════════════════════════════════════════════════
+// REMOVE MEMBER — client's explicit call (2026-08-27, overriding the
+// migration 121 default): a single Remove action, no separate typed
+// "delete permanently" step. This erases the member's payment_history
+// (migration 129's sculpt_delete_member_permanently) along with the
+// member row, so it comes out of Finance/Overview/Analytics/reports
+// too — there is no soft-delete-keeps-revenue option offered in the UI
+// any more, and no Undo, because this is a genuine hard delete.
+// ════════════════════════════════════════════════════════════════
 function confirmDelete(id) {
   const role = S.role || 'owner';
   if (!hasAccess(role, 'delete_member')) {
@@ -1036,13 +1045,6 @@ function confirmDelete(id) {
   const m = S.members.find(x => String(x.id) === String(id));
   if (!m) return;
   const name = escHtml(m.full_name || m.name);
-  const st   = memberStatus(m);
-  // "Delete permanently" is owner-only and lives behind this link rather
-  // than as an equal button next to Remove — it erases payment_history
-  // too (migration 129), which is exactly the thing 121 made Remove
-  // stop doing on purpose. Surfacing it as loudly as Remove would make
-  // it too easy to reach for the wrong one on a real member.
-  const canHardDelete = hasAccess(role, 'delete_member') && role === 'owner';
   openModal({
     title: 'Remove Member',
     size: 'sm',
@@ -1051,107 +1053,28 @@ function confirmDelete(id) {
         <div style="font-size:36px;margin-bottom:14px;">⚠️</div>
         <div style="font-size:15px;font-weight:600;color:var(--white);margin-bottom:8px;">Remove ${name}?</div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6;">
-          This member (${st}) will be removed from your active list.<br>
-          Their records are preserved for your history and reports.
+          This permanently deletes ${name} and every payment they ever made —
+          they will disappear from Finance, Overview and reports too. This cannot be undone.
         </div>
-        ${canHardDelete ? `
-        <div style="margin-top:16px;">
-          <a href="#" id="md-hard-delete-link" style="font-size:12px;color:var(--muted);text-decoration:underline;">
-            This was a mistake or test entry — delete permanently, including payments
-          </a>
-        </div>` : ''}
       </div>`,
     footer: `
       <button class="btn btn-ghost" id="modal-cancel" style="flex:1;">Cancel</button>
       <button class="btn btn-danger-soft" id="btn-confirm-del" style="flex:1;">Remove</button>`,
     onOpen: () => {
       bindModalCancel();
-      document.getElementById('md-hard-delete-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeModal();
-        confirmHardDelete(id, name);
-      });
       document.getElementById('btn-confirm-del').addEventListener('click', async () => {
         const btn = document.getElementById('btn-confirm-del');
         btn.disabled = true; btn.textContent = 'Removing…';
-        try {
-          if (S.gym?.id) await deleteMember(id, S.gym.id);
-          S.members = S.members.filter(x => String(x.id) !== String(id));
-          closeModal();
-          _nav('members');
-
-          // Show undo toast
-          const undoId = 'undo-del-' + Date.now();
-          let undone = false;
-          const toast = document.getElementById('sculpt-toast') || (() => { const t = document.createElement('div'); t.id = 'sculpt-toast'; t.className = 'toast'; document.body.appendChild(t); return t; })();
-          toast.innerHTML = `<div class="toast-dot" style="background:var(--red)"></div>
-            <span class="toast-msg">Member removed</span>
-            <button id="${undoId}" style="margin-left:12px;background:none;border:1px solid var(--text-secondary);color:var(--text-primary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">Undo</button>`;
-          toast.classList.add('show');
-          document.getElementById(undoId)?.addEventListener('click', async () => {
-            if (undone) return;
-            undone = true;
-            try {
-              await supabase.from('members').update({ is_active: true }).eq('id', id).eq('gym_id', S.gym.id);
-              S.members = await getMembers(S.gym.id);
-              _nav('members');
-              showToast('Member restored!', 'green');
-            } catch(e) { showToast('Undo failed', 'red'); }
-          });
-          setTimeout(() => { if (!undone) toast.classList.remove('show'); }, 6000);
-        } catch (err) {
-          closeModal();
-          showToast(err.message || 'Delete failed', 'red');
-        }
-      });
-    }
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// DELETE PERMANENTLY — owner-only. Erases the member AND their
-// payment_history (migration 129), unlike Remove above which keeps
-// payment_history forever on purpose (migration 121). Typed
-// confirmation because there is no Undo for this one.
-// ════════════════════════════════════════════════════════════════
-function confirmHardDelete(id, name) {
-  openModal({
-    title: 'Delete Permanently',
-    size: 'sm',
-    body: `
-      <div style="text-align:center;padding:8px 0 4px;">
-        <div style="font-size:36px;margin-bottom:14px;">🗑️</div>
-        <div style="font-size:15px;font-weight:600;color:var(--white);margin-bottom:8px;">Permanently delete ${name}?</div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">
-          This erases the member <strong>and every payment they ever made</strong> —
-          it will disappear from Finance, Overview and reports. This cannot be undone.
-          Use this only for a mistaken or test entry, never for a real member who left.
-        </div>
-        <input id="md-hard-delete-confirm" type="text" placeholder="Type DELETE to confirm"
-          style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,transparent);color:var(--white);font-size:13px;text-align:center;">
-      </div>`,
-    footer: `
-      <button class="btn btn-ghost" id="modal-cancel" style="flex:1;">Cancel</button>
-      <button class="btn btn-danger" id="btn-confirm-hard-del" style="flex:1;" disabled>Delete Permanently</button>`,
-    onOpen: () => {
-      bindModalCancel();
-      const input = document.getElementById('md-hard-delete-confirm');
-      const btn = document.getElementById('btn-confirm-hard-del');
-      input?.addEventListener('input', () => {
-        btn.disabled = input.value.trim().toUpperCase() !== 'DELETE';
-      });
-      btn.addEventListener('click', async () => {
-        btn.disabled = true; btn.textContent = 'Deleting…';
         try {
           if (!S.gym?.id) throw new Error('No gym selected');
           await deleteMemberPermanently(id, S.gym.id);
           S.members = S.members.filter(x => String(x.id) !== String(id));
           closeModal();
           _nav('members');
-          showToast('Member permanently deleted', 'red');
+          showToast('Member removed', 'red');
         } catch (err) {
-          btn.disabled = false; btn.textContent = 'Delete Permanently';
-          showToast(err.message || 'Permanent delete failed', 'red');
+          closeModal();
+          showToast(err.message || 'Delete failed', 'red');
         }
       });
     }

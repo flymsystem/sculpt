@@ -5,7 +5,7 @@ import { hasAccess } from '../../lib/permissions.js';
 
 import { showConfirm } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
-import { deleteMember, getMembers } from '../../lib/members.js';
+import { deleteMemberPermanently, getMembers } from '../../lib/members.js';
 
 // Multi-select state
 const _selected = new Set();
@@ -270,7 +270,7 @@ function renderMembers(c) {
     document.getElementById('btn-exit-select')?.addEventListener('click', _exitSelectMode);
 
     // Batch delete
-    document.getElementById('btn-multi-del')?.addEventListener('click', () => {
+    document.getElementById('btn-multi-del')?.addEventListener('click', async () => {
       if (!_selected.size) return;
       const names = [..._selected].map(id => {
         const m = S.members.find(x => String(x.id) === id);
@@ -280,30 +280,39 @@ function renderMembers(c) {
         ? names.map(n => escHtml(n)).join(', ')
         : names.slice(0,5).map(n => escHtml(n)).join(', ') + ` and ${names.length - 5} more`;
 
-      showConfirm({
+      // showConfirm() only ever supported {title, message, confirmLabel,
+      // cancelLabel, confirmVariant} — it returns Promise<boolean>, no
+      // onConfirm callback. The `danger`/`onConfirm` options below were
+      // silently ignored (extra object properties, not destructured),
+      // the returned promise was never awaited, and the deletion logic
+      // inside `onConfirm` never ran at all: batch delete did nothing
+      // beyond opening and closing the dialog. Found while switching this
+      // to the permanent-delete path below — not something introduced by
+      // that change.
+      const ok = await showConfirm({
         title: `Remove ${_selected.size} member${_selected.size > 1 ? 's' : ''}?`,
-        message: `This will remove: ${preview}. Their records are preserved for history and reports.`,
+        message: `This permanently deletes: ${preview} — including every payment they ever made. This cannot be undone.`,
         confirmLabel: `Remove ${_selected.size}`,
-        danger: true,
-        onConfirm: async () => {
-          const ids = [..._selected];
-          let ok = 0, fail = 0;
-          for (const id of ids) {
-            try {
-              if (S.gym?.id) await deleteMember(id, S.gym.id);
-              ok++;
-            } catch { fail++; }
-          }
-          // Refresh from DB
-          if (S.gym?.id) {
-            try { S.members = await getMembers(S.gym.id); } catch {}
-          }
-          _exitSelectMode();
-          filterTable();
-          if (fail > 0) showToast(`Removed ${ok}, failed ${fail}`, 'amber');
-          else showToast(`${ok} member${ok > 1 ? 's' : ''} removed`, 'green');
-        }
+        confirmVariant: 'danger',
       });
+      if (!ok) return;
+
+      const ids = [..._selected];
+      let done = 0, fail = 0;
+      for (const id of ids) {
+        try {
+          if (S.gym?.id) await deleteMemberPermanently(id, S.gym.id);
+          done++;
+        } catch { fail++; }
+      }
+      // Refresh from DB
+      if (S.gym?.id) {
+        try { S.members = await getMembers(S.gym.id); } catch {}
+      }
+      _exitSelectMode();
+      filterTable();
+      if (fail > 0) showToast(`Removed ${done}, failed ${fail}`, 'amber');
+      else showToast(`${done} member${done > 1 ? 's' : ''} removed`, 'green');
     });
   }
 }

@@ -81,7 +81,7 @@ async function addDisposableMember(page, gymId, name) {
 
 async function cleanupMember(page, gymId, memberId) {
   await page.evaluate(async ({ gymId, memberId }) => {
-    await window.__sculptMembers.deleteMember(memberId, gymId).catch(() => {});
+    await window.__sculptMembers.deleteMemberPermanently(memberId, gymId).catch(() => {});
   }, { gymId, memberId });
 }
 

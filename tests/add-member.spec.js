@@ -66,7 +66,7 @@ test('adding a member through the dashboard saves it with an application number'
     const gymId = window.__sculptSession.gym.id;
     const members = await window.__sculptMembers.getMembers(gymId);
     for (const m of members.filter((x) => x.full_name === n)) {
-      await window.__sculptMembers.deleteMember(m.id, gymId).catch(() => {});
+      await window.__sculptMembers.deleteMemberPermanently(m.id, gymId).catch(() => {});
     }
   }, name);
 });

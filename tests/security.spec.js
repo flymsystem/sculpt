@@ -74,7 +74,7 @@ async function cleanupMember(page, member) {
   if (!member?.id) return;
   await page.evaluate(async (m) => {
     const gymId = window.__sculptSession?.gym?.id;
-    if (gymId) await window.__sculptMembers.deleteMember(m.id, gymId).catch(() => {});
+    if (gymId) await window.__sculptMembers.deleteMemberPermanently(m.id, gymId).catch(() => {});
   }, member).catch(() => {});
 }
 

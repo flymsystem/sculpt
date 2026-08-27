@@ -481,6 +481,14 @@ export async function renewMember(memberId, gymId, r) {
   return { ...(saved || { id: memberId, gym_id: gymId }), _paymentRecorded };
 }
 
+// Soft delete (is_active=false, payment_history untouched) — no longer
+// reachable from the UI as of 2026-08-27 (see deleteMemberPermanently
+// below and its call sites in member-modals.js/members.js). Kept only as
+// a test-cleanup convenience (window.__sculptMembers, used by
+// tests/add-member.spec.js etc. to remove throwaway members that were
+// never given a payment, so there's nothing for this to leave behind).
+// Do not wire this back into a user-facing action without the product
+// decision that led to migration 129 being revisited first.
 export async function deleteMember(memberId, gymId) {
   const { error } = await supabase
     .from('members')
@@ -492,11 +500,13 @@ export async function deleteMember(memberId, gymId) {
 }
 
 /**
- * Hard delete — for a mistaken/test entry only. Unlike deleteMember()
- * above, this also erases the member's payment_history (via ON DELETE
- * CASCADE, migration 129_sculpt_delete_member_permanently), so it takes
- * their money out of revenue totals for good. Owner-only; the RPC
- * itself is the real gate (get_my_gym_id()), not this client check.
+ * Hard delete — the only member-deletion path the UI offers (client's
+ * explicit call, 2026-08-27, superseding migration 121's soft-delete
+ * default): erases the member row AND their payment_history (via
+ * ON DELETE CASCADE, migration 129_sculpt_delete_member_permanently),
+ * so they come out of Finance/Overview/Analytics/reports too. No Undo.
+ * Owner-only; the RPC itself is the real gate (get_my_gym_id()), not
+ * this client check.
  */
 export async function deleteMemberPermanently(memberId, gymId) {
   const { data, error } = await supabase.rpc('sculpt_delete_member_permanently', {
@@ -880,5 +890,5 @@ export async function getGymActivity(gymId, limit = 20) {
 // lib/checkin.js — lets tests/security.spec.js create/remove disposable
 // members against the built preview server without a UI form.
 if (typeof window !== 'undefined') {
-  window.__sculptMembers = { addMember, deleteMember, getMembers };
+  window.__sculptMembers = { addMember, deleteMember, deleteMemberPermanently, getMembers };
 }
