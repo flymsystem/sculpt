@@ -114,8 +114,15 @@ export async function upsertAttendance(gymId, staffId, date, status, checkIn, ch
     status: txt(status) || 'Present',
     check_in: txt(checkIn) || null,
     check_out: txt(checkOut) || null,
-    notes: txt(notes) || null,
   };
+
+  // Only send `notes` when the caller actually has a value for it.
+  // PostgREST's upsert writes exactly the columns present in the body,
+  // so including `notes: null` unconditionally meant the Daily
+  // Attendance grid — which has no notes field at all and calls this
+  // with six arguments — wiped any note on the row every time someone
+  // pressed Save Attendance.
+  if (notes !== undefined) payload.notes = txt(notes);
 
   const { data, error } = await supabase
     .from('staff_attendance')

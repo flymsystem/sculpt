@@ -219,6 +219,49 @@ Read from it; don't thread it through parameters.
   and skips its render call once the navigation it belongs to is no longer
   current. If you add another async gate before a route renders, thread
   the same check through it.
+- **A Postgres `time` value cannot be handed straight to
+  `<input type="time">`.** The column is full microsecond precision, so
+  PostgREST returns `"06:07:23.481712"`, and HTML's value-sanitization
+  algorithm allows at most **three** fractional-second digits — anything
+  longer is not a valid time string and the browser silently replaces
+  the value with `""`. Nothing errors. `sculpt_staff_checkin` wrote
+  `(now() AT TIME ZONE tz)::time` into `staff_attendance.check_in`, the
+  Daily Attendance grid (`dashboard/staff.js`, the *only* reader these
+  two columns have ever had) rendered an empty box beside a "Present"
+  status, and `saveAllAttendance()` then read that empty box back and
+  `upsertAttendance()` wrote `NULL` over the real scan — opening the
+  page and pressing Save is what destroyed the data. Fixed on both
+  sides: `date_trunc('second', …)` on write (migration 131, plus a
+  backfill) and `timeForInput()` on read. Rule: truncate `time` values
+  server-side, and normalize them again at the input. Caught only by
+  comparing a scanned row against what the grid displayed — the RPC,
+  the row and the RLS were all correct the whole time.
+- **`upsert()` writes exactly the columns present in the body**, so a
+  payload that always includes `notes: null` erases the note on every
+  save from a form that has no notes field. `upsertAttendance()` did
+  this to every `staff_attendance` row. Omit a column you have no value
+  for; don't send `null` for it.
+- **Staff logins are scanner-only, and `lib/permissions.js` is the one
+  place that says so.** A staff session exists to scan the desk QR and
+  mark that staff member's own attendance — nothing else. Every key in
+  the `staff` matrix is `false` except `checkin_scan`, and
+  `dashboard/index.js` renders a separate minimal shell
+  (`renderStaffScannerShell`) that returns *before* `loadData()`, so a
+  staff browser never fetches the member list, payment history, plans
+  or expenses at all. `nav()` pins `id` to `'checkin-scan'` for staff at
+  its single choke point, which is what makes the rule hold for the
+  sidebar, the command palette, `popstate`, a tapped push and a
+  hand-typed `/dashboard/finance` at once. The empty matrix is the
+  feature — see the header comment there before adding a key back.
+- **`checkin_scan` is the permission the OWNER lacks, not staff.**
+  `sculpt_staff_checkin` resolves the caller via
+  `staff.user_id = auth.uid()` and an owner has no `staff` row, so an
+  owner scan can only ever return `NOT_STAFF`. The sidebar used to key
+  that page off `attendance` (which the owner has) and so offered the
+  owner a Check In page that could not succeed — testing staff
+  attendance from the owner account is exactly how this feature looks
+  broken while working. `attendance` still gates Desk Display and the
+  check-ins log, which the owner does use.
 - **Never redeclare a class at the same `@media` breakpoint in both
   `src/styles/components.css` and `src/styles/dashboard.css`.**
   `components.css` is a static import from `app.js`, so it always loads
@@ -305,7 +348,7 @@ standalone document with no access to the app's stylesheets.
 
 ```bash
 npm run build                 # must succeed
-npx playwright test           # 60 pass, 28 skip without credentials
+npx playwright test           # 77 pass, 36 skip without credentials
 npm run lint                  # 12 pre-existing errors; add none
 node scripts/verify-schema.mjs
 ```

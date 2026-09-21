@@ -65,12 +65,20 @@ async function handleDecode(raw, statusEl) {
   }
 }
 
+// "Scan Again" is offered on EVERY terminal outcome, not just errors.
+// handleDecode() stops the scanner the instant any result lands (see
+// the comment there), so after a successful check-in the camera is off
+// and this button is the only way back to a live scanner. This page is
+// now the whole of a staff session — there is no sidebar to navigate
+// away and back through — so without it a trainer who checked in this
+// morning had no way to scan out at the end of the day short of
+// reloading the app.
 function showResult(message, ok) {
   const resultEl = document.getElementById('checkin-scan-result');
   if (!resultEl) return;
   resultEl.innerHTML = `
     <div style="color:${ok ? 'var(--green, #2ecc71)' : 'var(--red, #e74c3c)'};">${escHtml(message)}</div>
-    ${!ok ? '<button class="btn btn-secondary" id="checkin-scan-again" type="button" style="margin-top:10px;">Scan Again</button>' : ''}`;
+    <button class="btn btn-secondary" id="checkin-scan-again" type="button" style="margin-top:10px;">Scan Again</button>`;
   document.getElementById('checkin-scan-again')?.addEventListener('click', () => {
     if (_container) renderCheckinScan(_container);
   });

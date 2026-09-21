@@ -121,7 +121,9 @@ function isNavVisible(sectionId) {
     backup:          'backup',
     analytics:       'analytics',
     'checkin-display': 'attendance',
-    'checkin-scan':    'attendance',
+    // NOT 'attendance' — an owner has no `staff` row, so an owner scan
+    // can only return NOT_STAFF. See the note in lib/permissions.js.
+    'checkin-scan':    'checkin_scan',
     checkins:          'attendance',
   };
 

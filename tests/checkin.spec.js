@@ -104,3 +104,49 @@ test('a scan after the cooldown moves check_out forward, not just once', async (
   expect(result.status, 'A real staff login got NOT_STAFF back').not.toBe('NOT_STAFF');
   expect(result.status).not.toBe('ALREADY_DONE');
 });
+
+test('a scanned time survives a round-trip through the attendance grid input', async ({ page }) => {
+  // The bug that made staff attendance look broken end to end: the RPC
+  // wrote the time at microsecond precision ("06:07:23.481712"), which
+  // is not a valid <input type="time"> value, so the Daily Attendance
+  // grid rendered an empty box and the next Save Attendance wrote NULL
+  // over the real scan. Migration 131 truncates on write. See
+  // tests/staff-attendance-time.spec.js for the browser-contract and
+  // source guards; this is the half that needs a real scan.
+  await signIn(page);
+
+  const staffId = await page.evaluate(() => window.__sculptSession?.staffRecord?.id);
+  await page.evaluate(async () => {
+    const { token } = await window.__sculptCheckin.issueCheckinToken();
+    return window.__sculptCheckin.staffCheckin(token);
+  });
+
+  const row = await page.evaluate(async (sid) => {
+    // The gym's timezone, not the runner's — sculpt_staff_checkin dates
+    // the row as (now() AT TIME ZONE g.timezone), so a UTC "today" reads
+    // the previous day's row for the first 5.5 hours of every IST day.
+    // Hardcoded to gyms.timezone's default (migration 103) because this
+    // suite targets the one gym this app serves.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const { data } = await window.__sculptSupabase
+      .from('staff_attendance').select('check_in, check_out')
+      .eq('staff_id', sid).eq('date', today).single();
+    return data;
+  }, staffId);
+
+  expect(row, 'the scan wrote no attendance row at all').toBeTruthy();
+  const written = row.check_out || row.check_in;
+  expect(written, 'neither check_in nor check_out was recorded').toBeTruthy();
+  expect(written, 'sub-second precision is what the time input silently discards')
+    .toMatch(/^\d{2}:\d{2}(:\d{2})?$/);
+
+  // And prove it, rather than trusting the regex: hand the real stored
+  // value to a real time input and check it comes back out.
+  const roundTripped = await page.evaluate((v) => {
+    const el = document.createElement('input');
+    el.type = 'time';
+    el.value = v;
+    return el.value;
+  }, written);
+  expect(roundTripped, `the grid would render "${written}" as an empty box`).not.toBe('');
+});

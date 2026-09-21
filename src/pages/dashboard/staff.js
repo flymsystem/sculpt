@@ -316,6 +316,27 @@ async function renderAttendance(c) {
   if (staff.length) loadAttendance();
 }
 
+// Postgres `time` columns come back at full microsecond precision
+// ("06:07:23.481712"), and that is NOT a valid <input type="time">
+// value — HTML's sanitization algorithm allows at most three
+// fractional-second digits, so the browser silently replaces anything
+// longer with "". That is what made every QR-scanned staff check-in
+// show as "Present" with an empty time beside it, and what made
+// saveAllAttendance() then write NULL over the real scan: it read the
+// blanked input back and sent it. sculpt_staff_checkin now truncates
+// on write (migration 131), but rows written before that ran — and any
+// other producer of a `time` value — still come through here, so trim
+// defensively rather than trusting the column.
+//
+// Trimmed to HH:MM, not HH:MM:SS, because the input's step is 60: a
+// seconds component the control can't edit would be silently rounded
+// away on the first Save anyway, which is the same kind of invisible
+// data change this whole fix exists to stop.
+function timeForInput(v) {
+  const m = /^(\d{2}):(\d{2})/.exec(String(v ?? ''));
+  return m ? `${m[1]}:${m[2]}` : '';
+}
+
 function renderAttendanceGrid(records, staff, _date) {
   const grid = document.getElementById('att-grid');
   if (!grid) return;
@@ -350,11 +371,11 @@ function renderAttendanceGrid(records, staff, _date) {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <div>
                 <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check In</div>
-                <input type="time" class="form-input att-checkin" value="${escHtml(r.check_in || '')}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="In" title="Check-in time">
+                <input type="time" class="form-input att-checkin" value="${escHtml(timeForInput(r.check_in))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="In" title="Check-in time">
               </div>
               <div>
                 <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check Out</div>
-                <input type="time" class="form-input att-checkout" value="${escHtml(r.check_out || '')}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="Out" title="Check-out time">
+                <input type="time" class="form-input att-checkout" value="${escHtml(timeForInput(r.check_out))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="Out" title="Check-out time">
               </div>
             </div>
           </div>
@@ -373,8 +394,8 @@ function renderAttendanceGrid(records, staff, _date) {
           <option value="Half-day" ${status==='Half-day' ? 'selected' : ''}>Half-day</option>
           <option value="Leave" ${status==='Leave' ? 'selected' : ''}>Leave</option>
         </select>
-        <input type="time" class="form-input att-checkin" value="${escHtml(r.check_in || '')}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="In" title="Check-in time">
-        <input type="time" class="form-input att-checkout" value="${escHtml(r.check_out || '')}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="Out" title="Check-out time">
+        <input type="time" class="form-input att-checkin" value="${escHtml(timeForInput(r.check_in))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="In" title="Check-in time">
+        <input type="time" class="form-input att-checkout" value="${escHtml(timeForInput(r.check_out))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="Out" title="Check-out time">
       </div>`;
     }).join('')}
   </div>`;

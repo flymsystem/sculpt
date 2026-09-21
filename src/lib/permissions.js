@@ -13,6 +13,28 @@
  * 'collect'  = can collect payments (clear balance, renew) but not view finance
  * 'assign'   = can assign (PT) but not manage
  * false      = no access
+ *
+ * ── Staff are scanner-only (client decision, 2026-09-21) ──────────
+ * A staff login exists for exactly one purpose: marking the staff
+ * member's own attendance by scanning the rotating desk QR. It grants
+ * no dashboard, no member list, no money. Every staff key below is
+ * therefore `false` except `checkin_scan`, and dashboard/index.js
+ * renders a scanner-only shell (no sidebar, no sections, no data
+ * fetch) rather than the full app with things hidden. Before you add
+ * a staff permission back, read the note on `checkin_scan` and the
+ * "staff scanner-only shell" comment in dashboard/index.js — the
+ * empty matrix is the feature, not an oversight.
+ *
+ * NOTE ON `checkin_scan`: it is the OWNER who has this false, not
+ * staff. sculpt_staff_checkin() resolves the caller via
+ * `staff.user_id = auth.uid()`, and an owner has no `staff` row, so
+ * an owner scan can only ever come back NOT_STAFF ("This account is
+ * not an active staff member"). The sidebar used to key this page off
+ * `attendance`, which the owner has, so it offered the owner a Check
+ * In page that could not succeed — and testing staff attendance from
+ * the owner account is exactly how this feature looks broken when it
+ * isn't. `attendance` still gates the two pages an owner genuinely
+ * uses: the desk display and the check-ins log.
  */
 const MATRIX = {
   owner: {
@@ -23,7 +45,8 @@ const MATRIX = {
     delete_member:    true,       // soft-delete (is_active = false)
     cancel_member:    true,       // cancel membership (cancelled_at)
     payments:         'full',
-    attendance:       'full',
+    attendance:       'full',     // desk display + check-ins log
+    checkin_scan:     false,      // owner has no staff row — see above
     renew_member:     true,
     plans:            'full',
     plans_showcase:   true,
@@ -40,20 +63,21 @@ const MATRIX = {
     analytics:        'full',
   },
   staff: {
-    dashboard:        'limited',  // no revenue/financial numbers
-    members:          'full',
-    add_member:       true,
-    edit_member:      true,
+    dashboard:        false,
+    members:          false,
+    add_member:       false,
+    edit_member:      false,
     delete_member:    false,
     cancel_member:    false,
-    payments:         'collect',  // clear balance + renew only, no finance page
-    attendance:       'full',
-    renew_member:     true,
-    plans:            'view',
-    plans_showcase:   true,
-    pt_management:    'assign',   // future
-    leads:            'full',
-    expenses:         'add',      // can add, not edit/delete
+    payments:         false,
+    attendance:       false,      // no desk display, no gym-wide log
+    checkin_scan:     true,       // the one thing a staff login is for
+    renew_member:     false,
+    plans:            false,
+    plans_showcase:   false,
+    pt_management:    false,
+    leads:            false,
+    expenses:         false,
     finance:          false,
     reports:          false,
     staff_management: false,
@@ -96,6 +120,9 @@ export function getVisibleSections(role) {
 
   // Map sidebar nav items to permission keys
   const navMap = [
+    { id: 'checkin-scan',    perm: 'checkin_scan' },
+    { id: 'checkin-display', perm: 'attendance' },
+    { id: 'checkins',        perm: 'attendance' },
     { id: 'overview',        perm: 'dashboard' },
     { id: 'members',         perm: 'members' },
     { id: 'enquiries',       perm: 'leads' },

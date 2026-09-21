@@ -149,7 +149,7 @@ Prisma/Drizzle (SQL and Postgres functions are written directly).
 │   │   ├── member-auth.js            Member sign-in (calls the member-signin Edge Function), portal data readers
 │   │   ├── members.js                THE MONEY CODE — members, payments, revenue, add/renew/delete
 │   │   ├── notifications.js          In-app notification read/mark-read
-│   │   ├── permissions.js            hasAccess(role, action) — the owner-vs-staff permission table
+│   │   ├── permissions.js            hasAccess(role, action) — the owner-vs-staff permission table (staff are scanner-only)
 │   │   ├── plans.js                  Membership plan catalog CRUD + public plan lookup
 │   │   ├── push.js                   Web Push subscription management (feature not enabled — see §2)
 │   │   ├── qr.js                     Lazy QR encode (kiosk) / decode (scanner) — never statically imported
@@ -444,9 +444,13 @@ one of these, removed deliberately:
 | Subscription billing page | Billed the gym for its *software* plan — no vendor relationship like that exists for this deployment. |
 | Certificate verification page | Belonged to the previous product entirely; contained a real person's private details. |
 
-**Kept deliberately:** the owner/staff permission split — staff cannot see
-Finance, Settings, Backup, or staff management. That's real access control,
-not a sales tier, and it stays.
+**Kept deliberately:** the owner/staff permission split. As of 2026-09-21 it
+is no longer "staff see less of the dashboard" — a staff login is scanner-only:
+its single purpose is scanning the rotating desk QR to mark that staff member's
+own attendance, and `renderStaffScannerShell()` returns before `loadData()`
+ever runs, so a staff browser never fetches the member list, payment history,
+plans or expenses at all. That's real access control, not a sales tier, and it
+stays.
 
 ---
 

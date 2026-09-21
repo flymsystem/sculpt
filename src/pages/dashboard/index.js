@@ -7,6 +7,7 @@ import { getAllExpenses } from '../../lib/expenses.js';
 import { getStaff } from '../../lib/staff.js';
 import { demoPlans, demoMembers, escHtml, ico } from './helpers.js';
 import { hasAccess } from '../../lib/permissions.js';
+import { signOut } from '../../lib/auth.js';
 import { pushDashboardSection, replaceDashboardSection } from '../../app.js';
 import '../../styles/dashboard.css';
 import '../../styles/mobile-fixes.css';   // MUST stay after dashboard.css — it overrides it
@@ -112,6 +113,29 @@ export async function renderGymDashboard(router) {
   S.branches = sessionData.branches || [];
   S.section = 'overview';
 
+  // ── Staff scanner-only shell (client decision, 2026-09-21) ──────
+  // A staff login exists for one purpose: the staff member scans the
+  // rotating desk QR to mark their OWN attendance. They get no
+  // dashboard, so they don't get the dashboard shell with pieces
+  // hidden — they get their own screen, and renderGymDashboard()
+  // returns before ever building a sidebar, a topbar full of owner
+  // affordances, a command palette, a notification bell or a FAB.
+  //
+  // Returning early also means loadData() never runs for a staff
+  // session: no member list, no payment history, no plans, no
+  // expenses are fetched at all. Hiding those pages while still
+  // pulling every member's name and phone number into the browser
+  // would have been the worse half of the change.
+  //
+  // What must survive here, because things outside this file depend
+  // on it: `window._navTo` (assigned above, before this branch),
+  // the `#gym-content` container, and nav()'s ability to render
+  // 'checkin-scan' — tests/checkin.spec.js drives all three.
+  if (S.role === 'staff') {
+    renderStaffScannerShell(router);
+    return;
+  }
+
   const gymName = S.gym?.name || 'Your Gym';
   const av = gymName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
 
@@ -202,6 +226,57 @@ export async function renderGymDashboard(router) {
   }).catch(() => {});
 }
 
+// ── Staff scanner-only shell ─────────────────────────
+// Deliberately minimal: who you are, what to point the camera at, and
+// a way out. See the branch in renderGymDashboard() for why this is a
+// separate screen rather than the normal shell with things hidden.
+function renderStaffScannerShell(router) {
+  const root = document.getElementById('root');
+  const staffName = S.staffRecord?.full_name || 'Staff';
+  const staffRole = S.staffRecord?.role || '';
+  const gymName = S.gym?.name || '';
+
+  root.innerHTML = `
+    <div id="page-gym" class="app-layout staff-scanner-only">
+      <div class="app-main">
+        <div class="topbar">
+          <div class="topbar-title" id="topbar-title">Check In</div>
+          <div class="topbar-right">
+            <div style="text-align:right;line-height:1.3;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(staffName)}</div>
+              <div style="font-size:10px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(staffRole || gymName)}</div>
+            </div>
+            <button id="topbar-logout-btn" title="Sign Out"
+              style="background:none;border:1px solid var(--border);color:var(--muted);
+                cursor:pointer;border-radius:var(--radius-sm);padding:6px 8px;
+                display:flex;align-items:center;gap:5px;font-size:11px;
+                font-family:var(--font-head);font-weight:700;letter-spacing:0.05em;">
+              ${ico('logout')}<span>LOGOUT</span>
+            </button>
+          </div>
+        </div>
+        <div class="app-content" id="gym-content">
+          <div class="loading-inline"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('topbar-logout-btn')?.addEventListener('click', async () => {
+    await signOut().catch(() => {});
+    window.__sculptSession = null;
+    router.go('landing');
+  });
+
+  // nav() forces every staff navigation to 'checkin-scan', so this is
+  // both the initial render and the only one. _fromPopState skips the
+  // history push; replaceDashboardSection then makes the URL and the
+  // history state agree, exactly as the owner path does — without it a
+  // hard-refresh on /dashboard/finance as staff would leave a URL that
+  // no longer matches what is on screen.
+  nav('checkin-scan', { _fromPopState: true });
+  replaceDashboardSection('checkin-scan');
+}
+
 // ── Data loading ─────────────────────────────────────
 async function loadData() {
   const gymId = S.gym?.id;
@@ -278,6 +353,15 @@ const VALID_SECTIONS = new Set([
 export function nav(id, opts = {}) {
   // Validate section ID — fall back to overview for unknown sections
   if (!VALID_SECTIONS.has(id)) id = 'overview';
+
+  // A staff session has exactly one page. This is the single choke
+  // point every navigation goes through — the sidebar (which staff
+  // never see), the command palette, browser back/forward via
+  // app.js's popstate listener, a tapped push notification, a
+  // hand-typed /dashboard/finance URL — so pinning it here is what
+  // makes "staff are scanner-only" true for all of them at once
+  // rather than a rule each entry point has to remember.
+  if (S.role === 'staff') id = 'checkin-scan';
 
   const c = document.getElementById('gym-content');
   if (!c) return;

@@ -261,6 +261,31 @@ Applied to production (run by hand in the SQL editor, verified):
   read `gym_code` for their own reasons and still rely on
   `scripts/verify-schema.mjs`'s drift check.
 
+- `131_staff_checkin_second_precision.sql` — **NOT YET APPLIED.** Staff
+  attendance appeared not to work at all: a staff member scanned the desk
+  QR, got "Checked in.", and the owner's Daily Attendance grid showed
+  "Present" beside an *empty* time box. The scan was never the problem.
+  `staff_attendance.check_in`/`check_out` are `time without time zone`
+  and `sculpt_staff_checkin` wrote `(now() AT TIME ZONE tz)::time`, i.e.
+  full microsecond precision (`06:07:23.481712`). Those two columns have
+  exactly one reader in the whole app — the `<input type="time">` in
+  `dashboard/staff.js` — and HTML's value-sanitization algorithm allows
+  at most three fractional-second digits, so the browser silently
+  replaced the value with `""`. Verified in Chromium rather than inferred
+  from the spec. Worse, `saveAllAttendance()` then read that blanked
+  input back and `upsertAttendance()` wrote `check_in = NULL,
+  check_out = NULL` over the genuine scan: **opening the page and
+  pressing Save is what destroyed the data.** This migration truncates to
+  whole seconds on write and backfills existing rows (idempotent; it
+  cannot recover times already NULLed by a Save). The client half of the
+  fix — `timeForInput()` in `dashboard/staff.js`, plus `upsertAttendance()`
+  no longer sending `notes: null` from a form that has no notes field —
+  ships in the same commit and is guarded by
+  `tests/staff-attendance-time.spec.js`. Apply with
+  `npx supabase db query --linked -f
+  supabase/migrations/131_staff_checkin_second_precision.sql`, then run
+  the VERIFY block in the file's footer.
+
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration
 list` shows the remote's tracked migration history has diverged from
