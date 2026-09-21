@@ -261,7 +261,13 @@ Applied to production (run by hand in the SQL editor, verified):
   read `gym_code` for their own reasons and still rely on
   `scripts/verify-schema.mjs`'s drift check.
 
-- `131_staff_checkin_second_precision.sql` — **NOT YET APPLIED.** Staff
+- `131_staff_checkin_second_precision.sql` — **Applied 2026-09-21** by the
+  owner via `npx supabase db query --linked -f`. Not independently
+  verified from the repo: the Supabase CLI here returns 403 on login-role
+  init (`LegacyDbConfigLoginRoleStatusError`), so the VERIFY block in the
+  file's footer still needs running in the SQL editor — confirm
+  `pg_get_functiondef` contains `date_trunc('second'` and that no
+  `staff_attendance` row still holds a sub-second time. Staff
   attendance appeared not to work at all: a staff member scanned the desk
   QR, got "Checked in.", and the owner's Daily Attendance grid showed
   "Present" beside an *empty* time box. The scan was never the problem.
@@ -281,10 +287,7 @@ Applied to production (run by hand in the SQL editor, verified):
   fix — `timeForInput()` in `dashboard/staff.js`, plus `upsertAttendance()`
   no longer sending `notes: null` from a form that has no notes field —
   ships in the same commit and is guarded by
-  `tests/staff-attendance-time.spec.js`. Apply with
-  `npx supabase db query --linked -f
-  supabase/migrations/131_staff_checkin_second_precision.sql`, then run
-  the VERIFY block in the file's footer.
+  `tests/staff-attendance-time.spec.js`.
 
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration
