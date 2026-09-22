@@ -88,6 +88,25 @@ export async function getAttendance(gymId, date) {
   return data || [];
 }
 
+// One staff member's own row for one date. The scanner screen shows
+// the person their own In/Out for today, and a staff session must not
+// pull the whole gym's attendance to do it — getAttendance() above
+// returns every colleague's row, which is fine for the owner's grid
+// and wrong for a staff phone. Returns null when there's no row yet
+// (not checked in today), which is a normal state, not an error.
+export async function getStaffAttendanceForDate(gymId, staffId, date) {
+  const { data, error } = await supabase
+    .from('staff_attendance')
+    .select('id, date, status, check_in, check_out')
+    .eq('gym_id', gymId)
+    .eq('staff_id', staffId)
+    .eq('date', date)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
 // 50 staff x 365 days is ~18,000 rows for a year report. Bounded so a
 // wide date range can't quietly become a multi-megabyte download on a
 // phone. The caller shows "showing first N" when the cap is hit.

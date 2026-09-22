@@ -14,16 +14,28 @@
  * 'assign'   = can assign (PT) but not manage
  * false      = no access
  *
- * ── Staff are scanner-only (client decision, 2026-09-21) ──────────
- * A staff login exists for exactly one purpose: marking the staff
- * member's own attendance by scanning the rotating desk QR. It grants
- * no dashboard, no member list, no money. Every staff key below is
- * therefore `false` except `checkin_scan`, and dashboard/index.js
- * renders a scanner-only shell (no sidebar, no sections, no data
- * fetch) rather than the full app with things hidden. Before you add
- * a staff permission back, read the note on `checkin_scan` and the
- * "staff scanner-only shell" comment in dashboard/index.js — the
- * empty matrix is the feature, not an oversight.
+ * ── Staff get two pages, and only two (client decision, 2026-09-22)
+ * A staff login exists to mark that staff member's own attendance by
+ * scanning the rotating desk QR (`checkin_scan`), and to take walk-in
+ * enquiries at the desk (`leads: 'limited'`). It grants no dashboard,
+ * no member list, no money. Every other staff key below is `false`,
+ * and dashboard/index.js renders a minimal two-page shell (no
+ * sidebar, no command palette, no FAB, no loadData()) rather than the
+ * full app with things hidden. Before you add a third staff
+ * permission, read the note on `checkin_scan` and the "staff shell"
+ * comment in dashboard/index.js — the near-empty matrix is the
+ * feature, not an oversight.
+ *
+ * NOTE ON `leads`: staff hold `'limited'`, the owner `'full'`. The
+ * difference is exactly two buttons in dashboard/enquiries.js —
+ * Remove and Convert to member — both of which are gated on
+ * `can(role,'leads') === 'full'`. Convert in particular must stay
+ * owner-only for a structural reason, not a policy one: it opens the
+ * Add Member modal, which needs S.members, S.plans and S.addonTemplates
+ * — data a staff session deliberately never fetches. Attribution is
+ * handled server-side (enquiries.created_by_name, migration 132), so
+ * every enquiry a staff member records shows up in the owner's list
+ * stamped with their name.
  *
  * NOTE ON `checkin_scan`: it is the OWNER who has this false, not
  * staff. sculpt_staff_checkin() resolves the caller via
@@ -76,7 +88,7 @@ const MATRIX = {
     plans:            false,
     plans_showcase:   false,
     pt_management:    false,
-    leads:            false,
+    leads:            'limited', // add + edit walk-in enquiries; no remove, no convert
     expenses:         false,
     finance:          false,
     reports:          false,

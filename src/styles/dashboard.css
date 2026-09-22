@@ -13,14 +13,110 @@ body{width:100%;overflow-x:hidden;position:relative;}
 .app-layout.checkin-kiosk-active #gym-sidebar,
 .app-layout.checkin-kiosk-active .topbar{display:none;}
 
-/* STAFF SCANNER-ONLY SHELL — a staff session renders no #gym-sidebar
-   element at all (see renderStaffScannerShell in dashboard/index.js).
+/* STAFF SHELL — a staff session renders no #gym-sidebar element at all
+   (see renderStaffShell in dashboard/index.js).
    .app-main reserves --sidebar-w with a margin regardless, so without
    this the scanner sat behind a 260px empty gutter on desktop while
    looking correct on the phone it's actually used on — the silent
    kind of layout bug. Compound selector, so the base .app-main rule
    below is untouched for the owner. */
 .app-layout.staff-scanner-only .app-main{margin-left:0;width:100%;}
+
+/* ── STAFF SHELL ────────────────────────────────────────────────
+   A staff session's whole chrome: identity bar on top, content, and a
+   two-item tab bar pinned to the bottom. Shaped like a native app
+   because that is how it's used — one hand, standing at the desk,
+   phone at arm's length. Every value here is a token; the only raw
+   colours in the staff experience are the viewfinder's camera chrome
+   in checkin-scan.js.
+
+   All of it is scoped under .staff-shell so none of it can reach the
+   owner's dashboard, which shares .app-main and .app-content. */
+.staff-shell .app-main{display:flex;flex-direction:column;min-height:100dvh;}
+
+.staff-shell .staff-topbar{display:flex;align-items:center;gap:12px;flex-shrink:0;
+  padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));
+  min-height:var(--topbar-h);background:var(--surface-bg);
+  border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:50;}
+.staff-who{display:flex;align-items:center;gap:11px;min-width:0;flex:1;}
+.staff-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--brand-fade);color:var(--brand-text);
+  border:1px solid var(--brand-fade-strong);
+  font-size:13px;font-weight:700;letter-spacing:0.02em;}
+.staff-avatar img{width:100%;height:100%;object-fit:cover;}
+.staff-who-text{min-width:0;line-height:1.25;}
+.staff-who-name{font-size:14px;font-weight:600;color:var(--text-primary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.staff-who-sub{font-size:11px;color:var(--text-tertiary);text-transform:capitalize;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Icon-only, so it carries an aria-label and a full 44px target — the
+   visual circle is smaller than the thing you can actually hit. */
+.staff-logout{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:none;border:1px solid var(--border-subtle);border-radius:var(--radius-md);
+  color:var(--text-tertiary);cursor:pointer;
+  transition:color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out),background-color var(--duration-fast) var(--ease-out);}
+.staff-logout:hover{color:var(--red);border-color:var(--red-strong);background:var(--red-fade);}
+.staff-logout:active{transform:scale(0.96);}
+.staff-logout svg{width:17px;height:17px;}
+
+/* .app-content is a fixed-height scroll container for the owner
+   (100dvh minus the topbar). The staff topbar is taller than
+   --topbar-h by the safe-area inset, so that calc would overflow by
+   exactly the notch — let flex size it instead.
+
+   The tab bar is fixed, so the *inner* padding has to reserve room for
+   it, or the last enquiry card sits permanently underneath the bar.
+   The reserve goes on .content-inner, not here, so it scrolls with
+   the content rather than clipping it. */
+.staff-shell .app-content{flex:1;min-height:0;height:auto;}
+.staff-shell .content-inner{max-width:520px;margin:0 auto;
+  padding:18px 16px calc(80px + env(safe-area-inset-bottom) + 16px);}
+
+.staff-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:6px;
+  padding:6px 12px;padding-bottom:calc(6px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb, var(--surface-bg) 88%, transparent);
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
+  border-top:1px solid var(--border-subtle);}
+.staff-tab{flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:6px 4px;background:none;border:none;border-radius:var(--radius-md);
+  color:var(--text-tertiary);font-family:inherit;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:color var(--duration-fast) var(--ease-out),background-color var(--duration-fast) var(--ease-out);}
+.staff-tab-ico{display:flex;width:22px;height:22px;}
+.staff-tab-ico svg{width:100%;height:100%;}
+.staff-tab-label{font-size:11px;font-weight:600;letter-spacing:0.01em;}
+.staff-tab:hover{color:var(--text-secondary);}
+.staff-tab:active{transform:scale(0.97);}
+.staff-tab.active{color:var(--brand-text);background:var(--brand-fade);}
+
+/* Desktop: a bottom tab bar on a 1400px monitor looks like a mistake.
+   Same two destinations, centred, sized like a segmented control. */
+@media (min-width:768px){
+  /* width:100% matters — an auto cross-axis margin on a flex item
+     cancels the default stretch, so max-width alone left the bar
+     shrink-wrapped to its two labels (~190px) instead of centred at
+     460. */
+  .staff-tabbar{position:sticky;top:var(--topbar-h);bottom:auto;z-index:45;
+    width:100%;max-width:460px;margin:16px auto 0;padding:5px;gap:4px;
+    border:1px solid var(--border-subtle);border-radius:var(--radius-lg);}
+  .staff-tab{flex-direction:row;gap:8px;min-height:44px;}
+  .staff-tab-ico{width:17px;height:17px;}
+  .staff-tab-label{font-size:13px;}
+  /* DOM order is topbar → content → tab bar (bottom bar on a phone).
+     On desktop the bar belongs directly under the topbar instead, and
+     `order` is what moves it without a second copy of the markup.
+     The topbar keeps order 0 implicitly; these two put the bar above
+     the content rather than above everything. */
+  .staff-shell .staff-tabbar{order:1;}
+  .staff-shell .app-content{order:2;}
+  .staff-shell .content-inner{padding:20px 20px 40px;}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .staff-tab:active,.staff-logout:active{transform:none;}
+}
 
 /* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;flex-shrink:0;}

@@ -9,6 +9,7 @@
 import { S } from './state.js';
 import { escHtml, av2, showSectionLoading, renderError } from './helpers.js';
 import { getEnquiries, addEnquiry, updateEnquiry, deleteEnquiry, ENQUIRY_SOURCES, ENQUIRY_STATUSES } from '../../lib/enquiries.js';
+import { can } from '../../lib/permissions.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { callBtn, normalizePhone, formatPhone } from '../../components/call-button.js';
@@ -31,6 +32,17 @@ function sourceBadge(source) {
   // wrap one word per line inside the flexible name row on narrow
   // screens (AUDIT.md C5). It's a label, it should stay one unit.
   return `<span class="enq-source-badge">${icons[source]||'📋'} ${escHtml(source||'Walk-in')}</span>`;
+}
+
+// "Recorded by" — enquiries.created_by_name is a name snapshot taken
+// server-side at insert (migration 132), not a join, so it still reads
+// correctly after the staff member who took the enquiry has been
+// removed. Rows that predate the migration carry NULL and show nothing
+// at all rather than a guessed author.
+function recordedBy(e) {
+  if (!e.created_by_name) return '';
+  const ico = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  return `<span class="enq-meta-item" title="Recorded by ${escHtml(e.created_by_name)}">${ico}${escHtml(e.created_by_name)}</span>`;
 }
 
 let _enqStylesInjected = false;
@@ -104,6 +116,15 @@ async function renderEnquiries(c) {
 
   function render(filterStatus) {
     filterStatus = filterStatus || '';
+
+    // Staff hold 'limited' on `leads`: they add enquiries and keep them
+    // up to date, but Remove and Convert are owner-only. Convert is the
+    // structural one — it opens the Add Member modal, which reads
+    // S.members / S.plans / S.addonTemplates, and a staff session never
+    // fetches any of them (see the staff shell in dashboard/index.js).
+    // Both handlers below are gated on the same flag as the markup, so
+    // hiding the buttons isn't the only thing stopping either action.
+    const canManage = can(S.role || 'owner', 'leads') === 'full';
     const list = filterStatus
       ? S.enquiries.filter(e => e.status === filterStatus)
       : S.enquiries;
@@ -181,6 +202,7 @@ async function renderEnquiries(c) {
                       ? `<a href="tel:${escHtml(normalizePhone(e.phone))}" class="sculpt-tel enq-meta-item" onclick="event.stopPropagation();">📞 ${escHtml(formatPhone(e.phone))}</a>`
                       : '<span class="enq-meta-item" style="color:var(--text-quaternary);">No phone</span>'}
                     <span class="enq-meta-item">🕐 ${fmtTime(e.created_at)}</span>
+                    ${recordedBy(e)}
                     ${e.followed_up_at ? `<span class="enq-meta-item" style="color:var(--green);">✓ Followed up ${fmtTime(e.followed_up_at)}</span>` : ''}
                   </div>
                   ${e.notes ? `<div class="enq-notes">${escHtml(e.notes)}</div>` : ''}
@@ -188,7 +210,7 @@ async function renderEnquiries(c) {
               </div>
               <div class="enq-actions">
                 ${callBtn(e.phone, { label: true })}
-                ${e.status !== 'Converted' ? `<button class="btn btn-sm" data-enq-convert="${e.id}" title="Convert to member" aria-label="Convert ${safeName} to member" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;">
+                ${canManage && e.status !== 'Converted' ? `<button class="btn btn-sm" data-enq-convert="${e.id}" title="Convert to member" aria-label="Convert ${safeName} to member" style="background:var(--brand-fade);color:var(--brand-text);border:1px solid var(--brand-fade-strong);padding:5px 8px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg><span>Convert</span>
                 </button>` : ''}
                 <button class="btn btn-sm" data-enq-wa="${e.id}" title="Follow up on WhatsApp" aria-label="Follow up with ${safeName} on WhatsApp" ${waDisabled?'disabled':''} style="background:var(--green-fade);color:var(--green);border:1px solid var(--green-strong);padding:5px 8px;${waDisabled?'opacity:0.4;cursor:not-allowed;':''}">
@@ -197,9 +219,9 @@ async function renderEnquiries(c) {
                 <button class="btn btn-sm btn-ghost" data-enq-edit="${e.id}" title="Edit" aria-label="Edit ${safeName}" style="padding:5px 8px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span>Edit</span>
                 </button>
-                <button class="btn btn-sm" data-enq-del="${e.id}" title="Remove" aria-label="Remove ${safeName}" style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;">
+                ${canManage ? `<button class="btn btn-sm" data-enq-del="${e.id}" title="Remove" aria-label="Remove ${safeName}" style="background:var(--red-fade);color:var(--red);border:1px solid var(--red-strong);padding:5px 8px;">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:-2px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg><span>Remove</span>
-                </button>
+                </button>` : ''}
               </div>
             </div>`;
           }).join('')}
@@ -228,8 +250,8 @@ async function renderEnquiries(c) {
         const convertBtn = ev.target.closest('[data-enq-convert]');
         if (waBtn)      { ev.stopPropagation(); openFollowUpWA(waBtn.dataset.enqWa);   return; }
         if (editBtn)    { ev.stopPropagation(); openEditEnquiryModal(editBtn.dataset.enqEdit); return; }
-        if (delBtn)     { ev.stopPropagation(); confirmDeleteEnquiry(delBtn.dataset.enqDel); return; }
-        if (convertBtn) { ev.stopPropagation(); convertToMember(convertBtn.dataset.enqConvert); return; }
+        if (delBtn)     { ev.stopPropagation(); if (canManage) confirmDeleteEnquiry(delBtn.dataset.enqDel); return; }
+        if (convertBtn) { ev.stopPropagation(); if (canManage) convertToMember(convertBtn.dataset.enqConvert); return; }
       });
     }
   }

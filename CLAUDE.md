@@ -177,6 +177,20 @@ Read from it; don't thread it through parameters.
   must stop the instant *any* result comes back; a "Try Again"/"Scan
   Again" action starts a genuinely new scan session afterward rather
   than leaving the old one running underneath.
+- **There is one QR viewfinder in this app and it lives in
+  `src/components/scan-frame.js`.** Both scan flows use it — the staff
+  scanner (`dashboard/checkin-scan.js`) and the member portal
+  (`pages/member/index.js`) — because they are the same interaction
+  pointed at the same desk QR, by different people. It could not live
+  in either page: `pages/member/` must not import from
+  `pages/dashboard/` beyond `helpers.js`, and the reverse is never
+  allowed at all, so a shared piece belongs in `components/`. Keep the
+  `data-state` machine (`scanning` / `working` / `done` / `refused` /
+  `blocked`) as the single way to switch what the frame shows — the
+  overlays are picked by CSS from that attribute, so there is no
+  show/hide bookkeeping to get out of sync, and `blocked` is a real
+  designed state because a dead camera is a dead end on both screens.
+  A second copy of this markup is how the two flows drifted last time.
 - **`plans.features` is a JSON string, `{"featuresList":"a,b,c"}`, not
   plain delimited text** — written that way by the dashboard's Plan
   Settings (`collectPlanData()` in `dashboard/plans.js`) and unwrapped
@@ -241,18 +255,42 @@ Read from it; don't thread it through parameters.
   save from a form that has no notes field. `upsertAttendance()` did
   this to every `staff_attendance` row. Omit a column you have no value
   for; don't send `null` for it.
-- **Staff logins are scanner-only, and `lib/permissions.js` is the one
-  place that says so.** A staff session exists to scan the desk QR and
-  mark that staff member's own attendance — nothing else. Every key in
-  the `staff` matrix is `false` except `checkin_scan`, and
-  `dashboard/index.js` renders a separate minimal shell
-  (`renderStaffScannerShell`) that returns *before* `loadData()`, so a
-  staff browser never fetches the member list, payment history, plans
-  or expenses at all. `nav()` pins `id` to `'checkin-scan'` for staff at
-  its single choke point, which is what makes the rule hold for the
-  sidebar, the command palette, `popstate`, a tapped push and a
-  hand-typed `/dashboard/finance` at once. The empty matrix is the
-  feature — see the header comment there before adding a key back.
+- **A staff login reaches exactly two pages, and `lib/permissions.js`
+  is the one place that says so.** A staff session exists to scan the
+  desk QR and mark that staff member's own attendance
+  (`checkin_scan`), and to take walk-in enquiries at the desk
+  (`leads: 'limited'`, added 2026-09-22) — nothing else. Every other
+  key in the `staff` matrix is `false`, and `dashboard/index.js`
+  renders a separate minimal shell (`renderStaffShell`) that returns
+  *before* `loadData()`, so a staff browser never fetches the member
+  list, payment history, plans or expenses at all. That early return
+  is why **every page added to `STAFF_SECTIONS` must load its own
+  data** — the enquiries page already did (`renderEnquiries()` calls
+  `getEnquiries()` itself), which is what made it cheap to add.
+  `nav()` clamps `id` to `STAFF_SECTIONS` for staff at its single
+  choke point, which is what makes the rule hold for the sidebar, the
+  command palette, `popstate`, a tapped push and a hand-typed
+  `/dashboard/finance` at once. The near-empty matrix is the feature —
+  see the header comment there before adding a third key.
+- **Staff hold `'limited'` on `leads`, not `'full'`; Convert-to-member
+  in particular must stay owner-only for a structural reason.** The
+  two owner-only buttons in `dashboard/enquiries.js` are gated on
+  `can(role,'leads') === 'full'` in the markup *and* again in the
+  delegated click handler. Convert opens the Add Member modal, which
+  reads `S.members` / `S.plans` / `S.addonTemplates` — none of which a
+  staff session ever fetches (see the shell note above), so enabling
+  it for staff doesn't just widen a permission, it reintroduces the
+  whole data load the shell exists to avoid.
+- **Enquiry attribution is stamped server-side, never sent by the
+  client.** `enquiries.created_by` / `created_by_name` are written by
+  a BEFORE INSERT trigger (`sculpt_stamp_enquiry_author`, migration
+  132) — attribution the person being attributed can edit is not
+  attribution. `created_by_name` is a *name snapshot*, not a join:
+  removing a staff member is a soft delete and deleting their login is
+  a real auth-user delete, either of which would blank a join-based
+  author months later, which is exactly when the owner asks who took a
+  walk-in. Rows predating 132 carry NULL and render no author rather
+  than a guessed one.
 - **`checkin_scan` is the permission the OWNER lacks, not staff.**
   `sculpt_staff_checkin` resolves the caller via
   `staff.user_id = auth.uid()` and an owner has no `staff` row, so an

@@ -10,6 +10,9 @@ import { memberSignOut, getMyMembership, getMyVisits } from '../../lib/member-au
 import { memberCheckin } from '../../lib/checkin.js';
 import { escHtml, fmtDate } from '../dashboard/helpers.js';
 import { renderMemberReceipts } from './receipts.js';
+import {
+  SCAN_ICON, scanFrameHTML, setScanState, setScanHint, showScanBlocked, injectScanFrameStyles,
+} from '../../components/scan-frame.js';
 
 let _membership = null;
 let _stopScanner = null;
@@ -33,7 +36,7 @@ export async function renderMemberPortal(router) {
     // back into the dashboard's login (a member has no password there).
     root.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:32px;text-align:center;gap:14px;background:var(--surface-bg);">
-        <div style="font-size:40px;">⚠️</div>
+        <div class="mp-icon-badge mp-icon-badge-bad" style="margin-bottom:2px;">${SCAN_ICON.alert}</div>
         <div style="font-size:17px;font-weight:var(--font-semibold);color:var(--text-primary);">Could not load your account</div>
         <div style="font-size:13px;color:var(--text-tertiary);max-width:320px;line-height:var(--leading-relaxed);">
           Please check your connection and try again, or contact the front desk.
@@ -195,16 +198,30 @@ async function startMemberScan() {
   if (statRow) statRow.style.display = 'none';
   resultEl.innerHTML = '';
   cameraWrap.style.display = 'block';
+  // Same viewfinder the staff scanner uses (components/scan-frame.js):
+  // corner brackets, a sweeping line, a blurred status pill, and a real
+  // blocked state if the camera can't be opened. Members scan the same
+  // desk QR staff do — there is no reason the two should look or behave
+  // differently, and one shared module is what keeps them from drifting.
+  injectScanFrameStyles();
   cameraWrap.innerHTML = `
-    <div class="mp-camera-frame">
-      <video id="mp-scan-video" autoplay playsinline muted></video>
-      <div id="mp-scan-status" class="mp-camera-status">Starting camera…</div>
+    <div class="mp-camera-wrap">
+      ${scanFrameHTML({
+        videoId: 'mp-scan-video',
+        hintId: 'mp-scan-status',
+        retryId: 'mp-scan-retry',
+        hint: 'Starting camera…',
+        working: 'Checking you in…',
+      })}
     </div>`;
+  document.getElementById('mp-scan-retry')?.addEventListener('click', () => {
+    renderCheckinTab(document.getElementById('mp-content'));
+  });
 
   const { startScanner } = await import('../../lib/qr.js');
   const video = document.getElementById('mp-scan-video');
-  const status = document.getElementById('mp-scan-status');
   if (!video) return; // tab switched away while qr.js was loading
+  setScanHint('mp-scan-status', 'Looking for the code…');
 
   // One physical scan must produce exactly one result. `busy` alone isn't
   // enough — it only blocks a *second* decode while the first is in
@@ -223,10 +240,10 @@ async function startMemberScan() {
     async (raw) => {
       if (busy) return;
       const m = /^SCULPT1:([^:]+):([0-9a-f]{32})$/.exec(String(raw || ''));
-      if (!m) { status.textContent = 'Not a check-in code.'; return; }
+      if (!m) { setScanHint('mp-scan-status', 'That code isn\u2019t a check-in code.'); return; }
       busy = true;
       stopMemberScanner();
-      status.textContent = 'Checking in…';
+      setScanState('working');
       try {
         const { status: st, message } = await memberCheckin(m[2]);
         showCheckinResult(st, message);
@@ -234,7 +251,7 @@ async function startMemberScan() {
         showCheckinResult('ERROR', err.message || 'Check-in failed. Please try again.');
       }
     },
-    (err) => { status.textContent = 'Camera unavailable: ' + (err?.message || 'permission denied.'); }
+    (err) => showScanBlocked(err),
   );
 }
 
@@ -257,7 +274,7 @@ function showCheckinResult(status, message) {
       : meta.label;
     stage.innerHTML = `
       <div class="mp-confirm mp-confirm-${meta.tone}">
-        <div class="mp-confirm-icon">✅</div>
+        <div class="mp-confirm-icon mp-confirm-icon-ok">${SCAN_ICON.check}</div>
         <div class="mp-confirm-title">You're checked in, ${escHtml(name)}!</div>
         <div class="mp-confirm-status ${meta.tone}">${escHtml(daysLine)}</div>
         <button class="btn btn-primary btn-full" id="mp-confirm-done" style="margin-top:22px;">Done</button>
@@ -268,9 +285,9 @@ function showCheckinResult(status, message) {
 
   stage.innerHTML = `
     <div class="mp-confirm mp-confirm-bad">
-      <div class="mp-confirm-icon">⚠️</div>
+      <div class="mp-confirm-icon mp-confirm-icon-bad">${SCAN_ICON.alert}</div>
       <div class="mp-confirm-title">${escHtml(message || 'Check-in was not accepted.')}</div>
-      <button class="btn btn-secondary btn-full" id="mp-scan-again" style="margin-top:22px;">Try Again</button>
+      <button class="btn btn-primary btn-full" id="mp-scan-again" style="margin-top:22px;">Try Again</button>
     </div>`;
   document.getElementById('mp-scan-again')?.addEventListener('click', () => renderCheckinTab(document.getElementById('mp-content')));
 }
@@ -337,7 +354,7 @@ async function renderVisitsTab(c, fixtureVisits) {
     try {
       visits = await getMyVisits(30);
     } catch (err) {
-      c.innerHTML = `${header}<div class="mp-empty"><div class="mp-empty-icon">⚠️</div><div class="mp-empty-title">Could not load your visits</div><div class="mp-empty-sub">${escHtml(err.message || 'Please try again.')}</div></div>`;
+      c.innerHTML = `${header}<div class="mp-empty"><div class="mp-icon-badge mp-icon-badge-bad">${SCAN_ICON.alert}</div><div class="mp-empty-title">Could not load your visits</div><div class="mp-empty-sub">${escHtml(err.message || 'Please try again.')}</div></div>`;
       return;
     }
   }
@@ -345,7 +362,7 @@ async function renderVisitsTab(c, fixtureVisits) {
     c.innerHTML = `
       ${header}
       <div class="mp-empty">
-        <div class="mp-empty-icon">🏋️</div>
+        <div class="mp-icon-badge">${SCAN_ICON.dumbbell}</div>
         <div class="mp-empty-title">No visits yet</div>
         <div class="mp-empty-sub">Check in at the front desk and your visit history will show up here.</div>
       </div>`;
@@ -431,14 +448,24 @@ function injectMemberPortalStyles() {
     .mp-stat-value.ok { color:var(--green); }
     .mp-stat-sub { font-size:var(--text-sm); color:var(--text-tertiary); margin-top:2px; }
 
-    .mp-camera-frame { position:relative; width:100%; max-width:340px; aspect-ratio:1; border-radius:var(--radius-xl); overflow:hidden; background:#000; margin:0 auto; }
-    .mp-camera-frame video { width:100%; height:100%; object-fit:cover; }
-    .mp-camera-status { position:absolute; inset:auto 0 0 0; padding:10px; text-align:center; background:var(--surface-overlay); color:var(--text-primary); font-size:var(--text-sm); }
+    /* The viewfinder itself is components/scan-frame.js — shared with
+       the staff scanner. This only sizes it on a member's phone. */
+    .mp-camera-wrap { width:100%; max-width:360px; margin:0 auto; }
 
     /* Post-scan confirmation — takes over the whole tab deliberately,
        readable at arm's length: name, status, one action. */
     .mp-confirm { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; flex:1; gap:6px; padding:32px 20px; border-radius:var(--radius-xl); }
-    .mp-confirm-icon { font-size:56px; line-height:1; margin-bottom:10px; }
+    /* A tinted disc with a stroke icon, not an emoji: this is the most
+       important moment in the member's whole session and it has to read
+       identically on every phone that walks through the door. */
+    .mp-confirm-icon { display:flex; align-items:center; justify-content:center; width:72px; height:72px; border-radius:50%; margin-bottom:12px; }
+    .mp-confirm-icon svg { width:34px; height:34px; }
+    .mp-confirm-icon-ok { background:var(--green-fade); color:var(--green); }
+    .mp-confirm-icon-bad { background:var(--red-fade); color:var(--red); }
+    @media (prefers-reduced-motion:no-preference) {
+      .mp-confirm-icon { animation:mpPop 420ms cubic-bezier(0.16,1,0.3,1); }
+      @keyframes mpPop { from { transform:scale(0.6); opacity:0; } to { transform:none; opacity:1; } }
+    }
     .mp-confirm-title { font-size:var(--text-2xl); font-weight:var(--font-bold); color:var(--text-primary); line-height:var(--leading-snug); }
     .mp-confirm-status { font-size:var(--text-lg); font-weight:var(--font-semibold); margin-top:4px; }
     .mp-confirm-status.ok { color:var(--green); }
@@ -479,7 +506,11 @@ function injectMemberPortalStyles() {
     .mp-visit-badge.bad { background:var(--red-fade); color:var(--red); }
 
     .mp-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--text-tertiary); padding:40px 24px; gap:8px; }
-    .mp-empty-icon { font-size:38px; margin-bottom:4px; }
+    /* Shared icon disc for empty and error states — same shape as the
+       confirmation icon, quieter tones. */
+    .mp-icon-badge { display:flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:50%; margin-bottom:6px; background:var(--surface-2); color:var(--text-tertiary); }
+    .mp-icon-badge svg { width:24px; height:24px; }
+    .mp-icon-badge-bad { background:var(--red-fade); color:var(--red); }
     .mp-empty-title { font-size:var(--text-lg); font-weight:var(--font-semibold); color:var(--text-primary); }
     .mp-empty-sub { font-size:var(--text-base); max-width:280px; line-height:var(--leading-relaxed); }
 

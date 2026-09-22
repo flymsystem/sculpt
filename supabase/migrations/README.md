@@ -289,6 +289,28 @@ Applied to production (run by hand in the SQL editor, verified):
   ships in the same commit and is guarded by
   `tests/staff-attendance-time.spec.js`.
 
+- `132_enquiry_recorded_by.sql` — **Applied 2026-09-22** by the owner.
+  Not independently verified from the repo (same CLI 403 as 131 — see
+  below): confirm with a `select created_by, created_by_name from
+  enquiries order by created_at desc limit 5` after a staff-entered
+  enquiry. Adds
+  `enquiries.created_by` (auth uid) and `enquiries.created_by_name`
+  (display-name snapshot), both stamped by a BEFORE INSERT trigger
+  (`sculpt_stamp_enquiry_author`, SECURITY DEFINER) rather than sent by
+  the client — a staff browser must not get to choose the name the
+  owner sees against the enquiries it records. Goes with the client
+  change that gives staff logins a second page: they can add and edit
+  walk-in enquiries, and the owner's Enquiries list shows "recorded by"
+  for each one. The RLS this depends on already existed
+  (`staff_insert_enquiries` / `staff_read_enquiries` /
+  `staff_update_enquiries`, all in the baseline), so this migration
+  adds no policy. `created_by_name` is a snapshot rather than a join on
+  purpose: removing a staff member is a soft delete and deleting their
+  login is a real auth-user delete, either of which would blank a
+  join-based attribution months later — exactly when the owner asks who
+  took a walk-in. Rows predating this migration keep NULL in both
+  columns and render no author at all rather than a guessed one.
+
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration
 list` shows the remote's tracked migration history has diverged from
