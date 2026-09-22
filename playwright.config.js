@@ -26,6 +26,34 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',   // vite preview's default port
     trace: 'on-first-retry',
+
+    // ── Why every test runs without a service worker ────────────────
+    // index.html registers sw.js; sw.js calls clients.claim() on
+    // activate; the page's 'controllerchange' listener then does ONE
+    // window.location.reload(). That is correct PWA behaviour and it
+    // fires on the very first activation in a fresh browser context —
+    // so EVERY test page load was silently navigating twice.
+    //
+    // Whatever a test was doing when that reload landed died with it:
+    // "Execution context was destroyed, most likely because of a
+    // navigation" from page.evaluate, or DOM the test had just built
+    // being thrown away. Under parallel workers the activation is
+    // slower, so the reload lands later — inside the assertion window
+    // instead of before it. That is the whole flake: it moved between
+    // landing.spec.js and member-portal-responsive.spec.js run to run
+    // because it was never about either page.
+    //
+    // Individual tests used to try `page.route('**/sw.js', abort)`.
+    // Measured: it does nothing — page.route does not intercept the
+    // service-worker script request, so the SW installed and the
+    // reload happened anyway (2 navigations, controller present).
+    // Blocking at the context level is what actually works: 1
+    // navigation, no controller, no registration.
+    //
+    // Nothing under test depends on the SW — it's an offline/update
+    // mechanism, not app behaviour. tests/sw-reload.spec.js guards
+    // this setting so it can't be quietly dropped.
+    serviceWorkers: 'block',
   },
 
   projects: [

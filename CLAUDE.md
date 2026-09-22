@@ -177,6 +177,25 @@ Read from it; don't thread it through parameters.
   must stop the instant *any* result comes back; a "Try Again"/"Scan
   Again" action starts a genuinely new scan session afterward rather
   than leaving the old one running underneath.
+- **The Playwright suite runs with `serviceWorkers: 'block'`, and that
+  one config line is load-bearing.** `index.html` registers `sw.js`,
+  `sw.js` calls `clients.claim()` on activate, and the page's
+  `controllerchange` listener answers with a single
+  `window.location.reload()` — correct PWA behaviour that fires on the
+  first activation in every fresh browser context, so every test page
+  load was navigating twice. Anything a test was mid-way through when
+  that second navigation landed died with it ("Execution context was
+  destroyed, most likely because of a navigation" out of
+  `page.evaluate`, or freshly-built DOM thrown away). Under parallel
+  workers the activation lands later — inside the assertion window
+  instead of before it — which is why the failure wandered between
+  `landing.spec.js` and `member-portal-responsive.spec.js` from run to
+  run and never reproduced at `--workers=1`. Three tests used to work
+  around it individually with `page.route('**/sw.js', abort)`; that
+  measurably does nothing, because `page.route` never sees the
+  service-worker script request. Don't reintroduce the per-test route,
+  and don't drop the config setting — `tests/sw-reload.spec.js` asserts
+  the effect (one navigation, no controller) rather than the setting.
 - **There is one QR viewfinder in this app and it lives in
   `src/components/scan-frame.js`.** Both scan flows use it — the staff
   scanner (`dashboard/checkin-scan.js`) and the member portal
@@ -386,7 +405,7 @@ standalone document with no access to the app's stylesheets.
 
 ```bash
 npm run build                 # must succeed
-npx playwright test           # 77 pass, 36 skip without credentials
+npx playwright test           # 81 pass, 36 skip without credentials
 npm run lint                  # 12 pre-existing errors; add none
 node scripts/verify-schema.mjs
 ```

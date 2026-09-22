@@ -4,10 +4,13 @@
 // window.__sculptRouter (app.js) loads the member module's chunk without a
 // live session, and window.__sculptMemberPortal.mount() (member/index.js)
 // renders the real shell from a fixture — same test-only-hook convention as
-// window._navTo / window.__sculptCheckin. sw.js is blocked because
-// index.html's service-worker bootstrap reloads the page on
-// 'controllerchange', including the very first SW activation in a fresh
-// browser context, which would tear down whatever the test just built.
+// window._navTo / window.__sculptCheckin.
+//
+// The service worker (whose one-time reload used to tear this test's
+// DOM out from under it) is blocked for the whole suite in
+// playwright.config.js — see the long note there. This file used to do
+// its own `page.route('**/sw.js', abort)`, which measurably did not
+// work: page.route never sees the SW script request.
 import { test, expect } from '@playwright/test';
 
 const FIXTURE_MEMBERSHIP = {
@@ -26,7 +29,6 @@ const FIXTURE_MEMBERSHIP = {
 };
 
 async function mountMemberPortal(page, width) {
-  await page.route('**/sw.js', (route) => route.abort());
   await page.setViewportSize({ width, height: 800 });
   await page.goto('/', { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.__sculptRouter?.go === 'function');

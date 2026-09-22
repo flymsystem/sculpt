@@ -35,13 +35,10 @@ const FIXTURE_MEMBERSHIP = {
 test('a denied/expired scan fires the check-in RPC exactly once and settles into one stable result', async ({ page }) => {
   let rpcCalls = 0;
 
-  // index.html registers a service worker that reloads the page via
-  // 'controllerchange' whenever a new SW takes control — including the
-  // very first activation in a brand-new browser context. That's an
-  // unrelated PWA-update mechanism this test has no interest in, and its
-  // reload(s) tear down whatever DOM/state the test just built. Block the
-  // SW script so it's never registered at all.
-  await page.route('**/sw.js', (route) => route.abort());
+  // The service worker is blocked suite-wide in playwright.config.js —
+  // its one-time 'controllerchange' reload used to tear down whatever
+  // DOM/state a test had just built. The `page.route('**/sw.js')` that
+  // used to sit here never actually blocked it; see the config note.
 
   await page.route('**/rest/v1/rpc/sculpt_member_checkin**', async (route) => {
     rpcCalls++;
@@ -91,12 +88,8 @@ test('a denied/expired scan fires the check-in RPC exactly once and settles into
   });
 
   await page.goto('/', { waitUntil: 'load' });
-  // index.html's service-worker bootstrap reloads the page once via
-  // navigator.serviceWorker's 'controllerchange' event — including on a
-  // completely fresh browser context, where the very first SW taking
-  // control still fires that event. waitForFunction (unlike evaluate)
-  // transparently keeps polling across that reload instead of throwing
-  // "execution context was destroyed".
+  // waitForFunction (unlike evaluate) polls across navigations, so this
+  // stays correct even if something reloads the page underneath it.
   await page.waitForFunction(() => typeof window.__sculptRouter?.go === 'function');
 
   // Load the member portal chunk (its render will likely fail — there's

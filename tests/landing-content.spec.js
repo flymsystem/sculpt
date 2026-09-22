@@ -104,11 +104,6 @@ test('the active nav link tracks the section in view (scrollspy)', async ({ page
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/', { waitUntil: 'load' });
   await expect(page.locator('#root')).not.toBeEmpty();
-  // The service worker's controllerchange listener can trigger a reload
-  // right after load in some environments; let things settle before
-  // driving a scroll so page.evaluate doesn't race a navigation.
-  await page.waitForTimeout(300);
-
   // Scroll all the way to the bottom — #contact (the footer) is the last
   // section on the page, so it is guaranteed to cross the scrollspy's
   // trigger band regardless of exact section heights/viewport size, unlike
