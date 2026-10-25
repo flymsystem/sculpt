@@ -12,7 +12,7 @@
 // landed only in Staff -> Daily Attendance and the owner reasonably
 // assumed the desk QR had not worked.
 //
-// Only staff rows that carry a check_in time appear here. A row with
+// Only staff sessions that carry an in time appear here. A row with
 // status 'Present' and no time is the owner having marked someone by
 // hand in the Daily Attendance grid — a roster fact, not a check-in,
 // and putting it in a log of scans would misreport who was actually
@@ -223,22 +223,31 @@ function mergeRows(memberRows, staffRows, search) {
     });
   }
 
+  // One staff_attendance row carries up to two sessions (migration
+  // 134) — morning in check_in/check_out, evening in evening_check_* —
+  // and each becomes its own log entry, so a trainer on both batches
+  // shows twice that day, at the times they actually scanned.
   for (const r of staffRows) {
-    // No check_in time = marked by hand in the Daily Attendance grid,
-    // not a scan. See the note at the top of this file.
-    if (!r.check_in) continue;
-    const inAt = clockOf(r.check_in);
-    const outAt = clockOf(r.check_out);
-    out.push({
-      kind: 'staff',
-      name: r.staff?.full_name || 'Unknown',
-      sub: r.staff?.role || '',
-      sortAt: new Date(`${r.date}T${String(r.check_in).slice(0, 8)}`).getTime(),
-      when: `${fmtDate(r.date)} · ${inAt}${outAt ? ` \u2192 ${outAt}` : ''}`,
-      label: r.status === 'Present' ? (outAt ? 'In & Out' : 'Checked In') : (r.status || 'Checked In'),
-      badge: r.status === 'Present' ? 'badge-green' : 'badge-amber',
-      source: 'desk qr',
-    });
+    for (const [session, inT, outT] of [
+      ['Morning', r.check_in, r.check_out],
+      ['Evening', r.evening_check_in, r.evening_check_out],
+    ]) {
+      // No in time = marked by hand in the Daily Attendance grid,
+      // not a scan. See the note at the top of this file.
+      if (!inT) continue;
+      const inAt = clockOf(inT);
+      const outAt = clockOf(outT);
+      out.push({
+        kind: 'staff',
+        name: r.staff?.full_name || 'Unknown',
+        sub: [r.staff?.role, `${session} batch`].filter(Boolean).join(' · '),
+        sortAt: new Date(`${r.date}T${String(inT).slice(0, 8)}`).getTime(),
+        when: `${fmtDate(r.date)} · ${inAt}${outAt ? ` \u2192 ${outAt}` : ''}`,
+        label: r.status === 'Present' ? (outAt ? 'In & Out' : 'Checked In') : (r.status || 'Checked In'),
+        badge: r.status === 'Present' ? 'badge-green' : 'badge-amber',
+        source: 'desk qr',
+      });
+    }
   }
 
   // getAttendanceLog() filters member rows by name itself; staff rows

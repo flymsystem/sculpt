@@ -1,7 +1,7 @@
 // src/pages/dashboard/staff.js — Staff management page
 import { S } from './state.js';
 import { escHtml, fmtDate, av2, bindDateInput, fmtDateInput, parseDateInput, renderError } from './helpers.js';
-import { getStaff, addStaff, updateStaff, deleteStaff, getAttendance, upsertAttendance, getSalaryPayments, addSalaryPayment, deleteSalaryPayment, getAttendanceRange, getStaffMonthlyPaid } from '../../lib/staff.js';
+import { getStaff, addStaff, updateStaff, deleteStaff, getAttendance, upsertAttendance, getSalaryPayments, addSalaryPayment, deleteSalaryPayment, getAttendanceRange, getStaffMonthlyPaid, STAFF_BATCHES } from '../../lib/staff.js';
 import { showToast } from '../../components/toast.js';
 import { openModal, closeModal, modalFooter, bindModalCancel } from '../../components/modal.js';
 import { showConfirm } from '../../components/confirm.js';
@@ -19,6 +19,38 @@ export function setStaffNav(fn) { _nav = fn; }
 const STAFF_ROLES = ['Trainer', 'Receptionist', 'Manager', 'Cleaner', 'Other'];
 
 let _staffSearch = '';
+
+// ── Batch tag (migration 133) ──────────────────────────────────────
+// The gym runs a Morning and an Evening batch. A staff row's `batch` is
+// one of STAFF_BATCHES or NULL ("not set" — every row that predates the
+// column). 'Both' counts as belonging to either batch for filtering, so
+// a double-shift trainer never disappears from the Morning or Evening
+// view.
+let _batchFilter = 'all';  // all | Morning | Evening | unset
+
+const BATCH_BADGE = { Morning: 'badge-amber', Evening: 'badge-purple', Both: 'badge-muted' };
+
+function batchBadge(s) {
+  if (!s.batch) return '';
+  return `<span class="badge ${BATCH_BADGE[s.batch] || 'badge-muted'}">${escHtml(s.batch === 'Both' ? 'Both batches' : s.batch + ' batch')}</span>`;
+}
+
+// "Trainer · Morning batch" — the one-line subtitle under a name on the
+// attendance, salary and analytics cards.
+function roleLine(s) {
+  return escHtml(s.role || '') + (s.batch ? ' · ' + escHtml(s.batch === 'Both' ? 'Both batches' : s.batch + ' batch') : '');
+}
+
+function matchesBatch(s, f) {
+  if (f === 'all') return true;
+  if (f === 'unset') return !s.batch;
+  return s.batch === f || s.batch === 'Both';
+}
+
+function batchOptions(current) {
+  return `<option value="" ${!current ? 'selected' : ''}>Not set</option>` +
+    STAFF_BATCHES.map(b => `<option value="${b}" ${current === b ? 'selected' : ''}>${b === 'Both' ? 'Both batches' : b + ' batch'}</option>`).join('');
+}
 
 // ── Staff sub-tabs ─────────────────────────────────────────────────
 let _staffTab = 'roster';  // roster | attendance | salary | analytics
@@ -103,16 +135,27 @@ function renderRoster(c) {
   }
 
   const q = (_staffSearch || '').toLowerCase();
-  const filtered = q ? staff.filter(s =>
+  const filtered = staff.filter(s => matchesBatch(s, _batchFilter) && (!q ||
     (s.full_name || '').toLowerCase().includes(q) ||
     (s.phone || '').includes(q) ||
     (s.role || '').toLowerCase().includes(q)
-  ) : staff;
+  ));
+
+  const count = f => staff.filter(s => matchesBatch(s, f)).length;
+  const pills = [
+    ['all', 'All'], ['Morning', 'Morning'], ['Evening', 'Evening'],
+  ];
+  // "Not set" only appears while there is something to find with it —
+  // once every trainer is tagged it would just be a permanent "0".
+  if (count('unset')) pills.push(['unset', 'Not set']);
 
   c.innerHTML = `
-    <div style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
       <input class="form-input" id="staff-search-input" type="text" placeholder="Search staff by name, phone, or role..."
-        style="width:100%;max-width:400px;" value="${escHtml(_staffSearch)}">
+        style="flex:1 1 240px;max-width:400px;" value="${escHtml(_staffSearch)}">
+      <div class="filter-pills" id="staff-batch-filter" role="group" aria-label="Filter by batch">
+        ${pills.map(([f, label]) => `<button type="button" class="filter-pill ${_batchFilter === f ? 'active' : ''}" data-batch-filter="${f}" aria-pressed="${_batchFilter === f}">${label} <span style="opacity:.6;">${count(f)}</span></button>`).join('')}
+      </div>
     </div>
     <div class="members-table-wrap">
       <div class="members-table-scroll">
@@ -129,8 +172,15 @@ function renderRoster(c) {
           <tbody id="staff-tbody">${filtered.map(s => staffRow(s)).join('')}</tbody>
         </table>
       </div>
-      ${q && !filtered.length ? '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;">No staff match your search.</div>' : ''}
+      ${!filtered.length ? `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;">${q ? 'No staff match your search.' : 'No staff in this batch yet — set a batch from Edit.'}</div>` : ''}
     </div>`;
+
+  document.getElementById('staff-batch-filter')?.addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-batch-filter]');
+    if (!pill) return;
+    _batchFilter = pill.dataset.batchFilter;
+    renderRoster(c);
+  });
 
   // Bind search
   const searchEl = document.getElementById('staff-search-input');
@@ -207,7 +257,7 @@ function staffRow(s) {
         <div style="font-weight:500;color:var(--text-primary);font-size:14px;">${escHtml(s.full_name)}${loginBadge}</div>
       </div>
     </td>
-    <td><span class="badge ${roleBadge}">${escHtml(s.role)}</span></td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap;"><span class="badge ${roleBadge}">${escHtml(s.role)}</span>${batchBadge(s)}</div></td>
     <td class="hide-mobile" style="font-size:13px;color:var(--text-tertiary);">${escHtml(s.phone || '\u2014')}</td>
     <td class="hide-mobile" style="font-size:12px;color:var(--text-tertiary);font-family:monospace;">${aadhaarDisplay}</td>
     <td class="hide-mobile" style="font-size:13px;font-weight:500;color:var(--text-primary);">\u20B9${Number(s.salary_amount || 0).toLocaleString('en-IN')}</td>
@@ -238,7 +288,7 @@ function attendanceSkeleton(staff) {
       <div class="member-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${av2(s.full_name)}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:500;font-size:14px;color:var(--text-primary);">${escHtml(s.full_name)}</div>
-        <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)}</div>
+        <div style="font-size:11px;color:var(--text-tertiary);">${roleLine(s)}</div>
       </div>
       <div class="skeleton-pulse" style="width:100px;height:28px;border-radius:var(--radius-sm);background:var(--surface-3);"></div>
     </div>`).join('')}
@@ -337,6 +387,15 @@ function timeForInput(v) {
   return m ? `${m[1]}:${m[2]}` : '';
 }
 
+// The day's two sessions (migration 134). The morning pair is the
+// original check_in/check_out columns; the evening pair is new. The
+// desk QR fills whichever one the scan's time falls in, split at
+// gyms.batch_split_time — this grid shows and edits both regardless.
+const ATT_SESSIONS = [
+  { label: 'Morning', inCol: 'check_in', outCol: 'check_out', inCls: 'att-checkin', outCls: 'att-checkout' },
+  { label: 'Evening', inCol: 'evening_check_in', outCol: 'evening_check_out', inCls: 'att-eve-checkin', outCls: 'att-eve-checkout' },
+];
+
 function renderAttendanceGrid(records, staff, _date) {
   const grid = document.getElementById('att-grid');
   if (!grid) return;
@@ -356,7 +415,7 @@ function renderAttendanceGrid(records, staff, _date) {
             <div class="member-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${av2(s.full_name)}</div>
             <div style="flex:1;min-width:0;">
               <div style="font-weight:500;font-size:14px;color:var(--text-primary);">${escHtml(s.full_name)}</div>
-              <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)}</div>
+              <div style="font-size:11px;color:var(--text-tertiary);">${roleLine(s)}</div>
             </div>
             <div style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;"></div>
           </div>
@@ -368,24 +427,27 @@ function renderAttendanceGrid(records, staff, _date) {
               <option value="Half-day" ${status==='Half-day' ? 'selected' : ''}>🌗 Half-day</option>
               <option value="Leave" ${status==='Leave' ? 'selected' : ''}>🏖️ Leave</option>
             </select>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div>
-                <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check In</div>
-                <input type="time" class="form-input att-checkin" value="${escHtml(timeForInput(r.check_in))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="In" title="Check-in time">
+            ${ATT_SESSIONS.map(sess => `<div>
+              <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">${sess.label}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div>
+                  <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check In</div>
+                  <input type="time" class="form-input ${sess.inCls}" value="${escHtml(timeForInput(r[sess.inCol]))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="In" title="${sess.label} check-in time">
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check Out</div>
+                  <input type="time" class="form-input ${sess.outCls}" value="${escHtml(timeForInput(r[sess.outCol]))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="Out" title="${sess.label} check-out time">
+                </div>
               </div>
-              <div>
-                <div style="font-size:10px;color:var(--text-quaternary);margin-bottom:4px;font-weight:500;">Check Out</div>
-                <input type="time" class="form-input att-checkout" value="${escHtml(timeForInput(r.check_out))}" style="width:100%;padding:10px 12px;font-size:14px;" placeholder="Out" title="Check-out time">
-              </div>
-            </div>
+            </div>`).join('')}
           </div>
         </div>`;
       }
-      return `<div class="att-row settings-card" data-staff-id="${escHtml(String(s.id))}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:0;">
+      return `<div class="att-row settings-card" data-staff-id="${escHtml(String(s.id))}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:0;flex-wrap:wrap;">
         <div class="member-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${av2(s.full_name)}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:500;font-size:14px;color:var(--text-primary);">${escHtml(s.full_name)}</div>
-          <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)}</div>
+          <div style="font-size:11px;color:var(--text-tertiary);">${roleLine(s)}</div>
         </div>
         <select class="form-input att-status" style="width:auto;min-width:100px;padding:6px 10px;font-size:12px;">
           <option value="" ${!status ? 'selected' : ''}>Not marked</option>
@@ -394,8 +456,13 @@ function renderAttendanceGrid(records, staff, _date) {
           <option value="Half-day" ${status==='Half-day' ? 'selected' : ''}>Half-day</option>
           <option value="Leave" ${status==='Leave' ? 'selected' : ''}>Leave</option>
         </select>
-        <input type="time" class="form-input att-checkin" value="${escHtml(timeForInput(r.check_in))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="In" title="Check-in time">
-        <input type="time" class="form-input att-checkout" value="${escHtml(timeForInput(r.check_out))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="Out" title="Check-out time">
+        ${ATT_SESSIONS.map(sess => `<div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="font-size:10px;color:var(--text-tertiary);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;">${sess.label}</div>
+          <div style="display:flex;gap:6px;">
+            <input type="time" class="form-input ${sess.inCls}" value="${escHtml(timeForInput(r[sess.inCol]))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="In" title="${sess.label} check-in time">
+            <input type="time" class="form-input ${sess.outCls}" value="${escHtml(timeForInput(r[sess.outCol]))}" style="width:auto;max-width:110px;padding:6px 8px;font-size:12px;" placeholder="Out" title="${sess.label} check-out time">
+          </div>
+        </div>`).join('')}
       </div>`;
     }).join('')}
   </div>`;
@@ -414,8 +481,12 @@ async function saveAllAttendance(date) {
     if (!status) continue; // skip unmarked
     const checkIn = row.querySelector('.att-checkin')?.value || null;
     const checkOut = row.querySelector('.att-checkout')?.value || null;
+    const evening = {
+      checkIn: row.querySelector('.att-eve-checkin')?.value || null,
+      checkOut: row.querySelector('.att-eve-checkout')?.value || null,
+    };
     try {
-      await upsertAttendance(gymId, staffId, date, status, checkIn, checkOut);
+      await upsertAttendance(gymId, staffId, date, status, checkIn, checkOut, undefined, evening);
       saved++;
     } catch(e) { console.error('[Staff] Save attendance:', e); }
   }
@@ -475,7 +546,7 @@ async function renderSalary(c) {
             <div class="member-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${av2(s.full_name)}</div>
             <div style="flex:1;min-width:0;">
               <div style="font-weight:500;font-size:14px;color:var(--text-primary);">${escHtml(s.full_name)}</div>
-              <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)} \u00B7 Salary: \u20B9${Number(s.salary_amount || 0).toLocaleString('en-IN')}</div>
+              <div style="font-size:11px;color:var(--text-tertiary);">${roleLine(s)} \u00B7 Salary: \u20B9${Number(s.salary_amount || 0).toLocaleString('en-IN')}</div>
             </div>
             <div style="text-align:right;">
               <span style="font-size:12px;font-weight:600;color:${statusColor};">${statusLabel}</span>
@@ -557,7 +628,7 @@ async function renderAnalytics(c) {
 
   // Build per-staff stats
   const statsMap = {};
-  staff.forEach(s => { statsMap[s.id] = { name: s.full_name, role: s.role, present: 0, absent: 0, halfday: 0, leave: 0, total: 0 }; });
+  staff.forEach(s => { statsMap[s.id] = { name: s.full_name, role: s.role, batch: s.batch, present: 0, absent: 0, halfday: 0, leave: 0, total: 0 }; });
   records.forEach(r => {
     if (!statsMap[r.staff_id]) return;
     statsMap[r.staff_id].total++;
@@ -580,7 +651,7 @@ async function renderAnalytics(c) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div>
               <div style="font-weight:600;font-size:14px;color:var(--text-primary);">${escHtml(s.name)}</div>
-              <div style="font-size:11px;color:var(--text-tertiary);">${escHtml(s.role)}</div>
+              <div style="font-size:11px;color:var(--text-tertiary);">${roleLine(s)}</div>
             </div>
             <div style="font-size:20px;font-weight:700;color:${barColor};">${pct}%</div>
           </div>
@@ -634,6 +705,8 @@ function openAddStaffModal() {
               oninput="this.value=this.value.replace(/\\D/g,'').slice(0,10);"
               style="border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-left:none;">
           </div></div>
+        <div class="form-group"><label class="form-label">Batch</label>
+          <select class="form-input" id="stf-batch" style="color:var(--white);">${batchOptions(null)}</select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Aadhaar Number <span style="color:var(--muted);font-weight:400;font-size:11px;">(optional)</span></label>
@@ -678,6 +751,7 @@ function openAddStaffModal() {
             fullName: name,
             phone: document.getElementById('stf-phone')?.value ? '+91' + document.getElementById('stf-phone').value.replace(/\D/g, '').slice(0, 10) : null,
             role: document.getElementById('stf-role')?.value || 'Trainer',
+            batch: document.getElementById('stf-batch')?.value || null,
             aadhaar: document.getElementById('stf-aadhaar')?.value.replace(/\s/g, '') || null,
             salaryAmount: document.getElementById('stf-salary')?.value || 0,
             joinDate: parseDateInput(document.getElementById('stf-join')?.value) || new Date().toISOString().split('T')[0],
@@ -746,6 +820,8 @@ function openEditStaffModal(id) {
               style="border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-left:none;"
               value="${escHtml((s.phone || '').replace(/^\+?91/, '').trim())}">
           </div></div>
+        <div class="form-group"><label class="form-label">Batch</label>
+          <select class="form-input" id="estf-batch" style="color:var(--white);">${batchOptions(s.batch)}</select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Aadhaar Number</label>
@@ -819,6 +895,7 @@ function openEditStaffModal(id) {
             fullName: name,
             phone: document.getElementById('estf-phone')?.value ? '+91' + document.getElementById('estf-phone').value.replace(/\D/g, '').slice(0, 10) : null,
             role: document.getElementById('estf-role')?.value || 'Trainer',
+            batch: document.getElementById('estf-batch')?.value || null,
             aadhaar: document.getElementById('estf-aadhaar')?.value.replace(/\s/g, '') || null,
             salaryAmount: document.getElementById('estf-salary')?.value || 0,
             joinDate: parseDateInput(document.getElementById('estf-join')?.value),

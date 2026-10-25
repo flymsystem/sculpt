@@ -129,13 +129,15 @@ test('a scanned time survives a round-trip through the attendance grid input', a
     // suite targets the one gym this app serves.
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const { data } = await window.__sculptSupabase
-      .from('staff_attendance').select('check_in, check_out')
+      .from('staff_attendance').select('check_in, check_out, evening_check_in, evening_check_out')
       .eq('staff_id', sid).eq('date', today).single();
     return data;
   }, staffId);
 
   expect(row, 'the scan wrote no attendance row at all').toBeTruthy();
-  const written = row.check_out || row.check_in;
+  // After gyms.batch_split_time the scan lands in the evening pair
+  // (migration 134), so either session counts as "recorded".
+  const written = row.evening_check_out || row.evening_check_in || row.check_out || row.check_in;
   expect(written, 'neither check_in nor check_out was recorded').toBeTruthy();
   expect(written, 'sub-second precision is what the time input silently discards')
     .toMatch(/^\d{2}:\d{2}(:\d{2})?$/);

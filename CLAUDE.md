@@ -382,6 +382,14 @@ PDF blob that gets uploaded and WhatsApp'd. Three constraints are load-bearing:
    `tests/invoice-print.spec.js` for the fill-ratio/no-clip regression
    tests.
 
+5. **The exported PDF's size is a storage-quota number, not a cosmetic
+   one.** Every invoice sent on WhatsApp is uploaded to the `invoices`
+   bucket. `invoice-pdf.js` shipped with `image: png` at `scale: 3`,
+   which jsPDF embeds nearly uncompressed: ~19 MB per one-page receipt.
+   About 70 invoices filled the 1 GB Supabase free tier and the org was
+   flagged for restriction (Oct 2026). It is now JPEG 0.92 at 2x, ~240 KB.
+   Measure the blob size before changing either value.
+
 Anything scoped to `@media screen and (max-width: …)` must stay **below**
 660px, or it fires during PDF export. `invoice-pdf.js` also forces
 `target.style.zoom = '1'` for the same reason.

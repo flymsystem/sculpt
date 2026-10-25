@@ -2,6 +2,12 @@
 import { supabase } from './supabase.js';
 
 const txt = v => { const s = (v ?? '').toString().trim(); return s || null; };
+
+// The two daily batches, plus 'Both' for a trainer on a double shift.
+// Must match staff_batch_check (migration 133); anything else — including
+// the form's empty "Not set" option — is stored as NULL.
+export const STAFF_BATCHES = ['Morning', 'Evening', 'Both'];
+const batchOrNull = v => (STAFF_BATCHES.includes(v) ? v : null);
 const num = v => { const raw = (v ?? '').toString().replace(/,/g, ''); const n = parseFloat(raw); return isNaN(n) ? null : n; };
 
 // Local (not UTC) YYYY-MM-DD. `new Date().toISOString().split('T')[0]`
@@ -35,6 +41,7 @@ export async function addStaff(gymId, d) {
     full_name: txt(d.fullName),
     phone: txt(d.phone),
     role: txt(d.role),
+    batch: batchOrNull(d.batch),
     aadhaar: txt(d.aadhaar),
     salary_amount: num(d.salaryAmount) || 0,
     join_date: txt(d.joinDate) || todayLocalISO(),
@@ -52,6 +59,7 @@ export async function updateStaff(staffId, gymId, u) {
   if (u.fullName !== undefined)     payload.full_name     = txt(u.fullName);
   if (u.phone !== undefined)        payload.phone         = txt(u.phone);
   if (u.role !== undefined)         payload.role          = txt(u.role);
+  if (u.batch !== undefined)        payload.batch         = batchOrNull(u.batch);
   if (u.aadhaar !== undefined)      payload.aadhaar       = txt(u.aadhaar);
   if (u.salaryAmount !== undefined) payload.salary_amount = num(u.salaryAmount) || 0;
   if (u.joinDate !== undefined)     payload.join_date     = txt(u.joinDate);
@@ -97,7 +105,7 @@ export async function getAttendance(gymId, date) {
 export async function getStaffAttendanceForDate(gymId, staffId, date) {
   const { data, error } = await supabase
     .from('staff_attendance')
-    .select('id, date, status, check_in, check_out')
+    .select('id, date, status, check_in, check_out, evening_check_in, evening_check_out')
     .eq('gym_id', gymId)
     .eq('staff_id', staffId)
     .eq('date', date)
@@ -125,7 +133,10 @@ export async function getAttendanceRange(gymId, startDate, endDate) {
   return data || [];
 }
 
-export async function upsertAttendance(gymId, staffId, date, status, checkIn, checkOut, notes) {
+// checkIn/checkOut are the MORNING session; `evening` ({ checkIn,
+// checkOut }) is the evening session (migration 134). Like `notes`,
+// the evening pair is only written when the caller passes it.
+export async function upsertAttendance(gymId, staffId, date, status, checkIn, checkOut, notes, evening) {
   const payload = {
     gym_id: gymId,
     staff_id: staffId,
@@ -134,6 +145,10 @@ export async function upsertAttendance(gymId, staffId, date, status, checkIn, ch
     check_in: txt(checkIn) || null,
     check_out: txt(checkOut) || null,
   };
+  if (evening !== undefined) {
+    payload.evening_check_in = txt(evening.checkIn) || null;
+    payload.evening_check_out = txt(evening.checkOut) || null;
+  }
 
   // Only send `notes` when the caller actually has a value for it.
   // PostgREST's upsert writes exactly the columns present in the body,

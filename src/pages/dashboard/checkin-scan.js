@@ -129,20 +129,27 @@ async function loadToday(row) {
 
   try {
     const r = row !== undefined ? row : await getStaffAttendanceForDate(gymId, staffId, todayLocalISO());
-    const inAt = fmtClock(r?.check_in);
-    const outAt = fmtClock(r?.check_out);
-    el.classList.toggle('is-in', !!inAt && !outAt);
-    el.innerHTML = `
-      <div class="scan-today-slot ${inAt ? 'is-set' : ''}">
+    // Two sessions a day (migration 134): the morning pair is
+    // check_in/check_out, the evening pair evening_check_in/out. Each
+    // gets its own captioned row so a trainer on both batches can see
+    // both scans landed where they expected.
+    const sessions = [
+      { label: 'Morning', inAt: fmtClock(r?.check_in), outAt: fmtClock(r?.check_out) },
+      { label: 'Evening', inAt: fmtClock(r?.evening_check_in), outAt: fmtClock(r?.evening_check_out) },
+    ];
+    el.classList.toggle('is-in', sessions.some(s => s.inAt && !s.outAt));
+    el.innerHTML = sessions.map(s => `
+      <div class="scan-today-caption">${s.label}</div>
+      <div class="scan-today-slot ${s.inAt ? 'is-set' : ''}">
         <span class="scan-today-ico">${SCAN_ICON.arrowIn}</span>
         <span class="scan-today-label">In</span>
-        <span class="scan-today-val">${inAt ? escHtml(inAt) : '—'}</span>
+        <span class="scan-today-val">${s.inAt ? escHtml(s.inAt) : '—'}</span>
       </div>
-      <div class="scan-today-slot ${outAt ? 'is-set' : ''}">
+      <div class="scan-today-slot ${s.outAt ? 'is-set' : ''}">
         <span class="scan-today-ico">${SCAN_ICON.arrowOut}</span>
         <span class="scan-today-label">Out</span>
-        <span class="scan-today-val">${outAt ? escHtml(outAt) : '—'}</span>
-      </div>`;
+        <span class="scan-today-val">${s.outAt ? escHtml(s.outAt) : '—'}</span>
+      </div>`).join('');
   } catch {
     el.remove();
   }
@@ -234,6 +241,8 @@ function injectScanStyles() {
        each other as values arrive. Tabular figures keep the times from
        shifting width digit to digit. */
     .scan-today{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .scan-today-caption{grid-column:1/-1;margin-top:4px;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-tertiary);}
+    .scan-today-caption:first-child{margin-top:0;}
     .scan-today-slot{display:flex;align-items:center;gap:8px;min-height:52px;padding:10px 14px;
       background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);}
     .scan-today-ico{display:flex;width:16px;height:16px;color:var(--text-quaternary);flex-shrink:0;}

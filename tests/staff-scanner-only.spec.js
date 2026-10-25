@@ -149,12 +149,14 @@ test('the check-ins log merges staff scans in, and only real scans', () => {
   // someone Present by hand in the Daily Attendance grid — a roster
   // fact, not a scan. Putting it in a log of scans misreports who was
   // actually at the desk.
-  expect(merge).toMatch(/if \(!r\.check_in\) continue;/);
+  // Per session since migration 134 — morning and evening each skip
+  // their own empty in time.
+  expect(merge).toMatch(/if \(!inT\) continue;/);
 
   // staff_attendance stores a date and a `time`; without synthesising a
   // timestamp from both, every staff row sorts to midnight and clumps
   // at the bottom of its day.
-  expect(merge).toMatch(/sortAt: new Date\(`\$\{r\.date\}T\$\{String\(r\.check_in\)/);
+  expect(merge).toMatch(/sortAt: new Date\(`\$\{r\.date\}T\$\{String\(inT\)/);
   expect(merge).toMatch(/sort\(\(a, b\) => b\.sortAt - a\.sortAt\)/);
 });
 

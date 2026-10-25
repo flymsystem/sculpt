@@ -89,3 +89,31 @@ test('upsertAttendance does not send notes when the caller has none', () => {
   expect(js).not.toMatch(/notes:\s*txt\(notes\)\s*\|\|\s*null,/);
   expect(js).toMatch(/if\s*\(notes\s*!==\s*undefined\)\s*payload\.notes\s*=/);
 });
+
+// Migration 134 replaced sculpt_staff_checkin again (morning/evening
+// sessions). It is now the CURRENT body, so the 131 guarantees above
+// have to hold for it too — a copy-forward that dropped date_trunc
+// would quietly reintroduce the blank-time bug.
+test('the morning/evening split (134) keeps 131\'s truncation and splits by the gym clock', () => {
+  const sql = src('supabase/migrations/134_staff_attendance_batches.sql');
+
+  expect(sql).toMatch(/v_local_time\s*:=\s*date_trunc\('second'/);
+  expect(sql).toMatch(/add column if not exists evening_check_in\s+time/i);
+  expect(sql).toMatch(/add column if not exists evening_check_out\s+time/i);
+  expect(sql, 'session must come from gyms.batch_split_time').toMatch(/v_evening\s*:=\s*v_local_time\s*>=\s*v_split/);
+
+  // RETURNS TABLE (status, ...) shadows staff_attendance.status in a
+  // plpgsql body (migration 111). Inside the function, `status` may
+  // only appear in an INSERT column list or the RETURNS clause.
+  const body = sql.slice(sql.indexOf('AS $$'), sql.lastIndexOf('$$;'));
+  const bare = body.split('\n')
+    .filter(l => /\bstatus\b/.test(l) && !/INSERT INTO staff_attendance/.test(l) && !/^\s*--/.test(l));
+  expect(bare, 'bare `status` reference in the plpgsql body').toEqual([]);
+});
+
+test('the Daily Attendance grid saves both sessions', () => {
+  const js = src('src/pages/dashboard/staff.js');
+  expect(js).toContain("inCol: 'evening_check_in'");
+  expect(js).toContain("outCol: 'evening_check_out'");
+  expect(js).toMatch(/upsertAttendance\([^)]*,\s*undefined,\s*evening\)/);
+});

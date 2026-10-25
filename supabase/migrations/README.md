@@ -311,6 +311,31 @@ Applied to production (run by hand in the SQL editor, verified):
   took a walk-in. Rows predating this migration keep NULL in both
   columns and render no author at all rather than a guessed one.
 
+- `133_staff_batch.sql` — **Applied 2026-10-25** via `db query --linked`,
+  verified against live `information_schema.columns` + `pg_constraint`.
+  Adds `staff.batch`
+  (`Morning` | `Evening` | `Both`, NULL = not set) with a CHECK
+  constraint, for the two daily batches. Owner-side only — the existing
+  `staff` RLS already covers the column, so no policy changes. The
+  dashboard's Add/Edit Staff modal writes it and the Staff Roster shows
+  and filters by it. Until this runs, saving a staff member with a batch
+  fails with a "column batch does not exist" error, so apply it before
+  deploying the client change. Verify with
+  `select column_name from information_schema.columns where
+  table_name = 'staff' and column_name = 'batch'`.
+
+- `134_staff_attendance_batches.sql` — **Applied 2026-10-25** by the
+  owner; verified live (both `evening_check_*` columns present,
+  `gyms.batch_split_time` = 14:00, `sculpt_staff_checkin` body updated).
+  Splits staff
+  attendance into a morning session (existing `check_in`/`check_out`) and
+  an evening session (new `evening_check_in`/`evening_check_out`), and
+  replaces `sculpt_staff_checkin` so a desk-QR scan fills whichever
+  session the gym-local clock is in, split at the new
+  `gyms.batch_split_time` (default 14:00). Body copied forward from 131.
+  Apply BEFORE deploying the client — the Daily Attendance grid's Save
+  writes the evening columns.
+
 **`npx supabase db push` is currently broken for this project** — a
 process note, not specific to any one migration. `npx supabase migration
 list` shows the remote's tracked migration history has diverged from
@@ -353,6 +378,7 @@ These are relied on by the frontend, the Edge Functions and existing rows:
 | `members.member_type` | `Paid` \| `Unpaid` \| `Trial` |
 | `gyms.subscription_tier` | `core` \| `pro` |
 | `gym_users.role` | `owner` \| `admin` \| `staff` (as of migration 113 — see below) |
+| `staff.batch` | `Morning` \| `Evening` \| `Both` \| NULL (as of migration 133) |
 | `staff.login_enabled` | Checked by `get_my_gym_id_as_staff()` as of migration 115 — flipping it to `false` revokes dashboard/RPC access immediately, not just hides UI. |
 
 Soft delete is `is_active = false` everywhere **except `expenses`**, which hard
