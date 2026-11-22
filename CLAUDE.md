@@ -388,7 +388,8 @@ PDF blob that gets uploaded and WhatsApp'd. Three constraints are load-bearing:
    which jsPDF embeds nearly uncompressed: ~19 MB per one-page receipt.
    About 70 invoices filled the 1 GB Supabase free tier and the org was
    flagged for restriction (Oct 2026). It is now JPEG 0.92 at 2x, ~240 KB.
-   Measure the blob size before changing either value.
+   Measure the blob size before changing either value —
+   `tests/invoice-pdf-size.spec.js` does it for you and fails above 1 MB.
 
 Anything scoped to `@media screen and (max-width: …)` must stay **below**
 660px, or it fires during PDF export. `invoice-pdf.js` also forces
@@ -413,7 +414,7 @@ standalone document with no access to the app's stylesheets.
 
 ```bash
 npm run build                 # must succeed
-npx playwright test           # 81 pass, 36 skip without credentials
+npx playwright test           # 86 pass, 36 skip without credentials
 npm run lint                  # 12 pre-existing errors; add none
 node scripts/verify-schema.mjs
 ```

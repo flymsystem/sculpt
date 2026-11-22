@@ -27,6 +27,37 @@ function loadHtml2Pdf() {
   return _html2pdfPromise;
 }
 
+// JPEG at 2x, not PNG at 3x. html2pdf embeds the rendered sheet as
+// one full-page image, and jsPDF stores a PNG of that size almost
+// uncompressed: the PNG/3x setting produced a ~19 MB PDF for a
+// one-page receipt (measured, real template + logo). Every invoice
+// sent on WhatsApp is uploaded to the `invoices` bucket, so roughly
+// 70 of them filled Supabase's entire 1 GB free storage quota and
+// the org was flagged for restriction (Oct 2026). JPEG 0.92 at 2x
+// measures ~240 KB for the same sheet — 1320px across A4 is ~160dpi,
+// still sharp on a phone and on paper. Don't raise either number
+// without re-measuring the blob size.
+//
+// Exported so tests/invoice-pdf-size.spec.js renders the real invoice
+// with exactly these settings and fails if the blob passes 1 MB.
+const PDF_OPTIONS = {
+  margin: 0,
+  image: { type: 'jpeg', quality: 0.92 },
+  html2canvas: {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    windowWidth: 660,
+    logging: false,
+  },
+  jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait', compress: true },
+  // A membership invoice fits one A4 page; a long one (GST plus several
+  // add-ons) runs to two. Honour the sheet's own `break-inside: avoid`
+  // so the overflow carries whole sections instead of slicing a table
+  // row or the footer in half.
+  pagebreak: { mode: ['css', 'legacy'] },
+};
+
 async function generateInvoicePdfBlob(html) {
   const html2pdf = await loadHtml2Pdf();
 
@@ -53,34 +84,8 @@ async function generateInvoicePdfBlob(html) {
     // the real viewport here, so on a phone the export would inherit a 0.6x
     // zoom. The PDF is always rendered at the full 660px sheet width.
     target.style.zoom = '1';
-    // JPEG at 2x, not PNG at 3x. html2pdf embeds the rendered sheet as
-    // one full-page image, and jsPDF stores a PNG of that size almost
-    // uncompressed: the PNG/3x setting produced a ~19 MB PDF for a
-    // one-page receipt (measured, real template + logo). Every invoice
-    // sent on WhatsApp is uploaded to the `invoices` bucket, so roughly
-    // 70 of them filled Supabase's entire 1 GB free storage quota and
-    // the org was flagged for restriction (Oct 2026). JPEG 0.92 at 2x
-    // measures ~240 KB for the same sheet — 1320px across A4 is ~160dpi,
-    // still sharp on a phone and on paper. Don't raise either number
-    // without re-measuring the blob size.
     const blob = await html2pdf()
-      .set({
-        margin: 0,
-        image: { type: 'jpeg', quality: 0.92 },
-        html2canvas: {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          windowWidth: 660,
-          logging: false,
-        },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-        // A membership invoice fits one A4 page; a long one (GST plus several
-        // add-ons) runs to two. Honour the sheet's own `break-inside: avoid`
-        // so the overflow carries whole sections instead of slicing a table
-        // row or the footer in half.
-        pagebreak: { mode: ['css', 'legacy'] },
-      })
+      .set(PDF_OPTIONS)
       .from(target)
       .outputPdf('blob');
     return blob;
@@ -89,4 +94,4 @@ async function generateInvoicePdfBlob(html) {
   }
 }
 
-export { generateInvoicePdfBlob };
+export { generateInvoicePdfBlob, PDF_OPTIONS };
